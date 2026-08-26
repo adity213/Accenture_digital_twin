@@ -12,19 +12,19 @@ class TwinSceneEngine {
     this.carBodies = [];
   }
 
-  static getMachineGlyph(type, sid, statusColor = "var(--status-nominal)", isManual = false) {
+  static getMachineGlyph(type, sid, statusColor = "#15803d", isManual = false) {
     switch (type) {
       case "RoboticWeld":
       case "RespotWeld":
         return `
           <svg viewBox="0 0 80 40" width="80" height="38">
-            <polygon points="40,24 65,32 40,38 15,32" fill="var(--surface-panel-raised)" stroke="var(--border-strong)" stroke-width="1.2"/>
-            <rect x="24" y="26" width="10" height="5" rx="1" fill="var(--steel)"/>
-            <line x1="29" y1="26" x2="42" y2="14" stroke="var(--brand-blue)" stroke-width="3" stroke-linecap="round"/>
-            <circle cx="42" cy="14" r="2.5" fill="var(--steel)"/>
-            <line x1="42" y1="14" x2="56" y2="20" stroke="var(--brand-blue)" stroke-width="2.5" stroke-linecap="round"/>
-            <circle cx="56" cy="20" r="2.5" fill="var(--status-warning)"/>
-            <circle cx="56" cy="20" r="3.5" fill="var(--accent-weld)" opacity="0.6">
+            <polygon points="40,24 65,32 40,38 15,32" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.2"/>
+            <rect x="24" y="26" width="10" height="5" rx="1" fill="#0f172a"/>
+            <line x1="29" y1="26" x2="42" y2="14" stroke="#0057ff" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="42" cy="14" r="2.5" fill="#0f172a"/>
+            <line x1="42" y1="14" x2="56" y2="20" stroke="#0057ff" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="56" cy="20" r="2.5" fill="#f59e0b"/>
+            <circle cx="56" cy="20" r="3.5" fill="#0284c7" opacity="0.6">
               <animate attributeName="r" values="2.5;5;2.5" dur="1s" repeatCount="indefinite"/>
             </circle>
           </svg>
@@ -34,12 +34,12 @@ class TwinSceneEngine {
       case "LaserBrazing":
         return `
           <svg viewBox="0 0 80 40" width="80" height="38">
-            <rect x="8" y="8" width="64" height="5" rx="1" fill="var(--steel)"/>
-            <line x1="20" y1="13" x2="20" y2="32" stroke="var(--steel)" stroke-width="2.5"/>
-            <line x1="60" y1="13" x2="60" y2="32" stroke="var(--steel)" stroke-width="2.5"/>
-            <rect x="16" y="24" width="8" height="8" rx="1" fill="var(--brand-blue)"/>
-            <rect x="56" y="24" width="8" height="8" rx="1" fill="var(--brand-blue)"/>
-            <line x1="24" y1="28" x2="56" y2="28" stroke="var(--accent-weld)" stroke-width="1.5" stroke-dasharray="3 2">
+            <rect x="8" y="8" width="64" height="5" rx="1" fill="#0f172a"/>
+            <line x1="20" y1="13" x2="20" y2="32" stroke="#334155" stroke-width="2.5"/>
+            <line x1="60" y1="13" x2="60" y2="32" stroke="#334155" stroke-width="2.5"/>
+            <rect x="16" y="24" width="8" height="8" rx="1" fill="#0057ff"/>
+            <rect x="56" y="24" width="8" height="8" rx="1" fill="#0057ff"/>
+            <line x1="24" y1="28" x2="56" y2="28" stroke="#0284c7" stroke-width="1.5" stroke-dasharray="3 2">
               <animate attributeName="opacity" values="0.4;1;0.4" dur="1.2s" repeatCount="indefinite"/>
             </line>
           </svg>
@@ -49,10 +49,10 @@ class TwinSceneEngine {
       case "ThermalOven":
         return `
           <svg viewBox="0 0 80 40" width="80" height="38">
-            <rect x="10" y="6" width="60" height="28" rx="2" fill="var(--status-warning-bg)" stroke="var(--status-warning)" stroke-width="1.5"/>
-            <line x1="16" y1="13" x2="64" y2="13" stroke="var(--status-warning)" stroke-width="1.5"/>
-            <line x1="16" y1="19" x2="64" y2="19" stroke="var(--status-warning)" stroke-width="1.5"/>
-            <line x1="28" y1="6" x2="38" y2="24" stroke="var(--steel)" stroke-width="2">
+            <rect x="10" y="6" width="60" height="28" rx="2" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+            <line x1="16" y1="13" x2="64" y2="13" stroke="#d97706" stroke-width="1.5"/>
+            <line x1="16" y1="19" x2="64" y2="19" stroke="#d97706" stroke-width="1.5"/>
+            <line x1="28" y1="6" x2="38" y2="24" stroke="#0f172a" stroke-width="2">
               <animate attributeName="x2" values="24;54;24" dur="2s" repeatCount="indefinite"/>
             </line>
           </svg>
@@ -62,11 +62,11 @@ class TwinSceneEngine {
       case "ElectroDeposition":
         return `
           <svg viewBox="0 0 80 40" width="80" height="38">
-            <rect x="10" y="14" width="60" height="20" rx="1" fill="var(--surface-panel-raised)" stroke="var(--accent-weld)" stroke-width="1.5"/>
-            <path d="M 12 21 Q 25 19 40 21 T 68 21" fill="none" stroke="var(--accent-weld)" stroke-width="1.5">
+            <rect x="10" y="14" width="60" height="20" rx="1" fill="#f0f9ff" stroke="#0284c7" stroke-width="1.5"/>
+            <path d="M 12 21 Q 25 19 40 21 T 68 21" fill="none" stroke="#0284c7" stroke-width="1.5">
               <animate attributeName="d" values="M 12 21 Q 25 19 40 21 T 68 21; M 12 21 Q 25 23 40 21 T 68 21; M 12 21 Q 25 19 40 21 T 68 21" dur="2.5s" repeatCount="indefinite"/>
             </path>
-            <line x1="40" y1="4" x2="40" y2="15" stroke="var(--steel)" stroke-width="2"/>
+            <line x1="40" y1="4" x2="40" y2="15" stroke="#0f172a" stroke-width="2"/>
           </svg>
         `;
 
@@ -74,10 +74,10 @@ class TwinSceneEngine {
       case "ConveyorBuffer":
         return `
           <svg viewBox="0 0 80 40" width="80" height="38">
-            <line x1="8" y1="20" x2="72" y2="20" stroke="var(--border-strong)" stroke-width="5" stroke-linecap="round"/>
-            <rect x="14" y="13" width="12" height="13" rx="1" fill="var(--status-nominal)"/>
-            <rect x="34" y="13" width="12" height="13" rx="1" fill="var(--status-nominal)"/>
-            <rect x="54" y="13" width="12" height="13" rx="1" fill="var(--bg-panel)" stroke="var(--border-strong)" stroke-width="1" stroke-dasharray="2 2"/>
+            <line x1="8" y1="20" x2="72" y2="20" stroke="#94a3b8" stroke-width="5" stroke-linecap="round"/>
+            <rect x="14" y="13" width="12" height="13" rx="1" fill="#10b981"/>
+            <rect x="34" y="13" width="12" height="13" rx="1" fill="#10b981"/>
+            <rect x="54" y="13" width="12" height="13" rx="1" fill="#ffffff" stroke="#94a3b8" stroke-width="1" stroke-dasharray="2 2"/>
           </svg>
         `;
 
@@ -87,11 +87,11 @@ class TwinSceneEngine {
       case "Dynamometer":
         return `
           <svg viewBox="0 0 80 40" width="80" height="38">
-            <rect x="14" y="26" width="52" height="5" rx="1" fill="var(--steel)"/>
-            <rect x="22" y="14" width="6" height="12" fill="var(--brand-blue)"/>
-            <rect x="52" y="14" width="6" height="12" fill="var(--brand-blue)"/>
-            <circle cx="25" cy="10" r="2.5" fill="var(--status-nominal)"/>
-            <circle cx="55" cy="10" r="2.5" fill="var(--status-nominal)"/>
+            <rect x="14" y="26" width="52" height="5" rx="1" fill="#0f172a"/>
+            <rect x="22" y="14" width="6" height="12" fill="#0057ff"/>
+            <rect x="52" y="14" width="6" height="12" fill="#0057ff"/>
+            <circle cx="25" cy="10" r="2.5" fill="#10b981"/>
+            <circle cx="55" cy="10" r="2.5" fill="#10b981"/>
           </svg>
         `;
 
@@ -99,13 +99,13 @@ class TwinSceneEngine {
       case "QualityGate":
         return `
           <svg viewBox="0 0 80 40" width="80" height="38">
-            <path d="M 16 36 L 16 8 L 64 8 L 64 36" fill="none" stroke="var(--steel)" stroke-width="2.5"/>
-            <rect x="20" y="10" width="40" height="9" fill="var(--steel)" stroke="var(--steel)" stroke-width="1"/>
-            <rect x="20" y="10" width="10" height="4.5" fill="var(--bg-panel)"/>
-            <rect x="40" y="10" width="10" height="4.5" fill="var(--bg-panel)"/>
-            <rect x="30" y="14.5" width="10" height="4.5" fill="var(--bg-panel)"/>
-            <rect x="50" y="14.5" width="10" height="4.5" fill="var(--bg-panel)"/>
-            <line x1="40" y1="19" x2="40" y2="34" stroke="var(--status-nominal)" stroke-width="1.5" stroke-dasharray="2 2"/>
+            <path d="M 16 36 L 16 8 L 64 8 L 64 36" fill="none" stroke="#0f172a" stroke-width="2.5"/>
+            <rect x="20" y="10" width="40" height="9" fill="#0f172a" stroke="#0f172a" stroke-width="1"/>
+            <rect x="20" y="10" width="10" height="4.5" fill="#ffffff"/>
+            <rect x="40" y="10" width="10" height="4.5" fill="#ffffff"/>
+            <rect x="30" y="14.5" width="10" height="4.5" fill="#ffffff"/>
+            <rect x="50" y="14.5" width="10" height="4.5" fill="#ffffff"/>
+            <line x1="40" y1="19" x2="40" y2="34" stroke="#10b981" stroke-width="1.5" stroke-dasharray="2 2"/>
           </svg>
         `;
 
@@ -113,19 +113,19 @@ class TwinSceneEngine {
         if (isManual) {
           return `
             <svg viewBox="0 0 80 40" width="80" height="38">
-              <circle cx="30" cy="12" r="4.5" fill="var(--steel)"/>
-              <path d="M 20 32 L 22 20 L 38 20 L 40 32" fill="none" stroke="var(--steel)" stroke-width="2.5" stroke-linecap="round"/>
-              <rect x="42" y="14" width="15" height="18" rx="1.5" fill="var(--status-warning-bg)" stroke="var(--status-warning)" stroke-width="1.5"/>
-              <polyline points="46,24 49,27 54,21" fill="none" stroke="var(--status-nominal)" stroke-width="2"/>
+              <circle cx="30" cy="12" r="4.5" fill="#0f172a"/>
+              <path d="M 20 32 L 22 20 L 38 20 L 40 32" fill="none" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round"/>
+              <rect x="42" y="14" width="15" height="18" rx="1.5" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+              <polyline points="46,24 49,27 54,21" fill="none" stroke="#15803d" stroke-width="2"/>
             </svg>
           `;
         } else {
           return `
             <svg viewBox="0 0 80 40" width="80" height="38">
-              <rect x="18" y="8" width="44" height="22" rx="2" fill="var(--surface-panel-raised)" stroke="var(--border-strong)" stroke-width="1.5"/>
-              <circle cx="40" cy="19" r="6" fill="var(--bg-panel)" stroke="var(--brand-blue)" stroke-width="1.5"/>
-              <line x1="40" y1="13" x2="40" y2="25" stroke="var(--brand-blue)" stroke-width="1"/>
-              <line x1="34" y1="19" x2="46" y2="19" stroke="var(--brand-blue)" stroke-width="1"/>
+              <rect x="18" y="8" width="44" height="22" rx="2" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+              <circle cx="40" cy="19" r="6" fill="#ffffff" stroke="#0057ff" stroke-width="1.5"/>
+              <line x1="40" y1="13" x2="40" y2="25" stroke="#0057ff" stroke-width="1"/>
+              <line x1="34" y1="19" x2="46" y2="19" stroke="#0057ff" stroke-width="1"/>
             </svg>
           `;
         }
@@ -247,7 +247,7 @@ class TwinSceneEngine {
           <span class="node-tier-pill ${isManual ? 'manual' : ''}">${meta.sensor_tier.toUpperCase()}</span>
         </div>
         <div class="station-glyph-wrap" id="glyph-${sid}">
-          ${TwinSceneEngine.getMachineGlyph(meta.station_type, sid, "var(--status-nominal)", isManual)}
+          ${TwinSceneEngine.getMachineGlyph(meta.station_type, sid, "#15803d", isManual)}
         </div>
         <div class="node-name-label">${meta.name}</div>
         <div class="node-hud-footer">
@@ -280,8 +280,8 @@ class TwinSceneEngine {
       el.className = "car-body-silhouette";
       el.innerHTML = `
         <svg viewBox="0 0 32 18" width="32" height="18">
-          <rect x="2" y="2" width="28" height="14" rx="4" fill="var(--brand-blue)" stroke="var(--accent-signal)" stroke-width="1.5"/>
-          <rect x="8" y="4" width="16" height="10" rx="2" fill="var(--bg-panel)"/>
+          <rect x="2" y="2" width="28" height="14" rx="4" fill="#0057ff" stroke="#0046d6" stroke-width="1.5"/>
+          <rect x="8" y="4" width="16" height="10" rx="2" fill="#ffffff"/>
         </svg>
       `;
       this.container.appendChild(el);
@@ -307,12 +307,6 @@ class TwinSceneEngine {
       const ctEl = document.getElementById(`s-ct-${sid}`);
       const riskEl = document.getElementById(`s-risk-${sid}`);
 
-      
-      // CONFIDENCE OPACITY
-      if (st.twin_confidence !== undefined) {
-          node.style.opacity = Math.max(0.3, st.twin_confidence);
-          node.style.filter = `saturate(${Math.max(30, st.twin_confidence * 100)}%)`;
-      }
       if (ctEl) ctEl.innerText = `${(st.cycle_time_s || 60).toFixed(1)}s`;
 
       const riskPct = Math.round((st.composite_risk || 0.05) * 100);

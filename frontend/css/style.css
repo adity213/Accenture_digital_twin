@@ -3,45 +3,43 @@
  * Connected SCADA Conveyor Highway with Exact Port-to-Port Alignment & Zero Overlaps
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700;800&display=swap');
 
 :root {
-  --bg-page: #0A0D10;
-  --bg-gradient: #0A0D10;
+  --bg-page: #f1f5f9;
+  --bg-gradient: radial-gradient(120% 120% at 50% 0%, #ffffff 0%, #f8fafc 50%, #e2e8f0 100%);
   
-  --surface-panel: #12161B;
-  --surface-panel-raised: #1A2027;
-  --surface-panel-subtle: #0A0D10;
+  --surface-panel: #ffffff;
+  --surface-panel-raised: #f8fafc;
+  --surface-panel-subtle: #f1f5f9;
   
-  --border-subtle: #1E3A4C;
-  --border-strong: #5C6B78;
+  --border-subtle: #cbd5e1;
+  --border-strong: #94a3b8;
   
-  --text-primary: #E7EDF2;
-  --text-secondary: #8A97A3;
-  --text-muted: #5C6B78;
-  --text-inverse: #0A0D10;
+  --text-primary: #0f172a;       /* Deep Slate / Black */
+  --text-secondary: #334155;     /* Slate */
+  --text-muted: #64748b;         /* Muted Slate */
+  --text-inverse: #ffffff;
 
-  --status-nominal: #2ECC71;
-  --status-nominal-bg: rgba(46, 204, 113, 0.1);
-  --status-warning: #F5A623;
-  --status-warning-bg: rgba(245, 166, 35, 0.1);
-  --status-critical: #FF4D4F;
-  --status-critical-bg: rgba(255, 77, 79, 0.1);
-  --status-offline: #3A4148;
+  --status-nominal: #15803d;     /* Deep Emerald */
+  --status-nominal-bg: #dcfce7;
+  --status-warning: #b45309;     /* Deep Amber */
+  --status-warning-bg: #fef3c7;
+  --status-critical: #b91c1c;    /* Deep Crimson */
+  --status-critical-bg: #fee2e2;
 
-  --brand-blue: #FFB020;
-  --brand-blue-hover: #E59D1C;
-  --brand-blue-soft: rgba(255, 176, 32, 0.1);
-  --accent-signal: #FFB020;
-  --accent-weld: #66D9EF;
+  --brand-blue: #0057ff;
+  --brand-blue-hover: #0046d6;
+  --brand-blue-soft: rgba(0, 87, 255, 0.08);
+  --accent-signal: #d97706;
 
-  --font-brand: 'Barlow Condensed', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-brand: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.5);
-  --shadow-node: 0 2px 8px rgba(0, 0, 0, 0.4);
-  --shadow-node-active: 0 0 0 2px var(--brand-blue), 0 0 20px rgba(255, 176, 32, 0.2);
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06), 0 8px 24px -4px rgba(15, 23, 42, 0.08);
+  --shadow-node: 0 2px 8px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.05);
+  --shadow-node-active: 0 0 0 2px var(--brand-blue), 0 12px 28px -4px rgba(0, 87, 255, 0.25);
 
   --radius-xs: 4px;
   --radius-sm: 8px;
@@ -70,10 +68,9 @@ body {
 }
 
 .blueprint-grid-bg {
-  background-color: var(--bg-page);
   background-image: 
-    linear-gradient(to right, rgba(30, 58, 76, 0.15) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(30, 58, 76, 0.15) 1px, transparent 1px);
+    linear-gradient(to right, rgba(203, 213, 225, 0.35) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(203, 213, 225, 0.35) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
@@ -86,7 +83,7 @@ body {
 /* ==================== LEFT FLOATING DOCK ==================== */
 .scada-dock {
   width: 68px;
-  background: var(--surface-panel);
+  background: #ffffff;
   border-right: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
@@ -100,12 +97,12 @@ body {
 .dock-emblem {
   width: 44px;
   height: 44px;
-  background: var(--surface-panel-raised);
+  background: #0f172a;
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-primary);
+  color: #ffffff;
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.15);
   cursor: pointer;
   transition: transform 0.15s ease;
@@ -142,8 +139,8 @@ body {
 }
 
 .dock-btn.active {
-  background: var(--surface-panel-raised);
-  color: var(--text-primary);
+  background: #0f172a;
+  color: #ffffff;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
 }
 
@@ -168,7 +165,7 @@ body {
 
 .scada-topbar {
   height: 54px;
-  background: var(--surface-panel);
+  background: #ffffff;
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   justify-content: space-between;
@@ -189,7 +186,7 @@ body {
   font-size: 1.35rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: var(--text-primary);
+  color: #0f172a;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -202,7 +199,7 @@ body {
   font-size: 0.72rem;
   font-weight: 700;
   padding: 3px 8px;
-  background: var(--surface-panel-subtle);
+  background: #f1f5f9;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-xs);
   color: var(--text-secondary);
@@ -212,7 +209,7 @@ body {
 .hmi-transport {
   display: flex;
   align-items: center;
-  background: var(--surface-panel-raised);
+  background: #f8fafc;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   padding: 3px;
@@ -238,14 +235,14 @@ body {
 }
 
 .hmi-btn:hover {
-  background: var(--surface-panel);
+  background: #ffffff;
   color: var(--text-primary);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 
 .hmi-btn.active-play {
-  background: var(--surface-panel-raised);
-  color: var(--text-primary);
+  background: #0f172a;
+  color: #ffffff;
 }
 
 .hmi-speed-pill {
@@ -269,7 +266,7 @@ body {
 }
 
 .speed-tick.selected {
-  background: var(--surface-panel);
+  background: #ffffff;
   color: var(--brand-blue);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
@@ -277,7 +274,7 @@ body {
 /* Hazard Fault Injection Strip */
 .fault-injection-bar {
   height: 42px;
-  background: var(--surface-panel);
+  background: #ffffff;
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
@@ -314,7 +311,7 @@ body {
   font-family: var(--font-brand);
   font-size: 0.76rem;
   font-weight: 700;
-  background: var(--surface-panel);
+  background: #ffffff;
   border: 1px solid var(--border-subtle);
   color: var(--text-primary);
   border-radius: var(--radius-xs);
@@ -343,7 +340,7 @@ body {
 }
 
 .schematic-housing {
-  background: var(--surface-panel);
+  background: #ffffff;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   display: flex;
@@ -355,7 +352,7 @@ body {
 
 .schematic-toolbar {
   height: 38px;
-  background: var(--surface-panel-raised);
+  background: #f8fafc;
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
@@ -372,7 +369,7 @@ body {
   flex: 1;
   overflow: auto;
   position: relative;
-  background: var(--surface-panel-raised);
+  background: #f8fafc;
 }
 
 .living-line-stage {
@@ -396,21 +393,21 @@ body {
   top: 10px;
   height: 360px;
   border-left: 4px solid #0284c7;
-  background: rgba(2, 132, 199, 0.1);
+  background: #f0f9ff;
 }
 
 .zone-lane-2 {
   top: 390px;
   height: 190px;
   border-left: 4px solid #6366f1;
-  background: rgba(99, 102, 241, 0.1);
+  background: #f5f7ff;
 }
 
 .zone-lane-3 {
   top: 600px;
   height: 500px;
   border-left: 4px solid #10b981;
-  background: rgba(16, 185, 129, 0.1);
+  background: #f0fdf4;
 }
 
 .zone-rail-header {
@@ -423,7 +420,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   padding: 4px 12px;
-  background: var(--surface-panel);
+  background: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: var(--radius-xs);
   color: var(--text-primary);
@@ -486,7 +483,7 @@ body {
   position: absolute;
   width: 144px;
   height: 124px;
-  background: var(--surface-panel);
+  background: #ffffff;
   border: 1.5px solid #cbd5e1;
   border-radius: var(--radius-sm);
   padding: 6px 8px 4px 8px;
@@ -500,7 +497,7 @@ body {
 }
 
 .station-schematic-node:hover {
-  background: var(--surface-panel);
+  background: #ffffff;
   border-color: var(--brand-blue);
   transform: translateY(-2px);
   box-shadow: 0 8px 20px -2px rgba(0, 87, 255, 0.2);
@@ -567,7 +564,7 @@ body {
   font-family: var(--font-mono);
   font-size: 0.78rem;
   font-weight: 800;
-  color: var(--text-primary);
+  color: #0f172a;
 }
 
 .node-tier-pill {
@@ -576,7 +573,7 @@ body {
   font-weight: 800;
   padding: 1px 5px;
   border-radius: var(--radius-xs);
-  background: var(--surface-panel-subtle);
+  background: #f1f5f9;
   border: 1px solid #cbd5e1;
   color: var(--text-secondary);
 }
@@ -591,7 +588,7 @@ body {
   font-family: var(--font-brand);
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #0f172a;
   line-height: 1.25;
   text-align: center;
   word-break: normal;
@@ -614,12 +611,12 @@ body {
   padding-top: 3px;
 }
 
-.node-val-ct { color: var(--text-primary); font-weight: 700; }
+.node-val-ct { color: #0f172a; font-weight: 700; }
 .node-val-risk { font-weight: 800; color: var(--status-nominal); }
 
 /* ==================== COCKPIT GAUGES ==================== */
 .cockpit-drawer {
-  background: var(--surface-panel);
+  background: #ffffff;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: 18px;
@@ -646,7 +643,7 @@ body {
   font-family: var(--font-brand);
   font-size: 1.25rem;
   font-weight: 800;
-  color: var(--text-primary);
+  color: #0f172a;
 }
 
 .cockpit-focus-type {
@@ -664,7 +661,7 @@ body {
 }
 
 .gauge-cell {
-  background: var(--surface-panel-raised);
+  background: #f8fafc;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
@@ -683,7 +680,7 @@ body {
   font-family: var(--font-mono);
   font-size: 1.2rem;
   font-weight: 800;
-  color: var(--text-primary);
+  color: #0f172a;
   margin-top: 3px;
 }
 
@@ -752,8 +749,8 @@ body {
 
 /* AI Action Recommendation */
 .ai-recommendation-panel {
-  background: var(--surface-panel-raised);
-  color: var(--text-primary);
+  background: #0f172a;
+  color: #ffffff;
   border-radius: var(--radius-sm);
   padding: 14px;
   box-shadow: var(--shadow-card);
@@ -802,7 +799,7 @@ body {
 /* ==================== BOTTOM KPI STRIP ==================== */
 .kpi-instrument-strip {
   height: 62px;
-  background: var(--surface-panel);
+  background: #ffffff;
   border-top: 1px solid var(--border-subtle);
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -813,7 +810,7 @@ body {
 }
 
 .kpi-gauge-tile {
-  background: var(--surface-panel-raised);
+  background: #f8fafc;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   padding: 4px 14px;
@@ -840,7 +837,7 @@ body {
   font-family: var(--font-brand);
   font-size: 1.45rem;
   font-weight: 800;
-  color: var(--text-primary);
+  color: #0f172a;
 }
 
 .kpi-gauge-sub {
@@ -864,7 +861,7 @@ body {
 }
 
 .scada-lead-panel {
-  background: var(--surface-panel);
+  background: #ffffff;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: 18px;
@@ -878,7 +875,7 @@ body {
   font-family: var(--font-brand);
   font-size: 1.2rem;
   font-weight: 800;
-  color: var(--text-primary);
+  color: #0f172a;
 }
 
 .lead-panel-sub {
@@ -920,7 +917,7 @@ body {
 .vin-trace-schematic {
   margin-top: 14px;
   padding: 14px;
-  background: var(--surface-panel-raised);
+  background: #f8fafc;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
 }
@@ -934,7 +931,7 @@ body {
 
 .vin-tick-node {
   height: 22px;
-  background: var(--surface-panel);
+  background: #ffffff;
   border: 1px solid var(--border-subtle);
   border-radius: 3px;
   font-family: var(--font-mono);
