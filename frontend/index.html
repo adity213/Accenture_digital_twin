@@ -15,7 +15,7 @@
         <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5">
           <circle cx="12" cy="12" r="9"/>
           <path d="M12 3v18M3 12h18"/>
-          <circle cx="12" cy="12" r="3" fill="#0057ff"/>
+          <circle cx="12" cy="12" r="3" fill="var(--brand-blue)"/>
         </svg>
       </div>
 
@@ -128,7 +128,7 @@
                 <svg class="conveyor-rails-svg" id="conveyor-rails-svg">
                   <defs>
                     <marker id="conveyor-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                      <path d="M 0 1 L 10 5 L 0 9 z" fill="#0057ff" />
+                      <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--brand-blue)" />
                     </marker>
                   </defs>
                 </svg>
@@ -274,7 +274,7 @@
 
             <div class="vin-trace-schematic">
               <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-family: var(--font-brand); font-size: 0.8rem; font-weight: 800; color: #0f172a;">
+                <span style="font-family: var(--font-brand); font-size: 0.8rem; font-weight: 800; color: var(--text-primary);">
                   VIN DEFECT GENEALOGY TRAIL
                 </span>
                 <button class="hmi-btn" style="height: 24px; font-size: 0.68rem;" onclick="traceGenealogy()">TRACE</button>
@@ -297,7 +297,7 @@
             <div class="lead-panel-sub">Performance stability across Body, Paint, and Final Assembly</div>
             <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 14px;">
               <div>
-                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; color: #0f172a;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; color: var(--text-primary);">
                   <span>Zone 1: Body Construction</span>
                   <span style="color: var(--status-nominal); font-family: var(--font-mono);">91.4% OEE</span>
                 </div>
@@ -306,7 +306,7 @@
                 </div>
               </div>
               <div>
-                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; color: #0f172a;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; color: var(--text-primary);">
                   <span>Zone 2: Paint Shop</span>
                   <span style="color: var(--status-nominal); font-family: var(--font-mono);">88.7% OEE</span>
                 </div>
@@ -315,7 +315,7 @@
                 </div>
               </div>
               <div>
-                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; color: #0f172a;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; color: var(--text-primary);">
                   <span>Zone 3: Final Assembly</span>
                   <span style="color: var(--status-nominal); font-family: var(--font-mono);">94.2% OEE</span>
                 </div>
@@ -331,7 +331,7 @@
             <div class="lead-panel-sub">Simulate tact rate adjustments and buffer queue saturation</div>
             
             <div style="margin-top: 20px;">
-              <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 0.82rem; color: #0f172a;">
+              <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 0.82rem; color: var(--text-primary);">
                 <span id="slider-target-val">Target JPH: 55 U/hr</span>
                 <span style="color: var(--brand-blue); font-family: var(--font-mono);">Takt: 65.4s</span>
               </div>
@@ -339,7 +339,7 @@
             </div>
 
             <div style="margin-top: 24px; padding: 14px; background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
-              <div style="font-weight: 800; font-size: 0.8rem; color: #0f172a;">OPTIMAL BALANCING VERDICT</div>
+              <div style="font-weight: 800; font-size: 0.8rem; color: var(--text-primary);">OPTIMAL BALANCING VERDICT</div>
               <div style="font-size: 0.76rem; color: var(--text-secondary); margin-top: 4px; line-height: 1.4;">
                 Line cadence at 55 JPH maintains 4.2 units average buffer cushion without risk of thermal oven starvation.
               </div>
