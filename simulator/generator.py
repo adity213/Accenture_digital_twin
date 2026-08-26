@@ -19,7 +19,7 @@ from .anomalies import AnomalyManager
 class LineSimulator:
     def __init__(self, seed: int = 42, start_time: Optional[datetime] = None):
         self.seed = seed
-        random.seed(seed)
+        self.rng = random.Random(seed)
         self.topology = build_line_topology(seed=seed)
         self.stations = self.topology["stations"]
         self.edges = self.topology["edges"]
@@ -53,7 +53,7 @@ class LineSimulator:
         ground_truth: List[Dict[str, Any]] = []
         
         # Vehicle introduction at ST01
-        if random.random() < 0.85:
+        if self.rng.random() < 0.85:
             self.vehicle_counter += 1
             vin = f"VIN-2026-{self.vehicle_counter:05d}"
             self.active_vehicles[vin] = {
@@ -97,7 +97,7 @@ class LineSimulator:
             
             # Base Gaussian cycle time
             sigma = target_ct * 0.04  # 4% coefficient of variation
-            actual_ct = random.gauss(target_ct, sigma)
+            actual_ct = self.rng.gauss(target_ct, sigma)
             actual_ct = max(target_ct * 0.8, min(target_ct * 1.3, actual_ct))
             
             if is_stopped:
@@ -110,7 +110,7 @@ class LineSimulator:
             defect_type = None
             
             # Natural defect rate ~0.8%
-            if random.random() < 0.008:
+            if self.rng.random() < 0.008:
                 defect_flag = True
                 defect_type = "surface_scratch" if s["zone"] == "Paint" else "fastener_undertorque"
             
@@ -130,11 +130,11 @@ class LineSimulator:
             # Inflow from upstreams
             inflow = 0
             if not s["upstream_ids"]:
-                inflow = 1 if random.random() < 0.9 else 0
+                inflow = 1 if self.rng.random() < 0.9 else 0
             else:
                 # Buffer transfer from upstream stations
                 for up_id in s["upstream_ids"]:
-                    if self.buffers.get(up_id, 0) > 0 and random.random() < 0.8:
+                    if self.buffers.get(up_id, 0) > 0 and self.rng.random() < 0.8:
                         inflow += 1
                         self.buffers[up_id] = max(0, self.buffers[up_id] - 1)
                         break
@@ -142,13 +142,13 @@ class LineSimulator:
             # Outflow to current station processing
             outflow = 0
             if self.buffers[sid] > 0 and not is_stopped:
-                outflow = 1 if random.random() < 0.85 else 0
+                outflow = 1 if self.rng.random() < 0.85 else 0
 
             self.buffers[sid] = max(0, min(cap, self.buffers[sid] + inflow - outflow))
             
             # Physics signals: vibration & temperature
             base_vib = 1.2 if s["station_type"] in ["RoboticWeld", "RespotWeld", "MechanicalTorque"] else 0.4
-            vib_noise = random.gauss(0, 0.08)
+            vib_noise = self.rng.gauss(0, 0.08)
             vibration = max(0.1, base_vib + vib_noise)
             if ct_multiplier > 1.2:
                 vibration += (ct_multiplier - 1.0) * 2.5
@@ -158,7 +158,7 @@ class LineSimulator:
             base_temp = 24.0
             if s["station_type"] in ["ThermalOven", "LaserBrazing", "ElectroDeposition"]:
                 base_temp = 75.0
-            temp_noise = random.gauss(0, 0.5)
+            temp_noise = self.rng.gauss(0, 0.5)
             temperature = base_temp + temp_noise
             if ct_multiplier > 1.2:
                 temperature += (ct_multiplier - 1.0) * 12.0
@@ -167,7 +167,7 @@ class LineSimulator:
             load_factor = 0.9 if not is_stopped else 0.25
             if power_multiplier > 1.0:
                 load_factor = min(2.5, load_factor * power_multiplier)
-            power_kw = base_kw * load_factor + random.gauss(0, 0.3)
+            power_kw = base_kw * load_factor + self.rng.gauss(0, 0.3)
             energy_kwh = (power_kw / 60.0)
 
             # Manual sensor blackout behavior
