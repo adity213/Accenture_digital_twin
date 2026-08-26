@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TwinSphere | Plant Control-Room Digital Twin</title>
+  <link rel="stylesheet" href="css/style.css?v=3.0">
+</head>
+<body class="blueprint-grid-bg">
+  <div class="app-layout">
+    
+    <!-- LEFT SCADA DOCK -->
+    <nav class="scada-dock" role="navigation" aria-label="SCADA Control Dock">
+      <div class="dock-emblem" title="TwinSphere Automotive SCADA" onclick="resetSchematicView()">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 3v18M3 12h18"/>
+          <circle cx="12" cy="12" r="3" fill="#0057ff"/>
+        </svg>
+      </div>
+
+      <div class="dock-nav-list">
+        <button id="dock-btn-floor" class="dock-btn active" onclick="switchView('floor')" title="Floor Supervisor Living Line">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          <span class="dock-label-micro">FLOOR</span>
+        </button>
+
+        <button id="dock-btn-leadership" class="dock-btn" onclick="switchView('leadership')" title="Plant Manager Analytics & Genealogy">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 20V10M12 20V4M6 20v-6"/>
+          </svg>
+          <span class="dock-label-micro">LEAD</span>
+        </button>
+
+        <button id="dock-btn-weekly" class="dock-btn" onclick="switchView('weekly')" title="7-Day Trends & What-If Line Balancing">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 3v18h18M7 14l4-4 4 4 5-6"/>
+          </svg>
+          <span class="dock-label-micro">TREND</span>
+        </button>
+      </div>
+
+      <div style="font-family: var(--font-mono); font-size: 0.62rem; font-weight: 800; color: var(--text-muted);">
+        v3.0
+      </div>
+    </nav>
+
+    <!-- MAIN SCADA VIEWPORT -->
+    <main class="main-viewport">
+      
+      <!-- TOP SCADA BAR -->
+      <header class="scada-topbar">
+        <div class="plant-identity">
+          <div class="plant-title">TwinSphere <span>DIGITAL TWIN</span></div>
+          <span class="plant-tag">ASSEMBLY PLANT 04 // 40 STATIONS</span>
+          <span id="ws-status-label" style="font-family: var(--font-mono); font-size: 0.72rem; font-weight: 800; color: var(--status-nominal);">
+            ● SCADA STREAM ACTIVE
+          </span>
+        </div>
+
+        <div class="hmi-transport">
+          <button class="hmi-btn active-play" id="btn-play" onclick="controlSim('play')">▶ RUN</button>
+          <button class="hmi-btn" id="btn-pause" onclick="controlSim('pause')">⏸ HOLD</button>
+          <button class="hmi-btn" id="btn-step" onclick="controlSim('step')">⏭ STEP</button>
+          
+          <div class="hmi-speed-pill">
+            <button class="speed-tick selected" onclick="setSpeed(1, this)">1X</button>
+            <button class="speed-tick" onclick="setSpeed(2, this)">2X</button>
+            <button class="speed-tick" onclick="setSpeed(5, this)">5X</button>
+            <button class="speed-tick" onclick="setSpeed(10, this)">10X</button>
+          </div>
+        </div>
+
+        <div style="font-family: var(--font-mono); font-size: 0.8rem; font-weight: 800; color: var(--text-primary);" id="sim-clock">
+          SHIFT 1 // TICK 0142
+        </div>
+      </header>
+
+      <!-- HAZARD FAULT INJECTION BAR -->
+      <div class="fault-injection-bar">
+        <div class="hazard-title-wrap">
+          <span class="hazard-stripe-badge">TEST FAULT INJECTION</span>
+          <span style="font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); font-family: var(--font-brand);">
+            Trigger Anomaly Scenarios to Observe Real-Time Propagation:
+          </span>
+        </div>
+
+        <div class="hazard-switches">
+          <button class="fault-btn" onclick="injectAnomaly('stoppage', 'ST06')">⚡ 85m Stoppage (ST06)</button>
+          <button class="fault-btn" onclick="injectAnomaly('drift', 'ST02')">📈 Cycle Drift (ST02)</button>
+          <button class="fault-btn" onclick="injectAnomaly('defect_spike', 'ST07')">⚠️ Defect Spike (ST07)</button>
+          <button class="fault-btn" onclick="injectAnomaly('sensor_blackout', 'ST09')">🔌 Blackout (ST09)</button>
+          <button class="fault-btn" onclick="injectAnomaly('power_surge', 'ST17')">⚡ Power Surge (ST17)</button>
+        </div>
+      </div>
+
+      <!-- VIEW 1: FLOOR SUPERVISOR LIVING LINE -->
+      <div id="view-floor" class="view-panel active">
+        <div class="workspace-floor">
+          
+          <!-- 40-STATION LIVING LINE HOUSING -->
+          <section class="schematic-housing">
+            <div class="schematic-toolbar">
+              <span>CONTINUOUS 40-STATION FACTORY CONVEYOR HIGHWAY</span>
+              <button class="hmi-btn" style="height: 24px; font-size: 0.68rem;" onclick="resetSchematicView()">RESET VIEW</button>
+            </div>
+
+            <div class="schematic-viewport" id="schematic-viewport">
+              <div class="living-line-stage" id="living-line-stage">
+                
+                <!-- Zone Rail Backdrop Lanes -->
+                <div class="zone-rail-lane zone-lane-1">
+                  <div class="zone-rail-header">ZONE 1: BODY SHOP (14 STATIONS // FRAMING & RESPOT FORKS)</div>
+                </div>
+                <div class="zone-rail-lane zone-lane-2">
+                  <div class="zone-rail-header">ZONE 2: PAINT SHOP (8 STATIONS // CONTINUOUS E-COAT & SPRAY TUNNEL)</div>
+                </div>
+                <div class="zone-rail-lane zone-lane-3">
+                  <div class="zone-rail-header">ZONE 3: FINAL ASSEMBLY (18 STATIONS // MARRIAGE & BUY-OFF)</div>
+                </div>
+
+                <!-- Continuous Conveyor SVG Rails -->
+                <svg class="conveyor-rails-svg" id="conveyor-rails-svg">
+                  <defs>
+                    <marker id="conveyor-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                      <path d="M 0 1 L 10 5 L 0 9 z" fill="#0057ff" />
+                    </marker>
+                  </defs>
+                </svg>
+
+                <!-- Station Cards Container -->
+                <div id="nodes-container"></div>
+
+              </div>
+            </div>
+          </section>
+
+          <!-- RIGHT INSTRUMENT COCKPIT DRAWER -->
+          <aside class="cockpit-drawer">
+            <div class="cockpit-header">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="cockpit-focus-sid" id="focus-sid">ST06</span>
+                <span class="node-tier-pill" id="focus-tier">RICH SENSOR</span>
+              </div>
+              <div class="cockpit-focus-name" id="focus-name">Framing Main Station</div>
+              <div class="cockpit-focus-type" id="focus-zone">BODY // MainFraming</div>
+            </div>
+
+            <!-- Cockpit Instrument Grid -->
+            <div class="instrument-cluster-grid">
+              <div class="gauge-cell">
+                <div class="gauge-title">Processing Time</div>
+                <div class="gauge-val-readout" id="focus-ct">64.6s</div>
+                <div class="gauge-needle-track">
+                  <div class="gauge-needle-fill" id="gauge-ct-fill" style="width: 55%;"></div>
+                </div>
+                <div class="gauge-threshold-marks"><span>50s</span><span>T: 65s</span><span>75s</span></div>
+              </div>
+
+              <div class="gauge-cell">
+                <div class="gauge-title">Buffer Queue</div>
+                <div class="gauge-val-readout" id="focus-buf">4 / 8</div>
+                <div class="gauge-needle-track">
+                  <div class="gauge-needle-fill" id="gauge-buf-fill" style="width: 50%;"></div>
+                </div>
+                <div class="gauge-threshold-marks"><span>0</span><span>CAP: 8</span><span>8</span></div>
+              </div>
+
+              <div class="gauge-cell">
+                <div class="gauge-title">Vibration (ISO 10816)</div>
+                <div class="gauge-val-readout" id="focus-vib">0.42 mm/s</div>
+                <div class="gauge-needle-track">
+                  <div class="gauge-needle-fill" id="gauge-vib-fill" style="width: 25%;"></div>
+                </div>
+                <div class="gauge-threshold-marks"><span>0.0</span><span>Warn: 1.5</span><span>2.5</span></div>
+              </div>
+
+              <div class="gauge-cell">
+                <div class="gauge-title">Motor Power</div>
+                <div class="gauge-val-readout" id="focus-power">45.0 kW</div>
+                <div class="gauge-needle-track">
+                  <div class="gauge-needle-fill" id="gauge-power-fill" style="width: 60%;"></div>
+                </div>
+                <div class="gauge-threshold-marks"><span>0</span><span>Base: 45</span><span>75</span></div>
+              </div>
+            </div>
+
+            <!-- Starvation Countdown Face -->
+            <div class="countdown-gauge-box">
+              <div class="countdown-timer-title">
+                <span>Downstream Starvation</span>
+                <span id="prop-count" style="color: var(--status-critical); font-family: var(--font-mono);">0 AT RISK</span>
+              </div>
+              <div class="countdown-items-wrap" id="focus-prop-list">
+                <div style="font-size: 0.76rem; color: var(--text-secondary); font-family: var(--font-mono); padding: 4px 0;">
+                  Nominal line flow — zero starvation ripple.
+                </div>
+              </div>
+            </div>
+
+            <!-- AI Action Recommendation -->
+            <div class="ai-recommendation-panel">
+              <div class="ai-rec-header">
+                <span style="font-family: var(--font-brand); font-size: 0.72rem; font-weight: 800; text-transform: uppercase; color: #93c5fd;">
+                  AI PRESCRIPTIVE ACTION
+                </span>
+                <span class="ai-rec-conf" id="rec-conf-tag">96% CONFIDENCE</span>
+              </div>
+              <div class="ai-rec-title" id="rec-title">Optimal Line Flow Maintained</div>
+              <div class="ai-rec-body" id="rec-action">
+                All 40 stations operating within 3-sigma statistical control bounds.
+              </div>
+              <div class="ai-rec-impact" id="rec-impact">
+                Impact: Line running at 55.4 JPH design cadence
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <!-- BOTTOM KPI INSTRUMENT STRIP -->
+        <footer class="kpi-instrument-strip">
+          <div class="kpi-gauge-tile">
+            <div class="kpi-gauge-meta">
+              <span class="kpi-gauge-lbl">Machines Online</span>
+              <span class="kpi-gauge-val" id="kpi-machines-online">40/40</span>
+            </div>
+            <span class="kpi-gauge-sub">100% OPERATIONAL</span>
+          </div>
+
+          <div class="kpi-gauge-tile">
+            <div class="kpi-gauge-meta">
+              <span class="kpi-gauge-lbl">Line Output Rate</span>
+              <span class="kpi-gauge-val" id="kpi-jph">55.4 JPH</span>
+            </div>
+            <span class="kpi-gauge-sub">TARGET: 55.0 JPH</span>
+          </div>
+
+          <div class="kpi-gauge-tile">
+            <div class="kpi-gauge-meta">
+              <span class="kpi-gauge-lbl">Fleet Sensor Trust</span>
+              <span class="kpi-gauge-val" id="kpi-confidence">94%</span>
+            </div>
+            <span class="kpi-gauge-sub">32 RICH / 8 MANUAL</span>
+          </div>
+
+          <div class="kpi-gauge-tile">
+            <div class="kpi-gauge-meta">
+              <span class="kpi-gauge-lbl">Downtime Avoided</span>
+              <span class="kpi-gauge-val" id="kpi-savings">14.8 hrs</span>
+            </div>
+            <span class="kpi-gauge-sub">100% PHYSICAL IMPACT</span>
+          </div>
+        </footer>
+      </div>
+
+      <!-- VIEW 2: LEADERSHIP ANALYTICS -->
+      <div id="view-leadership" class="view-panel">
+        <div class="leadership-screen">
+          <div class="scada-lead-panel">
+            <div class="lead-panel-title">Thermal Deviation Heatmap</div>
+            <div class="lead-panel-sub">Station × Shift Ticks: Cycle time standard deviation burn</div>
+            <div class="thermal-heatmap-grid" id="thermal-heatmap"></div>
+          </div>
+
+          <div class="scada-lead-panel">
+            <div class="lead-panel-title">Pareto Mechanical Root Causes</div>
+            <div class="lead-panel-sub">Ranked failure modes across 40 stations</div>
+            <div class="root-cause-list" style="margin-top: 14px;"></div>
+
+            <div class="vin-trace-schematic">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-family: var(--font-brand); font-size: 0.8rem; font-weight: 800; color: #0f172a;">
+                  VIN DEFECT GENEALOGY TRAIL
+                </span>
+                <button class="hmi-btn" style="height: 24px; font-size: 0.68rem;" onclick="traceGenealogy()">TRACE</button>
+              </div>
+              <input id="genealogy-input" value="VIN-2026-01042" style="width: 100%; margin-top: 6px; padding: 4px 8px; font-family: var(--font-mono); font-size: 0.75rem; border: 1px solid var(--border-subtle); border-radius: 4px;">
+              <div class="vin-trail-grid" id="vin-trail-container"></div>
+              <div id="genealogy-result" style="margin-top: 8px; font-size: 0.74rem; font-family: var(--font-mono);">
+                40/40 Stations Verified • 0 Quality Buy-off Defects
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 3: WEEKLY TRENDS & LINE BALANCING -->
+      <div id="view-weekly" class="view-panel">
+        <div class="leadership-screen">
+          <div class="scada-lead-panel">
+            <div class="lead-panel-title">7-Day Zone OEE Trajectory</div>
+            <div class="lead-panel-sub">Performance stability across Body, Paint, and Final Assembly</div>
+            <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 14px;">
+              <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; color: #0f172a;">
+                  <span>Zone 1: Body Construction</span>
+                  <span style="color: var(--status-nominal); font-family: var(--font-mono);">91.4% OEE</span>
+                </div>
+                <div style="height: 8px; background: #e2e8f0; border-radius: 999px; margin-top: 6px; overflow: hidden;">
+                  <div style="width: 91.4%; height: 100%; background: #0284c7;"></div>
+                </div>
+              </div>
+              <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; color: #0f172a;">
+                  <span>Zone 2: Paint Shop</span>
+                  <span style="color: var(--status-nominal); font-family: var(--font-mono);">88.7% OEE</span>
+                </div>
+                <div style="height: 8px; background: #e2e8f0; border-radius: 999px; margin-top: 6px; overflow: hidden;">
+                  <div style="width: 88.7%; height: 100%; background: #6366f1;"></div>
+                </div>
+              </div>
+              <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; color: #0f172a;">
+                  <span>Zone 3: Final Assembly</span>
+                  <span style="color: var(--status-nominal); font-family: var(--font-mono);">94.2% OEE</span>
+                </div>
+                <div style="height: 8px; background: #e2e8f0; border-radius: 999px; margin-top: 6px; overflow: hidden;">
+                  <div style="width: 94.2%; height: 100%; background: #10b981;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="scada-lead-panel">
+            <div class="lead-panel-title">What-If Line Balancing Simulator</div>
+            <div class="lead-panel-sub">Simulate tact rate adjustments and buffer queue saturation</div>
+            
+            <div style="margin-top: 20px;">
+              <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 0.82rem; color: #0f172a;">
+                <span id="slider-target-val">Target JPH: 55 U/hr</span>
+                <span style="color: var(--brand-blue); font-family: var(--font-mono);">Takt: 65.4s</span>
+              </div>
+              <input type="range" min="45" max="65" value="55" style="width: 100%; margin-top: 8px;" oninput="updateLineBalancing(this.value)">
+            </div>
+
+            <div style="margin-top: 24px; padding: 14px; background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+              <div style="font-weight: 800; font-size: 0.8rem; color: #0f172a;">OPTIMAL BALANCING VERDICT</div>
+              <div style="font-size: 0.76rem; color: var(--text-secondary); margin-top: 4px; line-height: 1.4;">
+                Line cadence at 55 JPH maintains 4.2 units average buffer cushion without risk of thermal oven starvation.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="js/twin_scene.js?v=3.0"></script>
+  <script src="js/app.js?v=3.0"></script>
+</body>
+</html>

@@ -1,0 +1,221 @@
+DigitalTwin.ai
+
+Business Proposal — Round 2
+
+Accenture Innovation Challenge 2026 · Problem Track 4
+
+Team Twin Flow — Aditya Singh · Divyansh Singh Mertia · Harshada Rajhans (IIT Kanpur)
+
+1. Executive Summary
+
+Large automotive assembly plants lose an average of ~27 hours per month to unplanned downtime, at a cost of up to $2.3M per hour (Siemens, The True Cost of Downtime, 2024). The root cause is not a lack of data but a lack of foresight: today's monitoring is reactive, so small deviations go undetected until they cascade into bottlenecks or ship as defects.
+
+DigitalTwin.ai is a live, confidence-aware digital twin of the assembly line. It senses what is actually happening on the floor — including at legacy or manually-checked stations with little or no instrumentation — predicts where bottlenecks and defects will emerge before they happen, and recommends the specific action to take (reroute, rebalance, or root-cause) before losses accumulate.
+
+This document covers the business case, target users, phased rollout and risk mitigations for the Round 2 prototype, built and validated on a simulated 40-station mixed-model line spanning body construction, paint, and final assembly.
+
+2. Problem Statement
+
+2.1 The core pain points
+
+Delays cascade — minor cycle-time deviations at one station accumulate into bottlenecks, starving downstream stations and disrupting flow.
+
+Defects propagate — a process deviation can pass through multiple stations before inspection catches the resulting defect, driving rework and scrap.
+
+Data blind spots — legacy and manual stations lack continuous sensing, so early warning signals stay invisible until failure occurs.
+
+Time & energy drain — equipment consumes energy and operators spend time waiting, monitoring, and correcting problems that could have been predicted.
+
+2.2 Why this is harder than it looks
+
+Round 2 scoping surfaced complexities that a naive dashboard cannot address, which directly shaped our design choices:
+
+Sensor coverage is inherently uneven — some stations are richly instrumented, others rely entirely on manual checklists.
+
+Bottlenecks and defects are often multi-causal and intermittent (equipment wear, operator variation, upstream part quality, environment), hard to isolate from data alone.
+
+Live production systems (PLCs, line control) cannot be modified freely — most plants only allow retrofits during scheduled, infrequent maintenance windows.
+
+A defect introduced early may not surface until a much later inspection point, by which time many downstream units may carry the same undetected issue.
+
+Different stakeholders need different views of the same twin — a floor supervisor needs real-time signals, a plant manager needs weekly trends, leadership needs a business case.
+
+Predictive claims must be validated against real outcomes over time — false alarms erode floor-level trust quickly.
+
+3. Solution Overview
+
+DigitalTwin.ai extends the classic Observe → Understand → Act framework into three engineered layers, with a confidence signal running through all three so users always know when to trust a number versus verify it themselves.
+
+SENSE — ingest PLC/MES tags, vision frames, and historical production data. Where instrumentation is thin, a virtual-sensor layer infers station state from neighboring stations, timestamps, and computer vision — every estimate carries an explicit confidence score.
+
+PREDICT — a station-level risk model (trained on historical/simulated deviations) scores bottleneck and defect likelihood per station. A graph-propagation layer models how risk and buffer starvation would ripple downstream, producing a time-to-impact estimate — not just “something is wrong” but “what happens next, and when.”
+
+ACT — a rule-driven recommendation engine turns each prediction into a ranked, concrete action (reroute AGVs, rebalance labor, root-cause checklist) with an expected impact estimate, logged for supervisor review and override.
+
+This is the same Observe / Understand / Act shape validated in our Round 1 concept, now made concrete enough to prototype: every module maps to a specific model, data structure, and UI surface (see the companion Technical PRD).
+
+4. Target Users
+
+Persona | Core Need | What DigitalTwin.ai Gives Them
+
+Persona
+
+Core Need
+
+What DigitalTwin.ai Gives Them
+
+Floor Supervisor | In-the-moment decisions across several stations at once | Live schematic, color-coded risk, one-click recommended action
+
+Floor Supervisor
+
+In-the-moment decisions across several stations at once
+
+Live schematic, color-coded risk, one-click recommended action
+
+Plant Manager | Weekly planning, line-balancing, recurring root causes | Trend views, bottleneck heatmap, what-if line-balancing scenarios
+
+Plant Manager
+
+Weekly planning, line-balancing, recurring root causes
+
+Trend views, bottleneck heatmap, what-if line-balancing scenarios
+
+Plant / Ops Leadership | Investment case and measurable ROI | Downtime-avoided tracker, energy-waste savings, rollout business case
+
+Plant / Ops Leadership
+
+Investment case and measurable ROI
+
+Downtime-avoided tracker, energy-waste savings, rollout business case
+
+Quality Engineer | Tracing a defect back to its true origin station | Vehicle/part genealogy across stations, likely-cause ranking
+
+Quality Engineer
+
+Tracing a defect back to its true origin station
+
+Vehicle/part genealogy across stations, likely-cause ranking
+
+5. Business Case & Impact
+
+We deliberately avoid fabricating precise savings for a specific, unnamed plant. Instead we model impact from the stated industry baseline and state our assumptions plainly, as Round 2 guidance asks:
+
+Baseline: ~27 hours/month of unplanned downtime per plant, at up to $2.3M/hour (Siemens, 2024) — a monthly exposure in the tens of millions of dollars for a single large plant.
+
+Illustrative target: even a conservative 15–30% reduction in unplanned downtime, driven by earlier detection and faster root-causing, represents a multi-million-dollar monthly swing per plant — the exact figure depends on a given plant's real cost stack, which we do not have access to.
+
+Secondary savings: reduced rework/scrap from catching defects closer to origin, lower idle-machine energy spend, and better labor utilization from data-driven rebalancing instead of ad hoc firefighting.
+
+The prototype's job is to demonstrate the predictive and recommendation mechanism convincingly on simulated data; the ROI model above is the framework a real pilot would populate with a plant's actual downtime and cost figures.
+
+6. Why This Wins
+
+Naive / Reactive Approach | DigitalTwin.ai
+
+Naive / Reactive Approach
+
+DigitalTwin.ai
+
+Assumes every station is fully instrumented | Explicit confidence-scored virtual sensing for legacy / manual stations
+
+Assumes every station is fully instrumented
+
+Explicit confidence-scored virtual sensing for legacy / manual stations
+
+Flags anomalies after they happen | Graph-propagation gives a time-to-impact before the failure lands
+
+Flags anomalies after they happen
+
+Graph-propagation gives a time-to-impact before the failure lands
+
+Shows a dashboard; leaves interpretation to humans | Recommends a specific, ranked action with expected impact
+
+Shows a dashboard; leaves interpretation to humans
+
+Recommends a specific, ranked action with expected impact
+
+One-size-fits-all view for everyone | Persona-specific views (floor / planning / leadership) from one model
+
+One-size-fits-all view for everyone
+
+Persona-specific views (floor / planning / leadership) from one model
+
+Trust erodes on the first false alarm | Confidence is surfaced everywhere, and shadow-mode validation precedes autonomy
+
+Trust erodes on the first false alarm
+
+Confidence is surfaced everywhere, and shadow-mode validation precedes autonomy
+
+7. Phased Roadmap
+
+Phase 0 — Now: Prototype validated on a simulated 40-station line (this submission).
+
+Phase 1 (0–3 months): Shadow-mode pilot on one real line at one plant — recommendations are shown, not auto-executed; predictions are scored against real outcomes to earn trust.
+
+Phase 2 (3–9 months): Closed-loop pilot (accepted recommendations acted on directly where safe), full-plant rollout across multiple lines, feedback loop wired in to retrain the risk model on real overrides.
+
+Phase 3 (9–18 months): Multi-plant rollout using a topology-as-config onboarding kit so each new plant's differing layout, equipment vintage, and sensor maturity is a configuration exercise, not a rebuild; leadership-level cross-plant ROI reporting.
+
+8. Key Risks & Mitigations
+
+Risk | Mitigation
+
+Risk
+
+Mitigation
+
+Modifying live PLC / OT systems is operationally risky | Read-only data taps; the twin sits alongside control systems, never replaces them; any instrumentation change waits for scheduled maintenance windows
+
+Modifying live PLC / OT systems is operationally risky
+
+Read-only data taps; the twin sits alongside control systems, never replaces them; any instrumentation change waits for scheduled maintenance windows
+
+Alert fatigue erodes trust after false alarms | Tiered confidence scores, a visible track-record view, and a mandatory shadow-mode period before any recommendation can auto-execute
+
+Alert fatigue erodes trust after false alarms
+
+Tiered confidence scores, a visible track-record view, and a mandatory shadow-mode period before any recommendation can auto-execute
+
+Sparse sensor coverage undermines prediction accuracy | Confidence explicitly modelled and surfaced; virtual-sensor fallback; a prioritized low-cost sensing retrofit list generated from the twin's own blind spots
+
+Sparse sensor coverage undermines prediction accuracy
+
+Confidence explicitly modelled and surfaced; virtual-sensor fallback; a prioritized low-cost sensing retrofit list generated from the twin's own blind spots
+
+Every plant/line is laid out differently | Line topology and station config are data, not hard-coded logic, so the same model generalizes across sites
+
+Every plant/line is laid out differently
+
+Line topology and station config are data, not hard-coded logic, so the same model generalizes across sites
+
+OT data is sensitive and safety-relevant | Role-based access, on-prem/edge deployment option, full audit trail on every prediction and override
+
+OT data is sensitive and safety-relevant
+
+Role-based access, on-prem/edge deployment option, full audit trail on every prediction and override
+
+9. Success Metrics
+
+Average prediction lead time (minutes of advance warning before a bottleneck/defect event).
+
+Share of downtime incidents that had an advance warning versus none.
+
+Defect escape rate (defects caught pre- vs. post-shipment) before and after adoption.
+
+Energy waste flagged and subsequently reduced.
+
+False positive rate trend over time (should fall as the feedback loop matures).
+
+Floor adoption rate — the share of recommendations acted on rather than overridden or ignored.
+
+10. Stated Assumptions
+
+Mixed-model line with 40 stations across Body Construction, Paint, and Final Assembly.
+
+~80% of stations are richly instrumented; ~20% rely on manual checklists — used to demonstrate the virtual-sensing and confidence mechanism.
+
+Instrumentation changes are only possible during scheduled maintenance windows (a small number per year).
+
+All data used in the prototype is synthetic and simulated; no proprietary company data was used or required, per the challenge brief.
+
+These parameters are directional and were chosen to match the Round 2 reference parameters for Track 4; they are configurable, not load-bearing assumptions baked into the model.
