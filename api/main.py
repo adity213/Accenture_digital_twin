@@ -6,7 +6,9 @@ and vehicle genealogy traceability.
 import asyncio
 import os
 import sys
+from collections import defaultdict
 from typing import Dict, List, Any, Optional
+import joblib
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -37,6 +39,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+MODEL_PATH = os.path.join(base_dir, "data", "risk_model.joblib")
+
+def load_or_init_risk_model() -> RiskScoringModel:
+    if os.path.exists(MODEL_PATH):
+        try:
+            m = joblib.load(MODEL_PATH)
+            print(f"[risk_model] Loaded trained GBDT model from {MODEL_PATH}")
+            return m
+        except Exception as e:
+            print(f"[risk_model] Warning: Failed to load {MODEL_PATH}: {e}. Falling back to heuristic.")
+    else:
+        print("[risk_model] Info: data/risk_model.joblib not found. Using calibrated heuristic fallback.")
+    return RiskScoringModel()
+
+def _topo_order(topo: Dict[str, Any]) -> List[str]:
+    indeg = {sid: 0 for sid in topo["stations"]}
+    adj = defaultdict(list)
+    for u, v in topo["edges"]:
+        indeg[v] += 1
+        adj[u].append(v)
+    frontier = [sid for sid, d in indeg.items() if d == 0]
+    order = []
+    while frontier:
+        n = frontier.pop()
+        order.append(n)
+        for m in adj[n]:
+            indeg[m] -= 1
+            if indeg[m] == 0:
+                frontier.append(m)
+    return order
+
 # Core Instances
 topology = build_line_topology(seed=42)
 stations_meta = topology["stations"]
@@ -45,7 +78,7 @@ db = TwinStore()
 spc_engine = SPCEngine(lambda_ewma=0.3, z_threshold=3.0)
 virtual_sensor_engine = VirtualSensorEngine(stations_meta)
 confidence_engine = ConfidenceEngine(w1=0.5, w2=0.3, w3=0.2)
-risk_model = RiskScoringModel()
+risk_model = load_or_init_risk_model()
 propagation_engine = GraphPropagationEngine(topology)
 recommender_engine = RecommendationEngine(stations_meta)
 ws_manager = ConnectionManager()
@@ -56,9 +89,10 @@ speed_multiplier = 1.0
 sim_task: Optional[asyncio.Task] = None
 latest_payload: Dict[str, Any] = {}
 cumulative_downtime_avoided_min = 0.0
+prev_tick_risk: Dict[str, float] = {sid: 0.0 for sid in stations_meta}
 
 def process_simulation_tick() -> Dict[str, Any]:
-    global cumulative_downtime_avoided_min
+    global cumulative_downtime_avoided_min, prev_tick_risk
     tick_result = simulator.step()
     events = tick_result["events"]
     ground_truth = tick_result["ground_truth"]
@@ -76,9 +110,14 @@ def process_simulation_tick() -> Dict[str, Any]:
     station_states = {}
     raw_risks = {}
     current_buffers = {}
+    this_tick_risk: Dict[str, float] = {}
+    topo_order = _topo_order(topology)
     
-    # 1. SPC & Virtual Sensing & Confidence
-    for sid, meta in stations_meta.items():
+    # 1. SPC & Virtual Sensing & Confidence in Topological Order for Causal Upstream Propagation
+    for sid in topo_order:
+        meta = stations_meta.get(sid, {})
+        if not meta:
+            continue
         ev = event_map.get(sid, {})
         target_ct = meta["target_cycle_time_s"]
         is_blackout = ev.get("is_blackout", False)
@@ -93,7 +132,11 @@ def process_simulation_tick() -> Dict[str, Any]:
         else:
             imputation_disagreement = 0.0
 
-        spc_res = spc_engine.update_station(sid, actual_ct, target_ct, vibration=ev.get("vibration"))
+        spc_res = spc_engine.update_station(
+            sid, actual_ct, target_ct,
+            vibration=ev.get("vibration"),
+            station_type=meta.get("station_type") or meta.get("type")
+        )
         data_conf = confidence_engine.compute_data_confidence(
             sensor_tier=meta["sensor_tier"],
             is_blackout=is_blackout,
@@ -101,19 +144,25 @@ def process_simulation_tick() -> Dict[str, Any]:
             imputation_disagreement=imputation_disagreement
         )
         
+        # Real Causal Upstream Risks from previous tick
+        upstream_risks = [prev_tick_risk.get(u, 0.0) for u in meta.get("upstream_ids", [])]
+
         # Risk Scoring (Strict Zero Data Leakage)
         feats = risk_model.extract_features(
             station_id=sid,
             telemetry=ev,
             spc_result=spc_res,
             sensor_confidence=data_conf,
-            upstream_risks=[],
+            upstream_risks=upstream_risks,
             target_cycle_time_s=target_ct,
             buffer_capacity=meta["buffer_capacity_units"],
-            shift_tick=simulator.current_tick
+            shift_tick=simulator.current_tick,
+            zone=meta.get("zone", "Body"),
+            station_type=meta.get("station_type") or meta.get("type", "RoboticWeld")
         )
         bn_risk, def_risk, risk_level = risk_model.predict_risk(feats)
         comp_risk = max(bn_risk, def_risk)
+        this_tick_risk[sid] = comp_risk
 
         # Composite Twin Confidence based on actual model risk
         twin_conf = confidence_engine.compute_composite_twin_confidence(
@@ -185,6 +234,8 @@ def process_simulation_tick() -> Dict[str, Any]:
     
     avg_twin_conf = int(sum(s["twin_confidence"] for s in station_states.values()) / max(1, len(station_states))) if station_states else 0
     
+    prev_tick_risk = this_tick_risk
+
     payload = {
         "type": "TICK_UPDATE",
         "tick": simulator.current_tick,
@@ -258,6 +309,66 @@ def get_current_risk():
         "tick": latest_payload["tick"],
         "timestamp": latest_payload["timestamp"],
         "stations": latest_payload["stations"]
+    }
+
+@app.get("/api/risk/{station_id}/drivers")
+def get_risk_drivers(station_id: str):
+    """Returns top 3 risk drivers and explainability attributions for a given station."""
+    global latest_payload
+    if not latest_payload or "stations" not in latest_payload:
+        latest_payload = process_simulation_tick()
+    
+    st_data = latest_payload["stations"].get(station_id)
+    if not st_data:
+        raise HTTPException(status_code=404, detail=f"Station {station_id} not found")
+    
+    meta = stations_meta.get(station_id, {})
+    target_ct = meta.get("target_cycle_time_s", 60.0)
+    
+    # Re-extract features for this station
+    spc_res = {
+        "z_score": st_data.get("spc_z_score", 0.0),
+        "trend": st_data.get("spc_trend", "STABLE"),
+        "ewma_drift_flag": abs(st_data.get("spc_z_score", 0.0)) > 3.0
+    }
+    
+    upstream_risks = [prev_tick_risk.get(u, 0.0) for u in meta.get("upstream_ids", [])]
+    
+    feats = risk_model.extract_features(
+        station_id=station_id,
+        telemetry=st_data,
+        spc_result=spc_res,
+        sensor_confidence=st_data.get("twin_confidence", 100) / 100.0,
+        upstream_risks=upstream_risks,
+        target_cycle_time_s=target_ct,
+        buffer_capacity=meta.get("buffer_capacity_units", 10),
+        shift_tick=simulator.current_tick,
+        zone=meta.get("zone", "Body"),
+        station_type=meta.get("station_type") or meta.get("type", "RoboticWeld")
+    )
+    
+    drivers = risk_model.get_feature_contributions(station_id, feats)
+    
+    # Generate remediation recommendation hint
+    primary_driver = drivers[0]["feature"] if drivers else "nominal"
+    remediation_hint = "Monitor regular maintenance schedules."
+    if primary_driver in ["processing_time_ratio", "rolling_mean_ct_ratio"]:
+        remediation_hint = f"Dispatch line technician to inspect tooling feed rate & mechanical wear on {st_data['name']}."
+    elif primary_driver == "machine_shaking_vibration":
+        remediation_hint = f"Perform ISO 10816 bearing alignment and spindle harmonic dampening on {st_data['name']}."
+    elif primary_driver == "max_upstream_starvation_risk":
+        remediation_hint = f"Increase buffer buffer feed or balance flow from upstream feeder stations."
+    elif primary_driver == "spc_z_score":
+        remediation_hint = f"Recalibrate sensor baselines and perform zero-point drift recalibration on {st_data['name']}."
+
+    return {
+        "station_id": station_id,
+        "name": st_data["name"],
+        "zone": st_data["zone"],
+        "composite_risk": st_data.get("composite_risk", 0.05),
+        "risk_level": st_data.get("risk_level", "NORMAL"),
+        "top_drivers": drivers,
+        "remediation_hint": remediation_hint
     }
 
 @app.get("/api/recommendations")
@@ -361,28 +472,67 @@ def get_floor_supervisor_realtime():
         "active_recommendations": latest_payload.get("recommendations", [])
     }
 
+@app.get("/api/vehicles/recent")
+def get_recent_vehicles(limit: int = 50):
+    """Returns recently completed and active vehicles in the manufacturing line."""
+    completed = list(simulator.completed_vehicles)[-limit:]
+    active = list(simulator.active_vehicles.values())[:limit]
+    return {
+        "completed_count": len(simulator.completed_vehicles),
+        "active_count": len(simulator.active_vehicles),
+        "recent_completed": completed,
+        "active_in_line": active
+    }
+
 @app.get("/api/vehicles/{vin}/genealogy")
 def get_vehicle_genealogy(vin: str):
-    records = db.get_vehicle_genealogy(vin)
-    if not records:
-        # Generate simulated path if not yet in SQLite
+    # Check active simulator memory first
+    veh = simulator.active_vehicles.get(vin)
+    if veh:
+        records = veh["visit_history"]
         return {
             "vin": vin,
-            "total_stations_visited": 40,
-            "status": "PASSED_FINAL_BUYOFF",
-            "defect_count": 0,
-            "total_line_duration_min": 42.5,
-            "station_trace": [
-                {"station_id": f"ST{i:02d}", "name": stations_meta.get(f"ST{i:02d}", {}).get("name", ""), "cycle_time_s": 50.2, "defect_flag": 0}
-                for i in range(1, 41)
-            ]
+            "status": veh.get("status", "IN_PROGRESS"),
+            "entry_tick": veh.get("entry_tick"),
+            "current_station": veh.get("current_station"),
+            "total_stations_visited": len(records),
+            "defect_count": len(veh.get("defect_flags", [])),
+            "defect_flags": veh.get("defect_flags", []),
+            "station_trace": records
         }
+    
+    # Check completed vehicles
+    for c_veh in simulator.completed_vehicles:
+        if c_veh["vehicle_id"] == vin:
+            records = c_veh["visit_history"]
+            return {
+                "vin": vin,
+                "status": "COMPLETED",
+                "entry_tick": c_veh.get("entry_tick"),
+                "completion_tick": c_veh.get("completion_tick"),
+                "total_stations_visited": len(records),
+                "defect_count": len(c_veh.get("defect_flags", [])),
+                "defect_flags": c_veh.get("defect_flags", []),
+                "station_trace": records
+            }
+
+    # Query SQLite database
+    db_records = db.get_vehicle_genealogy(vin)
+    if db_records:
+        return {
+            "vin": vin,
+            "status": "PASSED_FINAL_BUYOFF" if all(r.get("defect_flag") == 0 for r in db_records) else "FLAGGED_REWORK",
+            "total_stations_visited": len(db_records),
+            "defect_count": sum(1 for r in db_records if r.get("defect_flag")),
+            "station_trace": db_records
+        }
+
     return {
         "vin": vin,
-        "total_stations_visited": len(records),
-        "status": "PASSED_FINAL_BUYOFF" if all(r["defect_flag"] == 0 for r in records) else "FLAGGED_REWORK",
-        "defect_count": sum(r["defect_flag"] for r in records),
-        "station_trace": records
+        "status": "NOT_FOUND",
+        "total_stations_visited": 0,
+        "defect_count": 0,
+        "station_trace": []
     }
 
 @app.post("/api/simulator/control")

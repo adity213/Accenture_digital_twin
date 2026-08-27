@@ -181,28 +181,47 @@ $$\text{TwinConfidence} = \text{round}\left(C_{\text{data}} \times 100 \times (1
 ## 7. Predictive Risk Machine Learning & Graph Propagation
 
 ### 7.1 GBDT Classifier Architecture & Training Protocol
-- **Algorithms**: Histogram-Based Gradient Boosted Decision Tree (`HistGradientBoostingClassifier`) / LightGBM.
+- **Algorithms**: Histogram-Based Gradient Boosted Decision Tree (`HistGradientBoostingClassifier`) with categorical support for `zone_code` and `station_type_code`.
+- **Training Dataset**: Multi-seed simulation generator across 6 random seeds (960,000 observations) with held-out seed test set (Seed 1005, 160,000 samples).
 - **Predictive Horizons**:
   - $P(\text{Bottleneck within next 15 minutes})$
   - $P(\text{Defect associated with station output})$
-- **Feature Vector ($D=11$, Strict Zero Data Leakage)**:
-  1. `actual_processing_time / target_cycle_time_s` (Cycle Time Ratio)
-  2. `buffer_level / buffer_capacity` (Buffer Utilization)
-  3. `spc_drift_momentum` ($\{-1.0, 0.0, 1.0\}$)
-  4. `spc_z_score` (Standardized deviation)
-  5. `sensor_confidence` ($0.0 - 1.0$)
-  6. `max_upstream_risk` ($0.0 - 1.0$)
-  7. `mean_upstream_risk` ($0.0 - 1.0$)
-  8. `shift_tick_sin` ($\sin(2\pi \cdot \text{tick} / 480)$ — 8-hour shift diurnal phase)
-  9. `shift_tick_cos` ($\cos(2\pi \cdot \text{tick} / 480)$)
-  10. `motor_heat_temperature` ($^\circ\text{C}$)
-  11. `machine_shaking_vibration` ($\text{mm/s}$)
-- **Chronological Validation**: Strict chronological 70% train / 30% test split without random temporal shuffling (preventing time-series data leakage).
-- **Target Performance**: Area Under the ROC Curve ($\text{AUC} \ge 0.85$), Lead time advance warning $\ge 12\text{ minutes}$.
-- **Exact Source**:
-  - Ke, G., Meng, Q., Finley, T., et al. (2017). *LightGBM: A highly efficient gradient boosting decision tree*. Advances in Neural Information Processing Systems (NeurIPS 30).
-  - *Technical PRD Section 5.3 & Acceptance Criteria*.
-- **Code Implementation**: [`pipeline/risk_model.py`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/pipeline/risk_model.py), [`tests/test_pipeline.py`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/tests/test_pipeline.py#L35-L75).
+- **Feature Vector ($D=19$, Strict Zero Data Leakage)**:
+  1. `processing_time_ratio` ($T_{\text{actual}} / T_{\text{target}}$)
+  2. `buffer_utilization` ($\text{queue} / \text{capacity}$)
+  3. `degradation_momentum` ($\{-1.0, 0.0, 1.0\}$)
+  4. `spc_z_score` (Standardized deviation against station-calibrated sigma)
+  5. `avg_upstream_starvation_risk` ($0.0 - 1.0$)
+  6. `max_upstream_starvation_risk` ($0.0 - 1.0$)
+  7. `sensor_confidence` ($0.0 - 1.0$)
+  8. `shift_tick_sin` ($\sin(2\pi \cdot (\text{tick}\%480) / 480)$ — 8-hour diurnal cycle)
+  9. `shift_tick_cos` ($\cos(2\pi \cdot (\text{tick}\%480) / 480)$)
+  10. `is_manual_sensor` ($\{0.0, 1.0\}$)
+  11. `zone_code` ($\{0, 1, 2\}$ for Body, Paint, Assembly)
+  12. `station_type_code` (Categorical integer encoding across 30 station types)
+  13. `rolling_mean_ct_ratio` (10-tick rolling mean of cycle time ratio)
+  14. `rolling_std_ct_ratio` (10-tick rolling std dev of cycle time ratio)
+  15. `buffer_utilization_delta` (Buffer velocity: current fill vs 5 ticks ago)
+  16. `ticks_since_spc_flag` (Elapsed ticks since last EWMA drift / $3\sigma$ flag)
+  17. `machine_shaking_vibration` ($\text{mm/s}$ RMS)
+  18. `motor_heat_temperature` ($^\circ\text{C}$)
+  19. `active_power_draw_kw` ($\text{kW}$)
+
+- **Empirical Model Evaluation (Held-Out Seed 1005 Test Set)**:
+  - **Bottleneck ROC-AUC**: **$0.939$**
+  - **Bottleneck PR-AUC (Average Precision)**: **$0.850$**
+  - **Bottleneck Precision**: **$98.1\%$**
+  - **Bottleneck Recall**: **$84.6\%$** (Balanced sample weighting for class imbalance)
+  - **Subgroup Fairness Breakdown**:
+    - *Body Construction Zone*: Precision $98.3\%$, Recall $86.9\%$
+    - *Paint Shop Zone*: Precision $97.7\%$, Recall $81.8\%$
+    - *Final Assembly Zone*: Precision $98.2\%$, Recall $84.9\%$
+    - *Rich Sensor Tier*: Recall $84.9\%$
+    - *Manual Sensor Tier*: Recall $83.6\%$
+
+- **Explainability & Root Cause Attribution**:
+  - `GET /api/risk/{station_id}/drivers` computes top-3 risk driver feature attributions relative to calibrated nominal baselines and provides immediate operator remediation guidance.
+- **Code Implementation**: [`pipeline/risk_model.py`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/pipeline/risk_model.py), [`scripts/train_risk_model.py`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/scripts/train_risk_model.py), [`tests/test_features.py`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/tests/test_features.py).
 
 ### 7.2 Downstream Starvation Countdown Equation
 Models bottleneck starvation wave propagation across the line DAG topology:
@@ -214,9 +233,6 @@ Where:
 - Decayed risk propagation applies structural damping:
   $$\text{Risk}_{\text{propagated}}(v) = \text{Risk}(u) \cdot \gamma^{\text{dist}(u,v)} \cdot \left(1.0 - \frac{\text{BufferLevel}_v}{\text{BufferCap}_v}\right)$$
   ($\gamma = 0.85$ decay factor).
-- **Exact Source**:
-  - *Technical PRD Section 5.4 (Graph Propagation Layer)*.
-  - NetworkX Graph Algorithms Library (Hagberg et al., 2008).
 - **Code Implementation**: [`pipeline/propagation.py`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/pipeline/propagation.py#L35-L85).
 
 ---

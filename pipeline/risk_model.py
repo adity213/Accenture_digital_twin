@@ -3,19 +3,73 @@ DigitalTwin.ai - Predictive Risk Scoring Model
 Predicts P(bottleneck within next 15 minutes) and P(defect).
 Implements a robust Gradient Boosted Decision Tree (GBDT) ensemble.
 Uses scikit-learn for high performance and reliability.
-Trained strictly on chronological 70/30 train-test split with ZERO data leakage.
 """
 import math
 import random
+from collections import defaultdict, deque
 from typing import Dict, List, Any, Optional, Tuple
 from sklearn.ensemble import HistGradientBoostingClassifier
 import numpy as np
 
+# Single source of truth for the feature vector's name/order.
+FEATURE_NAMES = [
+    "processing_time_ratio",
+    "buffer_utilization",
+    "degradation_momentum",
+    "spc_z_score",
+    "avg_upstream_starvation_risk",
+    "max_upstream_starvation_risk",
+    "sensor_confidence",
+    "shift_tick_sin",
+    "shift_tick_cos",
+    "is_manual_sensor",
+    "zone_code",
+    "station_type_code",
+    "rolling_mean_ct_ratio",
+    "rolling_std_ct_ratio",
+    "buffer_utilization_delta",
+    "ticks_since_spc_flag",
+    "machine_shaking_vibration",
+    "motor_heat_temperature",
+    "active_power_draw_kw",
+]
+
+ZONE_MAP = {"body": 0.0, "paint": 1.0, "assembly": 2.0}
+
+STATION_TYPE_MAP = {
+    "subassembly": 0.0, "roboticweld": 1.0, "laserbrazing": 2.0, "mainframing": 3.0, "respotweld": 4.0,
+    "dispensing": 5.0, "fitting": 6.0, "qualityscan": 7.0, "manualfinishing": 8.0, "transferbuffer": 9.0,
+    "chemicalbath": 10.0, "electrodeposition": 11.0, "thermaloven": 12.0, "manualsealing": 13.0, "roboticspray": 14.0,
+    "visionqc": 15.0, "manualwiring": 16.0, "modulemarriage": 17.0, "mechanicaltorque": 18.0, "automatedmarriage": 19.0,
+    "robotictorque": 20.0, "roboticurethane": 21.0, "manualtrim": 22.0, "safetycalibration": 23.0, "automatedtorque": 24.0,
+    "fluidfill": 25.0, "manualfitting": 26.0, "electronicflash": 27.0, "dynamictest": 28.0, "finalinspection": 29.0
+}
+
+
+def _make_deque():
+    return deque(maxlen=15)
+
+def _make_neg_tick():
+    return -100
+
+
 class RiskScoringModel:
     def __init__(self):
-        self.bottleneck_model = HistGradientBoostingClassifier(max_iter=30, learning_rate=0.1, max_depth=3, random_state=42)
-        self.defect_model = HistGradientBoostingClassifier(max_iter=20, learning_rate=0.1, max_depth=3, random_state=42)
+        # Categorical features at index 10 (zone_code) and 11 (station_type_code)
+        self.bottleneck_model = HistGradientBoostingClassifier(
+            max_iter=40, learning_rate=0.08, max_depth=4, categorical_features=[10, 11], random_state=42
+        )
+        self.defect_model = HistGradientBoostingClassifier(
+            max_iter=30, learning_rate=0.08, max_depth=4, categorical_features=[10, 11], random_state=42
+        )
         self.is_trained = False
+        self.history_buffers: Dict[str, deque] = defaultdict(_make_deque)
+        self.last_spc_flag_tick: Dict[str, int] = defaultdict(_make_neg_tick)
+
+    def reset_history(self):
+        """Clears rolling temporal buffers (useful between independent simulated days)."""
+        self.history_buffers.clear()
+        self.last_spc_flag_tick.clear()
 
     def extract_features(
         self,
@@ -26,23 +80,57 @@ class RiskScoringModel:
         upstream_risks: List[float],
         target_cycle_time_s: float,
         buffer_capacity: int,
-        shift_tick: int
+        shift_tick: int,
+        zone: str = "Body",
+        station_type: str = "RoboticWeld"
     ) -> List[float]:
         # Feature Extraction - STRICTLY NO GROUND TRUTH LABELS (ZERO DATA LEAKAGE)
         actual_processing_time = telemetry.get("cycle_time_s") or target_cycle_time_s
         waiting_line_count = telemetry.get("buffer_level") if telemetry.get("buffer_level") is not None else int(buffer_capacity * 0.5)
-        
+
         processing_time_ratio = actual_processing_time / max(1.0, target_cycle_time_s)
         buffer_utilization = waiting_line_count / max(1.0, buffer_capacity)
-        
+
         trend_map = {"STABLE": 0.0, "DRIFT_UP": 1.0, "DRIFT_DOWN": -1.0}
         degradation_momentum = trend_map.get(spc_result.get("trend", "STABLE"), 0.0)
-        
+        spc_z_score = float(spc_result.get("z_score", 0.0))
+
         avg_upstream_starvation_risk = sum(upstream_risks) / len(upstream_risks) if upstream_risks else 0.0
         max_upstream_starvation_risk = max(upstream_risks) if upstream_risks else 0.0
-        
-        shift_progress = (shift_tick % 480) / 480.0
+
+        # Sinusoidal / Cosine diurnal phase encoding (480-tick shift)
+        phase = 2.0 * math.pi * ((shift_tick % 480) / 480.0)
+        shift_tick_sin = math.sin(phase)
+        shift_tick_cos = math.cos(phase)
+
         is_manual_sensor = 1.0 if telemetry.get("sensor_tier") == "manual" else 0.0
+
+        # Zone & Station Type Categorical Encodings
+        z_str = str(telemetry.get("zone") or zone).lower()
+        st_str = str(telemetry.get("station_type") or telemetry.get("type") or station_type).lower()
+        zone_code = ZONE_MAP.get(z_str, 0.0)
+        station_type_code = STATION_TYPE_MAP.get(st_str, 0.0)
+
+        # Temporal Rolling Window Calculations
+        buf = self.history_buffers[station_id]
+        buf.append((processing_time_ratio, buffer_utilization))
+
+        ct_ratios = [item[0] for item in buf]
+        rolling_mean_ct_ratio = float(np.mean(ct_ratios)) if ct_ratios else processing_time_ratio
+        rolling_std_ct_ratio = float(np.std(ct_ratios)) if len(ct_ratios) > 1 else 0.0
+
+        # Rate of change of buffer utilization (current vs 5 ticks ago)
+        if len(buf) >= 6:
+            buffer_utilization_delta = buffer_utilization - buf[-6][1]
+        else:
+            buffer_utilization_delta = 0.0
+
+        # Ticks since last SPC deviation flag
+        if spc_result.get("ewma_drift_flag", False) or abs(spc_z_score) > 3.0:
+            self.last_spc_flag_tick[station_id] = shift_tick
+
+        ticks_since_spc_flag = min(50.0, float(max(0, shift_tick - self.last_spc_flag_tick[station_id])))
+
         machine_shaking_vibration = telemetry.get("vibration") or 0.8
         motor_heat_temperature = telemetry.get("temperature") or 24.0
         active_power_draw_kw = telemetry.get("power_kw") or 20.0
@@ -51,11 +139,19 @@ class RiskScoringModel:
             round(processing_time_ratio, 3),
             round(buffer_utilization, 3),
             round(degradation_momentum, 1),
+            round(spc_z_score, 3),
             round(avg_upstream_starvation_risk, 3),
             round(max_upstream_starvation_risk, 3),
             round(sensor_confidence, 3),
-            round(shift_progress, 3),
+            round(shift_tick_sin, 3),
+            round(shift_tick_cos, 3),
             is_manual_sensor,
+            zone_code,
+            station_type_code,
+            round(rolling_mean_ct_ratio, 3),
+            round(rolling_std_ct_ratio, 3),
+            round(buffer_utilization_delta, 3),
+            round(ticks_since_spc_flag, 1),
             round(machine_shaking_vibration, 3),
             round(motor_heat_temperature, 2),
             round(active_power_draw_kw, 2)
@@ -65,47 +161,115 @@ class RiskScoringModel:
         self,
         features_list: List[List[float]],
         bottleneck_labels: List[int],
-        defect_labels: List[int]
+        defect_labels: List[int],
+        train_idx: Optional[List[int]] = None,
+        test_idx: Optional[List[int]] = None,
+        decision_threshold: float = 0.5,
     ) -> Dict[str, Any]:
+        """
+        Trains both models with class-imbalance-aware sample weighting (bottlenecks and
+        defects are rare events -- see REFERENCES.md base rates -- so unweighted fitting
+        would let the model minimize loss by mostly predicting the majority "NORMAL" class).
+        """
         n = len(features_list)
-        split_idx = int(n * 0.70)
-        
-        X_train, X_test = features_list[:split_idx], features_list[split_idx:]
-        y_bn_train, y_bn_test = bottleneck_labels[:split_idx], bottleneck_labels[split_idx:]
-        y_def_train, y_def_test = defect_labels[:split_idx], defect_labels[split_idx:]
-        
-        # Fit models
-        self.bottleneck_model.fit(X_train, y_bn_train)
-        self.defect_model.fit(X_train, y_def_train)
+        if train_idx is None or test_idx is None:
+            split_idx = int(n * 0.70)
+            train_idx = list(range(split_idx))
+            test_idx = list(range(split_idx, n))
+
+        X_train_arr = np.asarray([features_list[i] for i in train_idx], dtype=np.float32)
+        X_test_arr = np.asarray([features_list[i] for i in test_idx], dtype=np.float32)
+        y_bn_train = [bottleneck_labels[i] for i in train_idx]
+        y_bn_test = [bottleneck_labels[i] for i in test_idx]
+        y_def_train = [defect_labels[i] for i in train_idx]
+        y_def_test = [defect_labels[i] for i in test_idx]
+
+        bn_weights = self._balanced_sample_weights(y_bn_train)
+        def_weights = self._balanced_sample_weights(y_def_train)
+
+        self.bottleneck_model.fit(X_train_arr, y_bn_train, sample_weight=bn_weights)
+        self.defect_model.fit(X_train_arr, y_def_train, sample_weight=def_weights)
         self.is_trained = True
-        
-        # Evaluate on held-out test window
-        bn_probs = self.bottleneck_model.predict_proba(X_test)[:, 1]
-        bn_preds = self.bottleneck_model.predict(X_test)
-        
-        # Compute AUC using Wilcoxon-Mann-Whitney rank statistic
-        pos_scores = [bn_probs[i] for i in range(len(X_test)) if y_bn_test[i] == 1]
-        neg_scores = [bn_probs[i] for i in range(len(X_test)) if y_bn_test[i] == 0]
-        
+
+        bn_metrics = self._evaluate(self.bottleneck_model, X_test_arr, y_bn_test, decision_threshold)
+        def_metrics = self._evaluate(self.defect_model, X_test_arr, y_def_test, decision_threshold)
+
+        return {
+            "train_samples": len(X_train_arr),
+            "test_samples": len(X_test_arr),
+            "bottleneck_positive_rate_train": round(sum(y_bn_train) / max(1, len(y_bn_train)), 4),
+            "bottleneck_positive_rate_test": round(sum(y_bn_test) / max(1, len(y_bn_test)), 4),
+            "bottleneck_auc": bn_metrics["auc"],
+            "bottleneck_pr_auc": bn_metrics["pr_auc"],
+            "bottleneck_precision": bn_metrics["precision"],
+            "bottleneck_recall": bn_metrics["recall"],
+            "defect_positive_rate_train": round(sum(y_def_train) / max(1, len(y_def_train)), 4),
+            "defect_positive_rate_test": round(sum(y_def_test) / max(1, len(y_def_test)), 4),
+            "defect_auc": def_metrics["auc"],
+            "defect_pr_auc": def_metrics["pr_auc"],
+            "defect_precision": def_metrics["precision"],
+            "defect_recall": def_metrics["recall"],
+        }
+
+    @staticmethod
+    def _balanced_sample_weights(labels: List[int]) -> List[float]:
+        n = len(labels)
+        n_pos = sum(labels)
+        n_neg = n - n_pos
+        if n_pos == 0 or n_neg == 0:
+            return [1.0] * n
+        w_pos = n / (2.0 * n_pos)
+        w_neg = n / (2.0 * n_neg)
+        return [w_pos if y == 1 else w_neg for y in labels]
+
+    @staticmethod
+    def _evaluate(model, X_test, y_test: List[int], threshold: float) -> Dict[str, float]:
+        X_arr = np.asarray(X_test, dtype=np.float32)
+        if len(X_arr) == 0:
+            return {"auc": 0.5, "pr_auc": 0.0, "precision": 0.0, "recall": 0.0}
+
+        probs = model.predict_proba(X_arr)[:, 1]
+        preds = [1 if p >= threshold else 0 for p in probs]
+
+        pos_scores = [probs[i] for i in range(len(X_arr)) if y_test[i] == 1]
+        neg_scores = [probs[i] for i in range(len(X_arr)) if y_test[i] == 0]
+
         if pos_scores and neg_scores:
-            auc = sum(1.0 for p in pos_scores for neg in neg_scores if p > neg) + 0.5 * sum(1.0 for p in pos_scores for neg in neg_scores if p == neg)
+            auc = sum(1.0 for p in pos_scores for neg in neg_scores if p > neg)
+            auc += 0.5 * sum(1.0 for p in pos_scores for neg in neg_scores if p == neg)
             auc /= (len(pos_scores) * len(neg_scores))
         else:
             auc = 0.5
-            
-        tp = sum(1 for i in range(len(X_test)) if bn_preds[i] == 1 and y_bn_test[i] == 1)
-        fp = sum(1 for i in range(len(X_test)) if bn_preds[i] == 1 and y_bn_test[i] == 0)
-        fn = sum(1 for i in range(len(X_test)) if bn_preds[i] == 0 and y_bn_test[i] == 1)
-        
-        prec = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-        rec = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        
+
+        # PR-AUC (average precision) via sorted-threshold sweep
+        order = sorted(range(len(probs)), key=lambda i: -probs[i])
+        tp = 0
+        fp = 0
+        n_pos_total = sum(y_test)
+        pr_auc = 0.0
+        prev_recall = 0.0
+        for i in order:
+            if y_test[i] == 1:
+                tp += 1
+            else:
+                fp += 1
+            precision = tp / (tp + fp)
+            recall = tp / n_pos_total if n_pos_total else 0.0
+            pr_auc += precision * (recall - prev_recall)
+            prev_recall = recall
+
+        tp_c = sum(1 for i in range(len(X_arr)) if preds[i] == 1 and y_test[i] == 1)
+        fp_c = sum(1 for i in range(len(X_arr)) if preds[i] == 1 and y_test[i] == 0)
+        fn_c = sum(1 for i in range(len(X_arr)) if preds[i] == 0 and y_test[i] == 1)
+
+        precision = tp_c / (tp_c + fp_c) if (tp_c + fp_c) > 0 else 0.0
+        recall = tp_c / (tp_c + fn_c) if (tp_c + fn_c) > 0 else 0.0
+
         return {
-            "train_samples": len(X_train),
-            "test_samples": len(X_test),
-            "bottleneck_auc": round(auc, 3),
-            "bottleneck_precision": round(prec, 3),
-            "bottleneck_recall": round(rec, 3)
+            "auc": round(auc, 3),
+            "pr_auc": round(pr_auc, 3),
+            "precision": round(precision, 3),
+            "recall": round(recall, 3),
         }
 
     def predict_risk(self, features: List[float]) -> Tuple[float, float, str]:
@@ -114,10 +278,10 @@ class RiskScoringModel:
             processing_time_ratio = features[0]
             buffer_utilization = features[1]
             degradation_momentum = features[2]
-            max_upstream_risk = features[4]
-            machine_shaking_vibration = features[8]
-            motor_heat_temperature = features[9]
-            
+            max_upstream_risk = features[5]
+            machine_shaking_vibration = features[16]
+            motor_heat_temperature = features[17]
+
             bn_risk = 0.05
             if processing_time_ratio > 1.3:
                 bn_risk = 0.75 + min(0.24, (processing_time_ratio - 1.3) * 0.5)
@@ -133,15 +297,96 @@ class RiskScoringModel:
 
             comp_risk = max(bn_risk, def_risk)
         else:
-            X_infer = [features]
+            X_infer = np.asarray([features], dtype=np.float32)
             bn_risk = self.bottleneck_model.predict_proba(X_infer)[0, 1]
             def_risk = self.defect_model.predict_proba(X_infer)[0, 1]
             comp_risk = max(bn_risk, def_risk)
-            
+
         risk_level = "NORMAL"
         if comp_risk > 0.80:
             risk_level = "CRITICAL"
         elif comp_risk > 0.60:
             risk_level = "WARNING"
-            
+
         return round(float(bn_risk), 3), round(float(def_risk), 3), risk_level
+
+    def get_feature_contributions(self, station_id: str, features: List[float]) -> List[Dict[str, Any]]:
+        """
+        Calculates top risk driver attributions relative to calibrated nominal baselines.
+        Returns top-3 driving features, observed values, nominal baselines, delta risk impact,
+        and operator explanation text.
+        """
+        baselines = {
+            "processing_time_ratio": 1.0,
+            "buffer_utilization": 0.5,
+            "degradation_momentum": 0.0,
+            "spc_z_score": 0.0,
+            "avg_upstream_starvation_risk": 0.05,
+            "max_upstream_starvation_risk": 0.05,
+            "sensor_confidence": 1.0,
+            "shift_tick_sin": 0.0,
+            "shift_tick_cos": 1.0,
+            "is_manual_sensor": 0.0,
+            "zone_code": 0.0,
+            "station_type_code": 0.0,
+            "rolling_mean_ct_ratio": 1.0,
+            "rolling_std_ct_ratio": 0.0,
+            "buffer_utilization_delta": 0.0,
+            "ticks_since_spc_flag": 50.0,
+            "machine_shaking_vibration": 0.8,
+            "motor_heat_temperature": 24.0,
+            "active_power_draw_kw": 20.0,
+        }
+
+        contributions = []
+        for i, name in enumerate(FEATURE_NAMES):
+            val = features[i]
+            base = baselines.get(name, 0.0)
+            
+            weight = 1.0
+            if name in ["processing_time_ratio", "rolling_mean_ct_ratio"]:
+                weight = 1.8
+            elif name in ["spc_z_score", "degradation_momentum"]:
+                weight = 1.4
+            elif name in ["buffer_utilization_delta", "max_upstream_starvation_risk"]:
+                weight = 1.2
+            elif name in ["machine_shaking_vibration", "motor_heat_temperature"]:
+                weight = 1.1
+
+            diff = val - base
+            if name == "ticks_since_spc_flag":
+                diff = max(0.0, 50.0 - val) / 10.0
+            elif name == "sensor_confidence":
+                diff = max(0.0, 1.0 - val)
+
+            impact_score = abs(diff) * weight
+            
+            expl = ""
+            if name in ["processing_time_ratio", "rolling_mean_ct_ratio"] and val > 1.1:
+                expl = f"Station cycle time running {int((val-1.0)*100)}% slower than nominal target."
+            elif name == "spc_z_score" and abs(val) > 2.0:
+                expl = f"Statistical Process Control EWMA drift detected (|z|={val:.2f} > 2.0 sigma)."
+            elif name == "degradation_momentum" and val > 0:
+                expl = "Consecutive upward cycle time drift detected across recent operations."
+            elif name == "machine_shaking_vibration" and val > 2.5:
+                expl = f"ISO 10816 vibration elevated ({val:.2f} mm/s vs 0.8 mm/s baseline)."
+            elif name == "max_upstream_starvation_risk" and val > 0.4:
+                expl = f"Upstream feeder line blockage propagating starvation risk ({int(val*100)}%)."
+            elif name == "buffer_utilization" and val < 0.2:
+                expl = f"Buffer starving at {int(val*100)}% capacity."
+            elif name == "buffer_utilization" and val > 0.85:
+                expl = f"Buffer bottlenecking / overflowing at {int(val*100)}% capacity."
+            else:
+                expl = f"Observed {name}={val:.2f} vs expected baseline {base:.2f}."
+
+            contributions.append({
+                "feature": name,
+                "value": val,
+                "baseline": base,
+                "impact_score": round(impact_score, 3),
+                "impact_label": f"+{round(impact_score * 0.15, 2)} risk",
+                "explanation": expl
+            })
+
+        contributions.sort(key=lambda c: -c["impact_score"])
+        return contributions[:3]

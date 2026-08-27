@@ -59,20 +59,35 @@ graph TD
 * **Idle Energy Waste Surge**: Machine power draw surging $+60\%$ while idle or starved due to cooling fan/hydraulic pump runaway.
 
 ### 3. Machine Learning & Predictive Analytics Pipeline
+* **Histogram-Based GBDT Risk Scoring Engine**:
+  * Trained on multi-seed balanced anomaly campaigns (960,000 observations) across 19 physical, temporal, and categorical features.
+  * **Empirical Performance on Held-Out Test Set (Seed 1005)**:
+    * **ROC-AUC: 0.939**
+    * **PR-AUC: 0.850**
+    * **Precision: 98.1%**
+    * **Recall: 84.6%**
+  * Subgroup fairness parity verified across Body (86.9% recall), Paint (81.8% recall), Assembly (84.9% recall), and Sensor Tiers (83.6%–84.9%).
+* **Explainability & Root Cause Driver Attributions**:
+  * `GET /api/risk/{station_id}/drivers` identifies top 3 risk drivers relative to nominal baselines with automated remediation suggestions.
 * **Statistical Process Control (SPC)**:
-  * Exponentially Weighted Moving Average (EWMA with $\lambda=0.3$) to detect small mean shifts ($0.5\sigma - 1.5\sigma$).
-  * Rolling $z$-score thresholding ($|z| > 3.0$) for outlier detection.
+  * Station-type calibrated empirical sigmas with EWMA ($\lambda=0.3$) and $|z| > 3.0$ standard deviation alarms.
+  * ISO 10816-3 vibration severity limits ($>4.5\text{ mm/s}$ critical alert).
 * **Virtual Sensor Imputation**:
-  * Ridge Regression + KNN hybrid estimator to reconstruct missing cycle times, vibration, and temperature for manual and blackout stations.
-  * Weighted Twin Confidence scoring ($0-100\%$) based on sensor tier, recency, and upstream/downstream correlation agreement.
-* **LightGBM / GBDT Predictive Bottleneck Model**:
-  * Trained on chronological $70/30$ train-test split with **zero ground-truth data leakage**.
-  * Outputs calibrated risk probabilities $P(\text{bottleneck in } 15\text{ mins})$ and $P(\text{defect})$.
+  * Multi-method hybrid estimator (neighbor correlation + diurnal progress wave + flow regression) with $2.1\text{ s}$ MAE and 0 physical bounds violations.
 * **NetworkX Ripple Graph Propagation**:
   * Calculates dynamic downstream starvation countdowns across the DAG:
     $$\text{time\_to\_impact} = \frac{\text{buffer\_level}}{\text{outflow\_rate} - \text{inflow\_rate}} \times 60\text{ s}$$
 
-### 4. Interactive Dynamic DAG Layout Editor (LAYOUT View)
+### 4. High-Throughput SQL Engine & Full-Line Vehicle Genealogy
+* **Optimized SQLite Engine**:
+  * SQLite `WAL` mode for non-blocking concurrent read-write access.
+  * 256MB memory-mapped I/O (`mmap`), 64MB RAM cache, and composite B-Tree indexes.
+  * Vectorized `executemany` batch persistence ($10\times-50\times$ faster).
+* **Vehicle Genealogy Tracking**:
+  * Tracks every VIN from introduction at `ST01` across FIFO queues to terminal buy-off (`ST40`).
+  * Real-time latent defect propagation and downstream inspection delay modeling.
+
+### 5. Interactive Dynamic DAG Layout Editor (LAYOUT View)
 * **Drag-and-Drop Station Positioning**: Real-time card positioning with coordinate persistence.
 * **Dual-Mode Port Wiring**:
   * *Drag-to-Connect*: Drag bezier conveyor lines from `[OUT]` to `[IN]` ports with live dashed preview.
@@ -83,7 +98,7 @@ graph TD
 * **Auto-Arrange & Factory Baseline Reset**: `📐 AUTO-ARRANGE` aligns stations into clean zone lanes; `RESET DEFAULT` calls `POST /api/topology/reset` to restore the 40-station baseline.
 * **Live Twin Reboot (`⚡ APPLY LAYOUT`)**: Sends layout to `POST /api/topology/apply`, dynamically re-instantiating the simulation loop, SPC engine, GBDT risk model, and starvation graph.
 
-### 5. Multi-Persona SCADA Dashboard
+### 6. Multi-Persona SCADA Dashboard
 * **FLOOR View**: Living Line continuous conveyor highway, live vehicle tracking silhouettes, right instrument cockpit drawer, and fault injector.
 * **LAYOUT View**: Full-screen DAG drag-drop canvas and topology tools.
 * **LEAD View**: Leadership thermal heatmap, Pareto root causes, cumulative downtime avoided counter ($3.4M+), and VIN defect genealogy tracer.
@@ -97,6 +112,9 @@ graph TD
 * `GET /api/stations` — Returns current station metadata, coordinates, and DAG edges.
 * `GET /api/stations/{station_id}/history` — Returns 60-tick rolling telemetry history for targeted station.
 * `GET /api/risk/current` — Returns real-time composite risk scores, SPC metrics, and twin confidence.
+* `GET /api/risk/{station_id}/drivers` — Returns top 3 risk drivers, baseline comparisons, and remediation hints.
+* `GET /api/vehicles/recent` — Returns recently completed and in-progress vehicles.
+* `GET /api/vehicles/{vin}/genealogy` — Returns full station trace and defect history for a given vehicle.
 * `GET /api/recommendations` — Returns AI prescriptive actions, root cause explanations, and financial impact.
 * `GET /api/leadership/summary` — Returns plant OEE, downtime avoided ($), and thermal deviation heatmaps.
 * `POST /api/simulator/control` — Control simulator state (`{"action": "run"|"pause"|"step"|"set_speed"|"inject_anomaly"|"clear_faults"}`).

@@ -1,20 +1,23 @@
 """
 DigitalTwin.ai - Synthetic Assembly Line Simulator
 Generates high-fidelity telemetry across 40 stations with:
-- Gaussian cycle times & queue buffer dynamics
+- Gaussian cycle times & dynamic queue buffer dynamics
 - Power & energy calculations
-- Vibration & temperature physics
-- Vehicle flow & genealogy tracking
-- Separate ground-truth anomaly logging
+- Real-time vibration & temperature physics
+- Full-line vehicle genealogy & VIN lifecycle tracking across all 40 stations
+- Latent defect downstream inspection delay simulation
+- Separate ground-truth anomaly logging (strict zero-leakage)
 """
 import random
 import math
 import time
+from collections import deque, defaultdict
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 
 from .topology import build_line_topology
 from .anomalies import AnomalyManager
+
 
 class LineSimulator:
     def __init__(self, seed: int = 42, start_time: Optional[datetime] = None, custom_topology: Optional[Dict[str, Any]] = None):
@@ -28,18 +31,19 @@ class LineSimulator:
         self.start_time = start_time or datetime(2026, 3, 1, 6, 0, 0)
         self.anomaly_mgr = AnomalyManager()
         
-        # Runtime station state
+        # Runtime station state & FIFO Queues
         self.buffers: Dict[str, int] = {}
-        self.station_vehicles: Dict[str, Optional[str]] = {}
+        self.station_buffers: Dict[str, deque] = {}
+        self.station_processing: Dict[str, Optional[str]] = {}
         self.vehicle_counter = 1000
         self.active_vehicles: Dict[str, Dict[str, Any]] = {}
-        self.completed_vehicles: List[Dict[str, Any]] = []
+        self.completed_vehicles: deque = deque(maxlen=500)
         
         for sid, s in self.stations.items():
-            # Initial buffer level roughly 40-60% of capacity
             cap = s["buffer_capacity_units"]
             self.buffers[sid] = max(1, int(cap * 0.5))
-            self.station_vehicles[sid] = None
+            self.station_buffers[sid] = deque(maxlen=cap)
+            self.station_processing[sid] = None
 
     def get_simulated_time(self) -> str:
         sim_dt = self.start_time + timedelta(minutes=self.current_tick)
@@ -51,23 +55,26 @@ class LineSimulator:
         
         tick_telemetry: List[Dict[str, Any]] = []
         ground_truth: List[Dict[str, Any]] = []
+        updated_genealogy_records: List[Dict[str, Any]] = []
         
-        # Vehicle introduction at ST01
+        # 1. Vehicle Introduction at ST01 (Inflow rate ~85% per tick)
         if self.rng.random() < 0.85:
             self.vehicle_counter += 1
             vin = f"VIN-2026-{self.vehicle_counter:05d}"
-            self.active_vehicles[vin] = {
+            veh_info = {
                 "vehicle_id": vin,
                 "entry_tick": self.current_tick,
                 "completion_tick": None,
                 "current_station": "ST01",
-                "visits": [{"station_id": "ST01", "tick": self.current_tick}],
-                "defects": []
+                "status": "IN_PROGRESS",
+                "visit_history": [{"station_id": "ST01", "tick": self.current_tick, "defect_flag": False}],
+                "defect_flags": []
             }
-            if self.station_vehicles["ST01"] is None:
-                self.station_vehicles["ST01"] = vin
+            self.active_vehicles[vin] = veh_info
+            if len(self.station_buffers["ST01"]) < self.stations["ST01"]["buffer_capacity_units"]:
+                self.station_buffers["ST01"].append(vin)
 
-        # Process each station
+        # 2. Process Station Telemetry & Physical States
         for sid, s in self.stations.items():
             target_ct = s["target_cycle_time_s"]
             tier = s["sensor_tier"]
@@ -96,16 +103,16 @@ class LineSimulator:
                 })
             
             # Base Gaussian cycle time
-            sigma = target_ct * 0.04  # 4% coefficient of variation
+            sigma = target_ct * 0.04
             actual_ct = self.rng.gauss(target_ct, sigma)
             actual_ct = max(target_ct * 0.8, min(target_ct * 1.3, actual_ct))
             
             if is_stopped:
-                actual_ct = target_ct * 4.5  # Heavy delay / stoppage
+                actual_ct = target_ct * 4.5
             else:
                 actual_ct *= ct_multiplier
 
-            # Defect simulation
+            # Defect simulation & Genealogy Attachment
             defect_flag = False
             defect_type = None
             
@@ -117,35 +124,28 @@ class LineSimulator:
             if has_latent_defect:
                 defect_flag = True
                 defect_type = latent_type or "weld_porosity"
-                # Attach to current vehicle if present
-                v_curr = self.station_vehicles.get(sid)
-                if v_curr and v_curr in self.active_vehicles:
-                    self.active_vehicles[v_curr]["defects"].append({
-                        "station_id": sid,
-                        "tick": self.current_tick,
-                        "type": defect_type
-                    })
 
-            # Queueing buffer dynamics
-            # Inflow from upstreams
-            inflow = 0
-            if not s["upstream_ids"]:
-                inflow = 1 if self.rng.random() < 0.9 else 0
-            else:
-                # Buffer transfer from upstream stations
-                for up_id in s["upstream_ids"]:
-                    if self.buffers.get(up_id, 0) > 0 and self.rng.random() < 0.8:
-                        inflow += 1
-                        self.buffers[up_id] = max(0, self.buffers[up_id] - 1)
-                        break
-            
-            # Outflow to current station processing
-            outflow = 0
-            if self.buffers[sid] > 0 and not is_stopped:
-                outflow = 1 if self.rng.random() < 0.85 else 0
+            # Assign vehicle to station if slot is empty and buffer has queue
+            if self.station_processing[sid] is None and len(self.station_buffers[sid]) > 0:
+                self.station_processing[sid] = self.station_buffers[sid].popleft()
 
-            self.buffers[sid] = max(0, min(cap, self.buffers[sid] + inflow - outflow))
-            
+            current_vin = self.station_processing[sid]
+
+            # Attach defect to current vehicle genealogy
+            if defect_flag and current_vin and current_vin in self.active_vehicles:
+                self.active_vehicles[current_vin]["defect_flags"].append({
+                    "station_id": sid,
+                    "tick": self.current_tick,
+                    "type": defect_type
+                })
+
+            # Check if vehicle has inherited defect from upstream that downstream QC catches
+            if sid in ["ST12", "ST22", "ST40"] and current_vin and current_vin in self.active_vehicles:
+                prior_defects = self.active_vehicles[current_vin]["defect_flags"]
+                if prior_defects:
+                    defect_flag = True
+                    defect_type = f"detected_{prior_defects[-1]['type']}"
+
             # Physics signals: vibration & temperature
             robotic_types = [
                 "RoboticWeld", "RespotWeld", "MechanicalTorque", "RoboticTorque",
@@ -183,7 +183,10 @@ class LineSimulator:
                 power_kw = None
                 energy_kwh = None
 
-            # Sensor blackout behavior (applies to any station when blackout is active)
+            # Buffer count represents items in buffer plus current processing
+            self.buffers[sid] = len(self.station_buffers[sid]) + (1 if current_vin else 0)
+
+            # Telemetry Event Record
             if is_blackout:
                 event = {
                     "tick": self.current_tick,
@@ -217,18 +220,48 @@ class LineSimulator:
                     "energy_kwh": round(energy_kwh, 4) if energy_kwh is not None else None,
                     "defect_flag": defect_flag,
                     "defect_type": defect_type,
-                    "vehicle_id": self.station_vehicles.get(sid),
+                    "vehicle_id": current_vin,
                     "sensor_tier": tier,
                     "is_blackout": False,
                     "is_stopped": is_stopped
                 }
-            
             tick_telemetry.append(event)
+
+            # Vehicle Flow & Transition (if completed this cycle and station not stopped)
+            if current_vin and not is_stopped and self.rng.random() < 0.88:
+                if current_vin in self.active_vehicles:
+                    self.active_vehicles[current_vin]["visit_history"].append({
+                        "station_id": sid,
+                        "tick": self.current_tick,
+                        "cycle_time_s": round(actual_ct, 2),
+                        "defect_flag": defect_flag
+                    })
+                    updated_genealogy_records.append(dict(self.active_vehicles[current_vin]))
+
+                downstreams = s["downstream_ids"]
+                if downstreams:
+                    # Pick downstream with smallest queue buffer (load balancing)
+                    target_down = min(downstreams, key=lambda d: len(self.station_buffers.get(d, [])))
+                    if len(self.station_buffers[target_down]) < self.stations[target_down]["buffer_capacity_units"]:
+                        self.station_buffers[target_down].append(current_vin)
+                        if current_vin in self.active_vehicles:
+                            self.active_vehicles[current_vin]["current_station"] = target_down
+                else:
+                    # Terminal Station (ST40 Buy-Off) Completed!
+                    if current_vin in self.active_vehicles:
+                        v_rec = self.active_vehicles.pop(current_vin)
+                        v_rec["completion_tick"] = self.current_tick
+                        v_rec["status"] = "COMPLETED"
+                        self.completed_vehicles.append(v_rec)
+                        updated_genealogy_records.append(v_rec)
+
+                self.station_processing[sid] = None
 
         return {
             "tick": self.current_tick,
             "timestamp": sim_time_str,
             "events": tick_telemetry,
             "ground_truth": ground_truth,
-            "buffers": dict(self.buffers)
+            "buffers": dict(self.buffers),
+            "genealogy_records": updated_genealogy_records
         }
