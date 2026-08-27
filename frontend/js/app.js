@@ -77,6 +77,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadLeadershipData();
   initSchematicInteractivity();
   renderVinTrailGrid();
+  updateLineBalancing(55);
 });
 
 function switchView(viewName) {
@@ -101,7 +102,15 @@ function switchView(viewName) {
   if (viewWeekly) viewWeekly.classList.toggle("active", viewName === "weekly");
   if (viewTopology) viewTopology.classList.toggle("active", viewName === "topology");
 
-  if (viewName === "leadership") loadLeadershipData();
+  if (viewName === "leadership") {
+    loadLeadershipData();
+    renderVinTrailGrid();
+  }
+  if (viewName === "weekly") {
+    loadLeadershipData();
+    const slider = document.getElementById("whatif-jph-slider");
+    updateLineBalancing(slider ? slider.value : 55);
+  }
   if (viewName === "topology" && typeof initTopologyEditor === "function") initTopologyEditor();
 }
 
@@ -503,6 +512,8 @@ async function loadLeadershipData() {
     renderParetoCauses(data.root_causes || []);
   } catch (err) {
     console.warn("Leadership load error:", err);
+    renderThermalHeatmap([]);
+    renderParetoCauses([]);
   }
 }
 
@@ -511,7 +522,21 @@ function renderThermalHeatmap(heatmapData) {
   if (!container) return;
   container.innerHTML = "";
 
-  const sids = Object.keys(stationsMeta);
+  // Ensure 40 stations list
+  let sids = Object.keys(stationsMeta);
+  if (!sids || sids.length === 0) {
+    sids = Array.from({ length: 40 }, (_, i) => `ST${(i + 1).toString().padStart(2, '0')}`);
+  }
+
+  const heatMapLookup = {};
+  if (Array.isArray(heatmapData)) {
+    heatmapData.forEach(item => {
+      if (item && item.station_id) {
+        heatMapLookup[item.station_id] = item.readings || [];
+      }
+    });
+  }
+
   sids.forEach(sid => {
     const row = document.createElement("div");
     row.className = "thm-row";
@@ -521,16 +546,30 @@ function renderThermalHeatmap(heatmapData) {
     lbl.innerText = sid;
     row.appendChild(lbl);
 
-    for (let i = 0; i < 20; i++) {
+    const readings = heatMapLookup[sid] || [];
+    const count = 20;
+
+    for (let i = 0; i < count; i++) {
       const cell = document.createElement("div");
       cell.className = "thm-cell";
-      const isAnomaly = (sid === "ST06" && i > 11) || (sid === "ST02" && i > 14);
-      if (isAnomaly) {
-        cell.style.background = "var(--status-critical)";
-      } else {
-        cell.style.background = "var(--status-nominal-bg)";
-        cell.style.border = "1px solid var(--border-subtle)";
+      
+      const rVal = (readings[i] !== undefined && readings[i] !== null) ? readings[i] : 1.0;
+      let cellBg = "#10b981"; // Nominal green
+      let statusText = "Nominal (1.0x Target)";
+
+      if (rVal > 1.30) {
+        cellBg = "#ef4444"; // Red Critical
+        statusText = `Critical Slowdown (${(rVal * 100).toFixed(0)}% Target)`;
+      } else if (rVal > 1.15) {
+        cellBg = "#f59e0b"; // Amber Warning
+        statusText = `Warning Drift (${(rVal * 100).toFixed(0)}% Target)`;
+      } else if (rVal < 0.85) {
+        cellBg = "#38bdf8"; // Blue Under-cycle
+        statusText = `Starved/Under-cycle (${(rVal * 100).toFixed(0)}% Target)`;
       }
+
+      cell.style.background = cellBg;
+      cell.title = `${sid} [Tick -${count - i}]: ${statusText}`;
       row.appendChild(cell);
     }
 
@@ -541,35 +580,45 @@ function renderThermalHeatmap(heatmapData) {
 function renderParetoCauses(causes) {
   const container = document.querySelector(".root-cause-list");
   const weeklyContainer = document.querySelector(".root-cause-list-weekly");
-  if (!container) return;
-  container.innerHTML = "";
+  if (!container && !weeklyContainer) return;
+  if (container) container.innerHTML = "";
   if (weeklyContainer) weeklyContainer.innerHTML = "";
 
   const defaultCauses = [
-    { title: "Servo Drive Over-Current (Framing Line ST06)", pct: "34%", icon: "⚡" },
-    { title: "Air Pressure Drop in Adhesive Sealers (ST09)", pct: "22%", icon: "💨" },
-    { title: "Nutrunner Calibration Drift (Torquing ST35)", pct: "15%", icon: "🔧" },
-    { title: "Blower Fan Bearing Wear (Paint Oven ST17)", pct: "11%", icon: "🌀" }
+    { title: "Tooling Wear & Friction Drift (Framing ST06)", pct: "34%", icon: "⚡" },
+    { title: "Air Pressure Drop in Adhesive Sealers (ST09)", pct: "24%", icon: "💨" },
+    { title: "Torque Calibration Outlier (ST35)", pct: "18%", icon: "🔧" },
+    { title: "Thermal Oven Blower Harmonic (ST17)", pct: "14%", icon: "🌀" },
+    { title: "Optic Vision QC Camera Occlusion (ST22)", pct: "10%", icon: "👁️" }
   ];
 
-  const items = (causes && causes.length) ? causes : defaultCauses;
+  let items = defaultCauses;
+  if (Array.isArray(causes) && causes.length > 0) {
+    const totalCount = causes.reduce((sum, c) => sum + (c.count || 1), 0) || 1;
+    items = causes.map(c => ({
+      title: c.cause || "Unspecified Anomaly",
+      pct: `${Math.round((c.count / totalCount) * 100)}%`,
+      icon: "⚡"
+    }));
+  }
+
   items.forEach(c => {
     const div = document.createElement("div");
-    div.style.padding = "10px 12px";
+    div.style.padding = "8px 12px";
     div.style.background = "#f8fafc";
     div.style.border = "1px solid var(--border-subtle)";
     div.style.borderRadius = "var(--radius-sm)";
-    div.style.marginBottom = "8px";
+    div.style.marginBottom = "6px";
     div.innerHTML = `
-      <div style="display: flex; justify-content: space-between; font-size: 0.78rem; font-family: var(--font-brand); font-weight: 700; color: var(--text-primary);">
-        <span>${c.icon || '⚡'} ${c.title}</span>
+      <div style="display: flex; justify-content: space-between; font-size: 0.76rem; font-family: var(--font-brand); font-weight: 700; color: var(--text-primary);">
+        <span>${c.icon} ${c.title}</span>
         <span style="color: var(--brand-blue); font-family: var(--font-mono); font-weight: 800;">${c.pct}</span>
       </div>
-      <div style="width: 100%; background: #e2e8f0; height: 5px; border-radius: 999px; margin-top: 6px; overflow: hidden;">
+      <div style="width: 100%; background: #e2e8f0; height: 4px; border-radius: 999px; margin-top: 5px; overflow: hidden;">
         <div style="background: var(--brand-blue); height: 100%; width: ${c.pct};"></div>
       </div>
     `;
-    container.appendChild(div.cloneNode(true));
+    if (container) container.appendChild(div.cloneNode(true));
     if (weeklyContainer) weeklyContainer.appendChild(div);
   });
 }
@@ -583,6 +632,7 @@ function renderVinTrailGrid() {
     const sid = `ST${i.toString().padStart(2, '0')}`;
     const node = document.createElement("div");
     node.className = "vin-tick-node passed";
+    node.id = `vin-node-${sid}`;
     node.innerText = sid;
     container.appendChild(node);
   }
@@ -590,25 +640,141 @@ function renderVinTrailGrid() {
 
 async function traceGenealogy() {
   const input = document.getElementById("genealogy-input");
-  const vin = input ? input.value.trim() : "VIN-2026-01042";
+  const vin = input ? input.value.trim() : "VIN-2026-01004";
   const resultEl = document.getElementById("genealogy-result");
   if (!resultEl) return;
 
   try {
-    const res = await fetch(`/api/genealogy/${vin}`);
+    const res = await fetch(`/api/vehicles/${vin}/genealogy`);
     const data = await res.json();
+    
+    // Reset all nodes
+    renderVinTrailGrid();
+    
+    const trace = data.station_trace || [];
+    const visitedSids = new Set();
+    const defectSids = new Set();
+
+    trace.forEach(t => {
+      visitedSids.add(t.station_id);
+      if (t.defect_flag) defectSids.add(t.station_id);
+    });
+
+    for (let i = 1; i <= 40; i++) {
+      const sid = `ST${i.toString().padStart(2, '0')}`;
+      const node = document.getElementById(`vin-node-${sid}`);
+      if (node) {
+        if (defectSids.has(sid)) {
+          node.className = "vin-tick-node failed";
+        } else if (visitedSids.has(sid)) {
+          node.className = "vin-tick-node passed";
+        } else {
+          node.className = "vin-tick-node";
+          node.style.background = "#f1f5f9";
+          node.style.color = "#94a3b8";
+        }
+      }
+    }
+
+    const defectCount = data.defect_count !== undefined ? data.defect_count : (data.defect_flags ? data.defect_flags.length : 0);
+    const isPassed = defectCount === 0;
+
     resultEl.innerHTML = `
-      <span style="color: var(--status-nominal); font-weight: 700;">${data.vin || vin}:</span> 
-      ${data.total_stations_visited || 40}/40 Stations Visited • 
-      Defects Detected: <strong style="color: var(--status-nominal);">${data.defects_detected || 0}</strong> • 
-      Quality Gate: <strong style="color: var(--status-nominal); text-transform: uppercase;">${data.status || 'PASSED BUY-OFF'}</strong>
+      <span style="color: ${isPassed ? 'var(--status-nominal)' : 'var(--status-critical)'}; font-weight: 800;">${data.vin || vin}:</span> 
+      ${data.total_stations_visited || trace.length}/40 Stations Traversed • 
+      Defects Flagged: <strong style="color: ${isPassed ? 'var(--status-nominal)' : 'var(--status-critical)'};">${defectCount}</strong> • 
+      Quality Status: <strong style="color: ${isPassed ? 'var(--status-nominal)' : 'var(--status-critical)'}; text-transform: uppercase;">${data.status || 'PASSED FINAL BUY-OFF'}</strong>
     `;
   } catch (err) {
-    resultEl.innerHTML = `<span style="color: var(--status-critical);">Failed to trace ${vin}.</span>`;
+    resultEl.innerHTML = `<span style="color: var(--status-critical);">Failed to trace ${vin}: ${err.message}</span>`;
   }
 }
 
-function updateLineBalancing(val) {
-  const lbl = document.getElementById("slider-target-val");
-  if (lbl) lbl.innerText = `Target JPH: ${val} U/hr`;
+function updateLineBalancing(jphVal) {
+  const jph = parseInt(jphVal, 10) || 55;
+  const taktSec = (3600.0 / jph);
+
+  const jphLbl = document.getElementById("slider-target-val");
+  const taktLbl = document.getElementById("slider-takt-val");
+  if (jphLbl) jphLbl.innerText = `Target Output: ${jph} JPH`;
+  if (taktLbl) taktLbl.innerText = `Required Takt: ${taktSec.toFixed(1)}s`;
+
+  // Calculate bottlenecks from stationsMeta
+  const sids = Object.keys(stationsMeta).length > 0 
+    ? Object.keys(stationsMeta) 
+    : Array.from({ length: 40 }, (_, i) => `ST${(i + 1).toString().padStart(2, '0')}`);
+
+  const bottlenecks = [];
+  let totalCycleOverloadSec = 0;
+
+  sids.forEach(sid => {
+    const meta = stationsMeta[sid] || {};
+    const targetCt = meta.target_cycle_time_s || 60.0;
+    if (targetCt > taktSec) {
+      const overloadSec = targetCt - taktSec;
+      totalCycleOverloadSec += overloadSec;
+      bottlenecks.push({
+        sid: sid,
+        name: meta.name || `Station ${sid}`,
+        zone: meta.zone || "Body",
+        targetCt: targetCt,
+        overloadSec: overloadSec,
+        overloadPct: Math.round((overloadSec / taktSec) * 100)
+      });
+    }
+  });
+
+  bottlenecks.sort((a, b) => b.overloadSec - a.overloadSec);
+
+  // Render KPI Grid
+  const kpiGrid = document.getElementById("whatif-kpi-grid");
+  if (kpiGrid) {
+    const starvationIndex = bottlenecks.length > 5 ? "HIGH" : (bottlenecks.length > 2 ? "MEDIUM" : "LOW");
+    const laborNeeded = bottlenecks.length > 0 ? `+${Math.ceil(bottlenecks.length * 1.5)} FTE / Robots` : "0 (Balanced)";
+
+    kpiGrid.innerHTML = `
+      <div class="whatif-kpi-card">
+        <span class="whatif-kpi-title">Bottlenecks</span>
+        <span class="whatif-kpi-val" style="color: ${bottlenecks.length > 4 ? '#ef4444' : (bottlenecks.length > 0 ? '#f59e0b' : '#10b981')}">${bottlenecks.length} / 40</span>
+      </div>
+      <div class="whatif-kpi-card">
+        <span class="whatif-kpi-title">Starvation Risk</span>
+        <span class="whatif-kpi-val" style="color: ${starvationIndex === 'HIGH' ? '#ef4444' : (starvationIndex === 'MEDIUM' ? '#f59e0b' : '#10b981')}">${starvationIndex}</span>
+      </div>
+      <div class="whatif-kpi-card">
+        <span class="whatif-kpi-title">Line Balancing</span>
+        <span class="whatif-kpi-val" style="font-size: 0.85rem; color: var(--brand-blue);">${laborNeeded}</span>
+      </div>
+    `;
+  }
+
+  // Render Bottlenecks List
+  const bnList = document.getElementById("whatif-bottlenecks-list");
+  if (bnList) {
+    bnList.innerHTML = "";
+    if (bottlenecks.length === 0) {
+      bnList.innerHTML = `
+        <div style="padding: 12px; background: #dcfce7; color: #15803d; border-radius: var(--radius-sm); font-size: 0.78rem; font-weight: 700; text-align: center;">
+          ✅ Line is 100% balanced at ${jph} JPH! No stations exceed the ${taktSec.toFixed(1)}s takt threshold.
+        </div>
+      `;
+    } else {
+      bottlenecks.forEach(b => {
+        const isCrit = b.overloadPct > 20;
+        const row = document.createElement("div");
+        row.className = `whatif-bottleneck-row ${isCrit ? 'critical' : 'warning'}`;
+        row.innerHTML = `
+          <div>
+            <span style="font-weight: 800; font-family: var(--font-mono); color: #0f172a;">${b.sid}</span>
+            <span style="color: var(--text-secondary); margin-left: 6px;">${b.name} (${b.zone})</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-secondary);">${b.targetCt.toFixed(0)}s vs ${taktSec.toFixed(1)}s takt</span>
+            <span class="whatif-tag ${isCrit ? 'critical' : 'warning'}">+${b.overloadSec.toFixed(1)}s (${b.overloadPct}%)</span>
+          </div>
+        `;
+        bnList.appendChild(row);
+      });
+    }
+  }
 }
