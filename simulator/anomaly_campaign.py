@@ -26,7 +26,7 @@ This module does not modify simulator/anomalies.py or generator.py -- it only de
 """
 import random
 from collections import defaultdict, deque
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 ANOMALY_TYPES = [
     "gradual_drift",
@@ -137,6 +137,101 @@ def generate_balanced_campaign(
                 )
 
     campaign.sort(key=lambda e: e["start_tick"])
+def generate_scenario_campaign(
+    topology: Dict[str, Any],
+    rng: random.Random,
+    num_ticks: int,
+    station_whitelist: Optional[List[str]] = None,
+    anomaly_types: Optional[List[str]] = None,
+    include_compound: bool = False,
+    severity_mode: str = "normal",
+    events_per_group: int = 3,
+    min_gap_ticks: int = 150,
+    warmup_ticks: int = 60,
+    cooldown_ticks: int = 150,
+) -> List[Dict[str, Any]]:
+    """
+    Scenario-aware campaign generator supporting Out-of-Distribution (OOD) testing:
+    - station_whitelist: restrict injections to specific stations (e.g. ST01-ST30 for training,
+      or ST31-ST40 for spatial OOD testing).
+    - anomaly_types: restrict to specific failure modes (e.g. single isolated faults vs. unseen types).
+    - include_compound: injects compound multi-fault events (e.g. simultaneous drift + energy surge).
+    - severity_mode: "normal" (standard industrial ranges) or "extreme" (severe out-of-bounds stress).
+    """
+    allowed_types = anomaly_types or list(ANOMALY_TYPES)
+    if include_compound and "compound_drift_energy" not in allowed_types:
+        allowed_types.append("compound_drift_energy")
+
+    stations = topology["stations"]
+    if station_whitelist is not None:
+        target_station_ids = [sid for sid in stations if sid in station_whitelist]
+    else:
+        target_station_ids = list(stations.keys())
+
+    if not target_station_ids:
+        return []
+
+    descendants = _build_descendants_map(topology)
+    station_last_end: Dict[str, int] = defaultdict(lambda: -10_000)
+    campaign: List[Dict[str, Any]] = []
+
+    usable_start_hi = max(warmup_ticks + 1, num_ticks - cooldown_ticks)
+
+    for anomaly_type in allowed_types:
+        for _ in range(events_per_group):
+            candidates = sorted(target_station_ids, key=lambda s: station_last_end[s])
+            sid = rng.choice(candidates[: max(1, len(candidates) // 2) or 1])
+
+            if anomaly_type == "compound_drift_energy":
+                duration = rng.randint(45, 90)
+            else:
+                base_lo, base_hi = DURATION_RANGES.get(anomaly_type, (30, 70))
+                if severity_mode == "extreme" and anomaly_type == "sudden_stoppage":
+                    duration = rng.randint(90, 160)
+                else:
+                    duration = rng.randint(base_lo, base_hi)
+
+            start_tick = rng.randint(warmup_ticks, usable_start_hi)
+            attempts = 0
+            while start_tick - station_last_end[sid] < min_gap_ticks and attempts < 25:
+                start_tick = rng.randint(warmup_ticks, usable_start_hi)
+                attempts += 1
+            station_last_end[sid] = start_tick + duration
+
+            params: Dict[str, Any] = {}
+            if anomaly_type == "gradual_drift":
+                if severity_mode == "extreme":
+                    params["drift_factor"] = round(rng.uniform(0.70, 1.20), 2)
+                else:
+                    params["drift_factor"] = round(rng.uniform(0.20, 0.65), 2)
+            elif anomaly_type == "latent_defect":
+                downs = descendants.get(sid, [])
+                params["inspection_station_id"] = rng.choice(downs) if downs else sid
+                params["defect_type"] = rng.choice(
+                    ["weld_porosity", "surface_scratch", "fastener_undertorque", "adhesive_void"]
+                )
+            elif anomaly_type == "energy_waste":
+                if severity_mode == "extreme":
+                    params["surge_multiplier"] = round(rng.uniform(3.5, 5.0), 2)
+                else:
+                    params["surge_multiplier"] = round(rng.uniform(1.6, 3.2), 2)
+            elif anomaly_type == "compound_drift_energy":
+                drift_f = round(rng.uniform(0.60, 1.0) if severity_mode == "extreme" else rng.uniform(0.35, 0.65), 2)
+                surge_m = round(rng.uniform(3.0, 4.5) if severity_mode == "extreme" else rng.uniform(2.0, 3.0), 2)
+                params["drift_factor"] = drift_f
+                params["surge_multiplier"] = surge_m
+
+            campaign.append(
+                {
+                    "station_id": sid,
+                    "anomaly_type": anomaly_type,
+                    "start_tick": start_tick,
+                    "duration_ticks": duration,
+                    "params": params,
+                }
+            )
+
+    campaign.sort(key=lambda e: e["start_tick"])
     return campaign
 
 
@@ -160,3 +255,8 @@ def apply_campaign_event(anomaly_mgr, event: Dict[str, Any]) -> None:
         anomaly_mgr.inject_sensor_blackout(sid, event["start_tick"], duration_ticks=dur)
     elif t == "energy_waste":
         anomaly_mgr.inject_energy_waste(sid, event["start_tick"], duration_ticks=dur, surge_multiplier=p.get("surge_multiplier", 2.4))
+    elif t == "compound_drift_energy":
+        # Simultaneous compound mechanical drag + electrical motor overload
+        anomaly_mgr.inject_gradual_drift(sid, event["start_tick"], duration_ticks=dur, drift_factor=p.get("drift_factor", 0.45))
+        anomaly_mgr.inject_energy_waste(sid, event["start_tick"], duration_ticks=dur, surge_multiplier=p.get("surge_multiplier", 2.4))
+

@@ -9,6 +9,7 @@ import random
 from collections import defaultdict, deque
 from typing import Dict, List, Any, Optional, Tuple
 from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.metrics import roc_auc_score, average_precision_score
 import numpy as np
 
 # Single source of truth for the feature vector's name/order.
@@ -231,45 +232,34 @@ class RiskScoringModel:
         probs = model.predict_proba(X_arr)[:, 1]
         preds = [1 if p >= threshold else 0 for p in probs]
 
-        pos_scores = [probs[i] for i in range(len(X_arr)) if y_test[i] == 1]
-        neg_scores = [probs[i] for i in range(len(X_arr)) if y_test[i] == 0]
-
-        if pos_scores and neg_scores:
-            auc = sum(1.0 for p in pos_scores for neg in neg_scores if p > neg)
-            auc += 0.5 * sum(1.0 for p in pos_scores for neg in neg_scores if p == neg)
-            auc /= (len(pos_scores) * len(neg_scores))
+        y_arr = np.asarray(y_test, dtype=np.int32)
+        if len(np.unique(y_arr)) > 1:
+            auc = float(roc_auc_score(y_arr, probs))
+            pr_auc = float(average_precision_score(y_arr, probs))
         else:
             auc = 0.5
-
-        # PR-AUC (average precision) via sorted-threshold sweep
-        order = sorted(range(len(probs)), key=lambda i: -probs[i])
-        tp = 0
-        fp = 0
-        n_pos_total = sum(y_test)
-        pr_auc = 0.0
-        prev_recall = 0.0
-        for i in order:
-            if y_test[i] == 1:
-                tp += 1
-            else:
-                fp += 1
-            precision = tp / (tp + fp)
-            recall = tp / n_pos_total if n_pos_total else 0.0
-            pr_auc += precision * (recall - prev_recall)
-            prev_recall = recall
+            pr_auc = 0.0
 
         tp_c = sum(1 for i in range(len(X_arr)) if preds[i] == 1 and y_test[i] == 1)
         fp_c = sum(1 for i in range(len(X_arr)) if preds[i] == 1 and y_test[i] == 0)
         fn_c = sum(1 for i in range(len(X_arr)) if preds[i] == 0 and y_test[i] == 1)
+        tn_c = sum(1 for i in range(len(X_arr)) if preds[i] == 0 and y_test[i] == 0)
 
         precision = tp_c / (tp_c + fp_c) if (tp_c + fp_c) > 0 else 0.0
         recall = tp_c / (tp_c + fn_c) if (tp_c + fn_c) > 0 else 0.0
+        f1 = (2.0 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+        n_neg = fp_c + tn_c
+        false_alarm_rate = fp_c / n_neg if n_neg > 0 else 0.0
+        brier = float(np.mean([(probs[i] - y_test[i]) ** 2 for i in range(len(X_arr))])) if len(X_arr) > 0 else 0.0
 
         return {
             "auc": round(auc, 3),
             "pr_auc": round(pr_auc, 3),
             "precision": round(precision, 3),
             "recall": round(recall, 3),
+            "f1": round(f1, 3),
+            "brier_score": round(brier, 4),
+            "false_alarm_rate": round(false_alarm_rate, 4),
         }
 
     def predict_risk(self, features: List[float]) -> Tuple[float, float, str]:

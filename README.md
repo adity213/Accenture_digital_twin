@@ -60,13 +60,28 @@ graph TD
 
 ### 3. Machine Learning & Predictive Analytics Pipeline
 * **Histogram-Based GBDT Risk Scoring Engine**:
-  * Trained on multi-seed balanced anomaly campaigns (960,000 observations) across 19 physical, temporal, and categorical features.
+  * Trained on multi-seed balanced anomaly campaigns across 19 physical, temporal, and categorical features.
   * **Empirical Performance on Held-Out Test Set (Seed 1005)**:
-    * **ROC-AUC: 0.939**
-    * **PR-AUC: 0.850**
+    * **ROC-AUC: 0.940**
+    * **PR-AUC: 0.848**
     * **Precision: 98.1%**
     * **Recall: 84.6%**
   * Subgroup fairness parity verified across Body (86.9% recall), Paint (81.8% recall), Assembly (84.9% recall), and Sensor Tiers (83.6%–84.9%).
+
+* **Scenario-Based & Out-of-Distribution (OOD) Validation Benchmark**:
+  > 📘 **Full Technical Report**: See [`docs/SCENARIO_VALIDATION_REPORT.md`](file:///c:/Users/Divyansh/OneDrive/Desktop/Accenture/docs/SCENARIO_VALIDATION_REPORT.md) and REST endpoint `GET /api/model/scenario-validation`.
+  
+  To address the simulator memorization trap, the model was stress-tested across 5 distinct operational distribution shifts rather than only random in-distribution splits:
+
+  | Operating Regime | Distribution Shift Evaluated | Samples | ROC-AUC | PR-AUC | Precision | Recall | F1 | FAR | Generalization Finding |
+  | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+  | **1. Baseline I.I.D.** | *Within-distribution (70/30 slice)* | 24,000 | **0.940** | **0.843** | 29.0% | **84.0%** | 0.432 | 1.46% | Nominal baseline performance |
+  | **2. Spatial OOD** | *Cross-Station: Train ST01-30 $\rightarrow$ Test ST31-40* | 20,000 | **0.925** | **0.837** | **98.0%** | **83.1%** | **0.899** | **0.08%** | Negligible gap ($\Delta=-0.015$); physical features transfer zero-shot |
+  | **3. Symptom OOD** | *Cross-Anomaly: Train Single $\rightarrow$ Test Compound* | 80,000 | **0.927** | **0.832** | 12.6% | **84.4%** | 0.220 | 3.28% | Maps blind spots; high recall maintained but compound interaction elevates FAR |
+  | **4. Speed Stress** | *Takt Acceleration (+20% line velocity)* | 80,000 | **0.945** | **0.839** | 27.2% | **84.5%** | 0.412 | 2.61% | Pacing invariant; no false bottlenecks on line speedup |
+  | **5. Severity Stress** | *Non-linear Extreme Physical Wear* | 80,000 | **0.948** | **0.867** | 32.0% | **87.0%** | 0.468 | 2.80% | Highest recall; monotonic detection envelope on catastrophic wear |
+  | **6. Sensor Dropout** | *Adverse Network (40% Telemetry Dropouts)* | 80,000 | **0.797** | **0.524** | 42.7% | **51.3%** | 0.466 | 0.81% | Graceful degradation; triggers low Confidence Score rather than hysterical alarms |
+
 * **Explainability & Root Cause Driver Attributions**:
   * `GET /api/risk/{station_id}/drivers` identifies top 3 risk drivers relative to nominal baselines with automated remediation suggestions.
 * **Statistical Process Control (SPC)**:
@@ -117,6 +132,7 @@ graph TD
 * `GET /api/vehicles/{vin}/genealogy` — Returns full station trace and defect history for a given vehicle.
 * `GET /api/recommendations` — Returns AI prescriptive actions, root cause explanations, and financial impact.
 * `GET /api/leadership/summary` — Returns plant OEE, downtime avoided ($), and thermal deviation heatmaps.
+* `GET /api/model/scenario-validation` — Returns OOD generalization benchmark results across 6 operational stress regimes.
 * `POST /api/simulator/control` — Control simulator state (`{"action": "run"|"pause"|"step"|"set_speed"|"inject_anomaly"|"clear_faults"}`).
 * `POST /api/topology/apply` — Apply modified DAG layout and re-initialize digital twin models.
 * `POST /api/topology/reset` — Reset plant layout to factory 40-station baseline.

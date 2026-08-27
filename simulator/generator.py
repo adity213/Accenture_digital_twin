@@ -20,8 +20,17 @@ from .anomalies import AnomalyManager
 
 
 class LineSimulator:
-    def __init__(self, seed: int = 42, start_time: Optional[datetime] = None, custom_topology: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        seed: int = 42,
+        start_time: Optional[datetime] = None,
+        custom_topology: Optional[Dict[str, Any]] = None,
+        speed_factor: float = 1.0,
+        sensor_dropout_rate: float = 0.0,
+    ):
         self.seed = seed
+        self.speed_factor = max(0.2, float(speed_factor))
+        self.sensor_dropout_rate = max(0.0, min(1.0, float(sensor_dropout_rate)))
         self.rng = random.Random(seed)
         self.topology = custom_topology if custom_topology else build_line_topology(seed=seed)
         self.stations = self.topology["stations"]
@@ -57,8 +66,9 @@ class LineSimulator:
         ground_truth: List[Dict[str, Any]] = []
         updated_genealogy_records: List[Dict[str, Any]] = []
         
-        # 1. Vehicle Introduction at ST01 (Inflow rate ~85% per tick)
-        if self.rng.random() < 0.85:
+        # 1. Vehicle Introduction at ST01 (Inflow rate scales with production speed)
+        inflow_prob = min(0.98, 0.85 * self.speed_factor)
+        if self.rng.random() < inflow_prob:
             self.vehicle_counter += 1
             vin = f"VIN-2026-{self.vehicle_counter:05d}"
             veh_info = {
@@ -76,7 +86,8 @@ class LineSimulator:
 
         # 2. Process Station Telemetry & Physical States
         for sid, s in self.stations.items():
-            target_ct = s["target_cycle_time_s"]
+            nominal_target_ct = s["target_cycle_time_s"]
+            effective_target_ct = nominal_target_ct / self.speed_factor
             tier = s["sensor_tier"]
             cap = s["buffer_capacity_units"]
             base_kw = s["power_base_kw"]
@@ -90,6 +101,11 @@ class LineSimulator:
             latent_type = anom_effects["latent_defect_type"]
             is_blackout = anom_effects["sensor_blackout"]
             power_multiplier = anom_effects["power_multiplier"]
+
+            # Stochastic sensor network dropout stress testing
+            if not is_blackout and self.sensor_dropout_rate > 0.0:
+                if self.rng.random() < self.sensor_dropout_rate:
+                    is_blackout = True
             
             # Log ground truth for active anomalies
             for an in anom_effects["active_anomalies"]:
@@ -102,13 +118,13 @@ class LineSimulator:
                     "details": {"anomaly_id": an["id"], "progress": an["progress"]}
                 })
             
-            # Base Gaussian cycle time
-            sigma = target_ct * 0.04
-            actual_ct = self.rng.gauss(target_ct, sigma)
-            actual_ct = max(target_ct * 0.8, min(target_ct * 1.3, actual_ct))
+            # Base Gaussian cycle time calibrated to effective takt
+            sigma = effective_target_ct * 0.04
+            actual_ct = self.rng.gauss(effective_target_ct, sigma)
+            actual_ct = max(effective_target_ct * 0.8, min(effective_target_ct * 1.3, actual_ct))
             
             if is_stopped:
-                actual_ct = target_ct * 4.5
+                actual_ct = effective_target_ct * 4.5
             else:
                 actual_ct *= ct_multiplier
 

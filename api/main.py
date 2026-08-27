@@ -8,6 +8,7 @@ import os
 import sys
 from collections import defaultdict
 from typing import Dict, List, Any, Optional
+import json
 import joblib
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -709,6 +710,31 @@ def reset_topology():
         }
     finally:
         is_sim_running = was_running
+
+@app.get("/api/model/scenario-validation")
+def get_scenario_validation_results():
+    """
+    Returns Scenario-Based and Out-of-Distribution (OOD) Validation Benchmark Results.
+    Demonstrates model generalization across 6 operating regimes:
+    1. Baseline I.I.D. (Within-distribution)
+    2. Spatial OOD (Cross-Station: Train ST01-ST30 -> Test ST31-ST40)
+    3. Phenomenological OOD (Compound multi-faults)
+    4. Operational Speed Stress (+20% Takt Acceleration)
+    5. Severity Stress (Non-linear out-of-bounds wear)
+    6. Sensor Network Degradation (40% Telemetry Dropouts)
+    """
+    results_path = os.path.join(base_dir, "data", "scenario_validation_results.json")
+    if os.path.exists(results_path):
+        try:
+            with open(results_path, "r") as f:
+                data = json.load(f)
+            return data
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to read scenario validation results: {e}")
+    return {
+        "status": "pending",
+        "message": "Scenario validation results not yet generated. Run scripts/evaluate_scenario_validation.py"
+    }
 
 # Mount static frontend
 frontend_dir = os.path.join(base_dir, "frontend")

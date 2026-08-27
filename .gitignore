@@ -8,6 +8,8 @@ __pycache__/
 *.db-shm
 *.db-wal
 data/*.csv
+data/**/*.csv
+data/scenarios/
 .env
 .DS_Store
 Thumbs.db
