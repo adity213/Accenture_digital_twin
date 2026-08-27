@@ -108,16 +108,13 @@ graph TD
 
 ---
 
-## 🛠️ Quick Start & Running Tests
+## 🛠️ Quick Start
 
 ```bash
 # 1. Navigate to repository root
 cd "c:/Android Projects/accenture/digitaltwin-ai"
 
-# 2. Run Direct Validation Test Suite (Verifies all 4 Phase Gates)
-python run_direct_tests.py
-
-# 3. Start FastAPI Server & WebSocket Gateway with Auto-Reload
+# 2. Start FastAPI Server & WebSocket Gateway with Auto-Reload
 python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
