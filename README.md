@@ -4,42 +4,34 @@
 
 ---
 
-## 🚀 Overview
-DigitalTwin.ai is an end-to-end predictive digital twin prototype for automotive manufacturing lines. It addresses the core failure modes of modern high-speed automotive plants (unplanned line stoppages costing up to $2.3M/hour) by moving from reactive alarms to **predictive risk forecasting, virtual sensing, and graph-propagated decision intelligence**.
+## 🚀 System Architecture Overview
+DigitalTwin.ai is an end-to-end predictive digital twin for automotive assembly lines. It solves the critical challenge of high-speed automotive plants (unplanned line stoppages costing upwards of **$2.3M/hour**) by transitioning plant operations from reactive alarms to **predictive risk forecasting, virtual sensing, graph-propagated starvation modeling, and dynamic DAG topology reconfiguration**.
 
-```
-  Synthetic Simulator (40 Stations)
-                │
-                ▼
-  SQLite & In-Memory Ring Buffer
-                │
-                ▼
-  SPC & Virtual Sensor Engine (80/20 Tier Split)
-                │
-                ▼
-  LightGBM / GBDT Predictive Risk Model (Chronological 70/30 Split)
-                │
-                ▼
-  NetworkX Graph Propagation Layer (Starvation Countdowns)
-                │
-                ▼
-  Actionable Recommendation Engine (Dynamic Cost & Downtime Impact)
-                │
-                ▼
-  FastAPI REST + Real-Time WebSocket Streaming
-                │
-                ▼
-  Dual Persona UI: Floor Supervisor (2.5D Schematic) & Plant Leadership
+```mermaid
+graph TD
+    A[Synthetic Physics Simulator: 40-Station Industrial DAG] -->|1Hz High-Frequency Telemetry| B[SQLite & In-Memory Ring Buffer]
+    B --> C[Statistical Process Control EWMA & ISO 10816 Engine]
+    B --> D[Virtual Sensor Imputation Engine: 80/20 Tier Split]
+    C --> E[LightGBM / GBDT Predictive Bottleneck Risk Model]
+    D --> E
+    E --> F[NetworkX Graph Propagation Engine: Starvation Countdowns]
+    F --> G[Prescriptive Recommendation Engine: Cost & Downtime Avoided]
+    G --> H[FastAPI REST & High-Performance WebSocket Streaming Gateway]
+    H --> I[Web SCADA HMI Interface: 4-View Unified Platform]
+    I --> I1[1. FLOOR: Living Line Conveyor Highway & Vehicle Tracking]
+    I --> I2[2. LAYOUT: Dynamic DAG Drag-Drop Editor with Ctrl+Z/Y Engine]
+    I --> I3[3. LEAD: Executive Thermal Heatmap & VIN Genealogy Tracer]
+    I --> I4[4. TREND: 7-Day OEE Trajectory & Line Balancing What-If]
 ```
 
 ---
 
-## 📊 Core Parameters & Operating Threshold Derivation
-> 📘 **Full Industrial Standards & Mathematics Registry**: See the comprehensive [`REFERENCES.md`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/REFERENCES.md) for full mathematical formulations, OEM citations, and code mapping.
+## 📊 Core Parameters & Operating Threshold Registry
+> 📘 **Full Industrial Standards & Mathematics Registry**: See [`REFERENCES.md`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/REFERENCES.md) for full mathematical formulations, ISO citations, and code implementation mappings.
 
-| Simplified Parameter Name | Technical Name | Normal Operating Range | Warning Threshold (Amber) | Critical Threshold (Red) | Engineering Derivation & Physical Rationale |
+| Simplified Metric | Technical Name | Normal Operating Range | Warning Threshold (Amber) | Critical Threshold (Red) | Industrial Derivation & Physical Rationale |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **Processing Time** | `cycle_time_s` | $50 - 65\text{ s}$ | $> 1.15 \times \text{Target}$ ($z > 2.0$) | $> 1.30 \times \text{Target}$ ($z > 3.0$) | Calibrated to plant takt time ($55-60\text{ JPH}$). Natural variation is $\pm 3\sigma$ ($\sigma \approx 4\%$). Progressive drift signals tip wear/motor friction; sudden surge signals stoppage. |
+| **Processing Time** | `cycle_time_s` | $50 - 65\text{ s}$ | $> 1.15 \times \text{Target}$ ($z > 2.0$) | $> 1.30 \times \text{Target}$ ($z > 3.0$) | Calibrated to plant takt time ($55-60\text{ JPH}$). Natural variation is $\pm 3\sigma$ ($\sigma \approx 4\%$). Progressive drift indicates tip wear/servo motor friction; sudden spike signals mechanical stoppage. |
 | **Waiting Line (Queue)** | `buffer_level` | $4 - 8\text{ units}$ ($40-70\%$) | $< 25\%$ or $> 80\%$ | $< 10\%$ (Starvation) or $100\%$ (Blockage) | Buffer capacity is $5-15\text{ cars}$. $<25\%$ fill gives downstream machines $<5\text{ mins}$ before running dry. $>80\%$ fill blocks upstream discharge. |
 | **Machine Shaking** | `vibration` (RMS) | $0.4 - 1.2\text{ mm/s}$ | $2.8 - 4.5\text{ mm/s}$ (Zone C) | **$> 4.5\text{ mm/s}$** (Zone D Alarm) | Derived from **ISO 10816-3 / ISO 20816-1 Industrial Vibration Severity Standard**. $>4.5\text{ mm/s}$ signals imminent bearing/spindle seizure. |
 | **Motor & Process Heat** | `temperature` | $24^\circ\text{C}$ (Ambient)<br>$55^\circ\text{C}$ (Pretreatment)<br>$190^\circ\text{C}$ (Oven) | $> 65^\circ\text{C}$ (Bath)<br>$> 205^\circ\text{C}$ (Oven) | $> 75^\circ\text{C}$ (Bath)<br>$> 220^\circ\text{C}$ (Oven) | **PPG/Axalta E-Coat Curing** ($180-200^\circ\text{C}$ crosslinking) & **Henkel Bath Guide** ($50-60^\circ\text{C}$). Overheating accelerates insulation breakdown & paint defects. |
@@ -51,37 +43,82 @@ DigitalTwin.ai is an end-to-end predictive digital twin prototype for automotive
 
 ---
 
-## 🌟 Key Features
-1. **40-Station Line Topology (DAG with Parallel Paths)**:
-   - Body Construction (14 stations), Paint Shop (8 stations), Final Assembly (18 stations).
-   - 80% Rich PLC-instrumented / 20% Manual checklist stations.
-2. **Synthetic Data Simulator with 5 Ground-Truth Anomaly Types**:
-   - Gradual Equipment Drift, 85-min Sudden Stoppage, Latent Defect Genealogy, Sensor Blackout, Energy Surge.
-3. **Statistical Process Control (SPC) & Virtual Sensing**:
-   - EWMA ($\lambda=0.3$) and rolling $z$-scores ($|z|>3.0$ detection).
-   - Multi-source virtual sensor imputation with Twin Confidence scoring ($0-100\%$).
-4. **Predictive Risk Model**:
-   - Predicts $P(	ext{bottleneck in 15 mins})$ and $P(	ext{defect})$.
-   - Evaluated on precision/recall/AUC with zero ground-truth data leakage.
-5. **Graph-Based Ripple Propagation**:
-   - Computes dynamic downstream starvation countdown:
-     $$	ext{time\_to\_impact} = rac{	ext{buffer\_units}}{	ext{outflow} - 	ext{inflow}} 	imes 60	ext{ s}$$
-6. **Dual Persona Dashboard**:
-   - **Floor Supervisor View**: Interactive 2.5D schematic, drill-down dials, and 1-click anomaly injection.
-   - **Leadership View**: Downtime avoided ($3.4M savings), processing time heatmaps, and genealogy traceability.
+## 🌟 Key Functional Capabilities
+
+### 1. 40-Station Industrial DAG Topology & Multi-Zone Flow
+* **Zone 1: Body Construction (14 Stations)** — Framing lines, robotic welding fixtures, and parallel framing/respot forks (`ST03`/`ST04` and `ST07`/`ST08`).
+* **Zone 2: Paint Shop (8 Stations)** — Continuous chemical immersion tanks, E-Coat dip baths ($55^\circ\text{C}$), infrared curing ovens ($190^\circ\text{C}$), primer booths, and vision inspection cells. Operates in a **reverse-flow tunnel**.
+* **Zone 3: Final Assembly (18 Stations)** — Interior trim, wire harness routing, powertrain marriage, Automated Guided Vehicle (AGV) docking, chassis torquing, brake fluids vacuum bleeding, and end-of-line (EOL) buy-off inspection.
+* **80/20 Sensor Tier Distribution** — 32 Rich PLC-instrumented stations and 8 Manual checklist operator stations.
+
+### 2. High-Fidelity Physics Simulator with 5 Ground-Truth Anomaly Types
+* **Gradual Tool Drift**: Progressive $15\text{ s}$ cycle time degradation and $1.5\text{ mm/s}$ vibration rise signaling mechanical wear.
+* **Sudden Stoppage (85-min Breakdown)**: $0\text{ JPH}$ physical line halt triggering immediate buffer drain and downstream starvation cascade.
+* **Latent Defect Genealogy**: Upstream micro-fault (e.g. weld misfire at `ST02`) propagating undetected until trapped by downstream CMM scan or EOL buy-off (`ST40`).
+* **Sensor Blackout & Network Dropout**: PLC network failure where telemetry drops to `None`, triggering the Virtual Sensor Imputation Engine and degrading confidence scores.
+* **Idle Energy Waste Surge**: Machine power draw surging $+60\%$ while idle or starved due to cooling fan/hydraulic pump runaway.
+
+### 3. Machine Learning & Predictive Analytics Pipeline
+* **Statistical Process Control (SPC)**:
+  * Exponentially Weighted Moving Average (EWMA with $\lambda=0.3$) to detect small mean shifts ($0.5\sigma - 1.5\sigma$).
+  * Rolling $z$-score thresholding ($|z| > 3.0$) for outlier detection.
+* **Virtual Sensor Imputation**:
+  * Ridge Regression + KNN hybrid estimator to reconstruct missing cycle times, vibration, and temperature for manual and blackout stations.
+  * Weighted Twin Confidence scoring ($0-100\%$) based on sensor tier, recency, and upstream/downstream correlation agreement.
+* **LightGBM / GBDT Predictive Bottleneck Model**:
+  * Trained on chronological $70/30$ train-test split with **zero ground-truth data leakage**.
+  * Outputs calibrated risk probabilities $P(\text{bottleneck in } 15\text{ mins})$ and $P(\text{defect})$.
+* **NetworkX Ripple Graph Propagation**:
+  * Calculates dynamic downstream starvation countdowns across the DAG:
+    $$\text{time\_to\_impact} = \frac{\text{buffer\_level}}{\text{outflow\_rate} - \text{inflow\_rate}} \times 60\text{ s}$$
+
+### 4. Interactive Dynamic DAG Layout Editor (LAYOUT View)
+* **Drag-and-Drop Station Positioning**: Real-time card positioning with coordinate persistence.
+* **Dual-Mode Port Wiring**:
+  * *Drag-to-Connect*: Drag bezier conveyor lines from `[OUT]` to `[IN]` ports with live dashed preview.
+  * *Click-to-Connect*: Click `[OUT]` port (activates gold pulse mode), then click destination `[IN]` port.
+* **Conveyor Link Disconnection & Modal**: Click any conveyor curve to disconnect or manage connections in the Connections Modal.
+* **Add Custom Machines**: Add new stations with custom Zone, Station Type, Takt Time, Buffer Capacity, Sensor Tier, and Base Power Draw.
+* **Full Undo (`Ctrl+Z`) & Redo (`Ctrl+Y`) State Engine**: 50-step snapshot stack supporting undo/redo for all drag, connect, disconnect, add, delete, and auto-arrange actions.
+* **Auto-Arrange & Factory Baseline Reset**: `📐 AUTO-ARRANGE` aligns stations into clean zone lanes; `RESET DEFAULT` calls `POST /api/topology/reset` to restore the 40-station baseline.
+* **Live Twin Reboot (`⚡ APPLY LAYOUT`)**: Sends layout to `POST /api/topology/apply`, dynamically re-instantiating the simulation loop, SPC engine, GBDT risk model, and starvation graph.
+
+### 5. Multi-Persona SCADA Dashboard
+* **FLOOR View**: Living Line continuous conveyor highway, live vehicle tracking silhouettes, right instrument cockpit drawer, and fault injector.
+* **LAYOUT View**: Full-screen DAG drag-drop canvas and topology tools.
+* **LEAD View**: Leadership thermal heatmap, Pareto root causes, cumulative downtime avoided counter ($3.4M+), and VIN defect genealogy tracer.
+* **TREND View**: 7-day OEE trajectory and what-if line balancing bottleneck simulator.
+
+---
+
+## 🔌 REST & WebSocket API Specification
+
+### REST Endpoints:
+* `GET /api/stations` — Returns current station metadata, coordinates, and DAG edges.
+* `GET /api/stations/{station_id}/history` — Returns 60-tick rolling telemetry history for targeted station.
+* `GET /api/risk/current` — Returns real-time composite risk scores, SPC metrics, and twin confidence.
+* `GET /api/recommendations` — Returns AI prescriptive actions, root cause explanations, and financial impact.
+* `GET /api/leadership/summary` — Returns plant OEE, downtime avoided ($), and thermal deviation heatmaps.
+* `POST /api/simulator/control` — Control simulator state (`{"action": "run"|"pause"|"step"|"set_speed"|"inject_anomaly"|"clear_faults"}`).
+* `POST /api/topology/apply` — Apply modified DAG layout and re-initialize digital twin models.
+* `POST /api/topology/reset` — Reset plant layout to factory 40-station baseline.
+
+### WebSocket Endpoint:
+* `ws://localhost:8000/api/ws/stream` — Real-time 1Hz binary/JSON broadcast of simulation ticks, vehicle movements, buffer levels, and ML risk predictions.
 
 ---
 
 ## 🛠️ Quick Start & Running Tests
 
 ```bash
-# 1. Navigate to directory
+# 1. Navigate to repository root
 cd "c:/Android Projects/accenture/digitaltwin-ai"
 
-# 2. Run test suite to verify all phase gates
+# 2. Run Direct Validation Test Suite (Verifies all 4 Phase Gates)
 python run_direct_tests.py
 
-# 3. Launch FastAPI Server & Frontend
+# 3. Start FastAPI Server & WebSocket Gateway with Auto-Reload
 python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-Open your browser at: `http://localhost:8000`
+
+Open your browser at: **[http://localhost:8000](http://localhost:8000)**

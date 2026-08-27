@@ -245,10 +245,42 @@ Where:
 
 ---
 
-## 9. Summary Traceability Matrix
+## 10. Dynamic Topology Reconfiguration & DAG Graph Transformations
+
+### 10.1 Topological Sorting & Cyclic Loop Prevention
+- **Invariance Criterion**: Plant layout must maintain a strictly Directed Acyclic Graph ($\text{DAG}$) structure:
+  $$\forall e = (u, v) \in E \implies \text{rank}(u) < \text{rank}(v) \land \not\exists \text{ path } v \leadsto u$$
+- **Runtime Validation**: When modifying conveyor edges via `/api/topology/apply`, NetworkX evaluates topological validity via Kahn's algorithm in $\mathcal{O}(|V| + |E|)$. If cycles are introduced, the API returns a structured HTTP 400 validation error before modifying simulator state.
+- **Exact Source**:
+  - Bang-Jensen, J., & Gutin, G. Z. (2008). *Digraphs: Theory, Algorithms and Applications*. Springer Science & Business Media.
+  - *Technical PRD Section 3 (Plant Topology & DAG Specifications)*.
+- **Code Implementation**: [`api/main.py`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/api/main.py#L450-L530), [`simulator/topology.py`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/simulator/topology.py#L85-L120).
+
+### 10.2 Living Line Zone-Aware Auto-Placement & Non-Overlap Collision Resolver
+When custom stations are added dynamically via the SCADA interface, their floor coordinate footprint is assigned through zone bounding and spatial relaxation:
+1. **Zone Y-Bound Assignment**:
+   $$\text{Body Zone } Y \in [20, 360]\text{px}, \quad \text{Paint Zone } Y \in [380, 570]\text{px}, \quad \text{Assembly Zone } Y \in [590, 1100]\text{px}$$
+2. **Zero-Overlap Relaxation Engine**:
+   $$\forall s_i, s_j \in V \text{ where } i \ne j, \quad \text{if } \text{dist}(p_i, p_j) < 110\text{px} \implies p_j.x \leftarrow p_j.x + 160\text{px}$$
+   *(If $p_j.x > 2100\text{px}$, wraps to next row spur $p_j.x = 110\text{px}, p_j.y \leftarrow p_j.y + 70\text{px}$).*
+- **Code Implementation**: [`frontend/js/twin_scene.js`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/frontend/js/twin_scene.js#L140-L280).
+
+### 10.3 History State Machine (Undo/Redo Engine)
+Maintains discrete snapshot memory for all layout manipulations:
+- **Snapshot State Vector**: $\mathcal{S}_k = (\mathcal{V}_k, \mathcal{E}_k, \mathcal{P}_k)$ where $\mathcal{V}$ is station metadata map, $\mathcal{E}$ is edge list, and $\mathcal{P}$ is coordinate registry.
+- **Stack Bound**: Depth limited to $N_{\text{max}} = 50$ states.
+- **Transitions**:
+  - Push: $\text{UndoStack} \leftarrow \text{UndoStack} \cup \{\mathcal{S}_k\}$, $\text{RedoStack} \leftarrow \emptyset$.
+  - Undo: $\mathcal{S}_{\text{current}} \leftarrow \text{Pop}(\text{UndoStack})$, $\text{RedoStack} \leftarrow \text{RedoStack} \cup \{\mathcal{S}_{\text{current}}\}$.
+  - Redo: $\mathcal{S}_{\text{current}} \leftarrow \text{Pop}(\text{RedoStack})$, $\text{UndoStack} \leftarrow \text{UndoStack} \cup \{\mathcal{S}_{\text{current}}\}$.
+- **Code Implementation**: [`frontend/js/topology_editor.js`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/frontend/js/topology_editor.js#L20-L100).
+
+---
+
+## 11. Summary Traceability Matrix
 
 | Parameter / Metric | Nominal Baseline | Warning Limit | Critical Alarm | Standard / Scientific Source | Code File & Line |
-| :--- | :---: | :---: | :---: | :--- | :--- |
+| :--- | :---: | :---: | :---: | :---: | :--- |
 | **`cycle_time_s`** | $50 - 65\text{ s}$ | $> 1.15 \times T_{\text{target}}$ | $> 1.30 \times T_{\text{target}}$ | Toyota TPS Takt Pace / PRD §3 | [`topology.py:16`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/simulator/topology.py#L16) |
 | **`buffer_level`** | $40\% - 70\%$ | $< 25\%$ or $> 80\%$ | $< 10\%$ or $100\%$ | Factory Physics (Hopp & Spearman) | [`propagation.py:42`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/pipeline/propagation.py#L42) |
 | **`vibration` (RMS)** | $1.20\text{ mm/s}$ (Robot) / $0.40$ (Conveyor) | $> 2.80\text{ mm/s}$ | **$> 4.50\text{ mm/s}$** | **ISO 10816-3 / ISO 20816-1** | [`spc.py:48`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/pipeline/spc.py#L48) |
@@ -260,6 +292,7 @@ Where:
 | **`composite_risk`** | $< 0.15$ | $0.60 - 0.80$ | $> 0.80$ | GBDT Classifier (LightGBM) | [`risk_model.py:14`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/pipeline/risk_model.py#L14) |
 | **`time_to_impact`** | $> 20\text{ min}$ | $5 - 15\text{ min}$ | $< 5\text{ min}$ | NetworkX DAG Starvation Flow | [`propagation.py:55`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/pipeline/propagation.py#L55) |
 | **`downtime_cost_usd`**| $\$0.00$ | — | **$\$38,333.33\text{ / min}$** | Siemens Downtime Report (2024) | [`recommender.py:12`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/pipeline/recommender.py#L12) |
+| **`topology_reset`** | 40 Baseline | — | Factory Recovery | DAG Graph Reconstruction | [`main.py:530`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/api/main.py#L530) |
 
 ---
 *Maintained by Team Twin Flow · Indian Institute of Technology Kanpur (IITK)*
