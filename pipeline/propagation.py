@@ -52,9 +52,19 @@ class GraphPropagationEngine:
             prop_risk = min(1.0, max(0.0, prop_risk))
             
             # Dynamic Time-To-Impact (seconds)
-            # time_to_impact = buffer_units / outflow_rate
+            # time_to_impact = cumulative_buffer_units / (outflow_rate - inflow_rate)
+            # Assuming inflow drops to 0 during total starvation, net outflow = 1 / cycle_time
+            # time_to_impact = cumulative_buffer_units * cycle_time
             cycle_time = self.stations[d_id]["target_cycle_time_s"]
-            time_to_impact_sec = round(d_buf * cycle_time * (path_len * 0.8), 1)
+            cumulative_buffer = 0
+            try:
+                path = nx.shortest_path(self.dag, station_id, d_id)
+                for p_node in path[1:]: # exclude source
+                    cumulative_buffer += current_buffers.get(p_node, int(self.stations[p_node]["buffer_capacity_units"] * 0.5))
+            except Exception:
+                cumulative_buffer = d_buf
+                
+            time_to_impact_sec = round(cumulative_buffer * cycle_time, 1)
             
             impact_tree.append({
                 "station_id": d_id,

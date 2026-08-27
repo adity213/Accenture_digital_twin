@@ -89,11 +89,6 @@ def process_simulation_tick() -> Dict[str, Any]:
             is_blackout=ev.get("is_blackout", False),
             ticks_since_last_reading=0
         )
-        twin_conf = confidence_engine.compute_twin_confidence(
-            data_confidence=data_conf,
-            model_confidence=0.92,
-            has_conflicting_imputation=False
-        )
         
         # Risk Scoring (Strict Zero Data Leakage)
         feats = risk_model.extract_features(
@@ -108,6 +103,13 @@ def process_simulation_tick() -> Dict[str, Any]:
         )
         bn_risk, def_risk, risk_level = risk_model.predict_risk(feats)
         comp_risk = max(bn_risk, def_risk)
+
+        # Composite Twin Confidence based on actual model risk
+        twin_conf = confidence_engine.compute_composite_twin_confidence(
+            data_confidence=data_conf,
+            model_risk_prob=comp_risk,
+            spc_deviation_flag=spc_res.get("ewma_drift_flag", False)
+        )
         
         raw_risks[sid] = comp_risk
         current_buffers[sid] = ev.get("buffer_level") or int(meta["buffer_capacity_units"] * 0.5)
@@ -165,6 +167,8 @@ def process_simulation_tick() -> Dict[str, Any]:
     elapsed_hours = max(0.01, simulator.current_tick / 60.0)
     jobs_per_hour = round(completed_veh / elapsed_hours, 1)
     
+    avg_twin_conf = int(sum(s["twin_confidence"] for s in station_states.values()) / max(1, len(station_states))) if station_states else 0
+    
     payload = {
         "type": "TICK_UPDATE",
         "tick": simulator.current_tick,
@@ -173,7 +177,7 @@ def process_simulation_tick() -> Dict[str, Any]:
         "propagation": propagation_map,
         "recommendations": recommendations,
         "kpis": {
-            "fleet_twin_confidence": 94,
+            "fleet_twin_confidence": avg_twin_conf,
             "active_anomalies_count": active_risk_alerts_count,
             "jobs_per_hour": jobs_per_hour,
             "total_downtime_avoided_hours": round(cumulative_downtime_avoided_min / 60.0, 2),
@@ -274,19 +278,30 @@ def get_leadership_summary():
         cause_counts[key] = cause_counts.get(key, 0) + 1
         
     top_causes = [{"cause": k, "count": v} for k, v in sorted(cause_counts.items(), key=lambda x: x[1], reverse=True)[:5]]
-    if not top_causes:
-        top_causes = [
-            {"cause": "Weld Gun Tip Mushrooming & Electrode Wear (ST07)", "count": 18},
-            {"cause": "Paint Oven Temperature Sensor Drift (ST17)", "count": 12},
-            {"cause": "Chassis Carrier Conveyor Starvation (ST28)", "count": 9}
-        ]
+
+    # Compute genuine Quality Yield
+    completed = simulator.completed_vehicles
+    total_veh = len(completed)
+    if total_veh > 0:
+        defect_free = sum(1 for v in completed if v["defect_flag"] == 0)
+        yield_pct = round((defect_free / total_veh) * 100, 1)
+    else:
+        yield_pct = 100.0
+        
+    # Compute genuine Energy Waste Mitigated from recent power readings vs 20.0kW baseline
+    recent_power = [r["power_kw"] for r in recent if r.get("power_kw") is not None]
+    if recent_power:
+        avg_power = sum(recent_power) / len(recent_power)
+        waste_mitigated = round(max(0.0, (20.0 - avg_power) / 20.0 * 100), 1)
+    else:
+        waste_mitigated = 0.0
 
     return {
         "summary": {
-            "downtime_avoided_hours": latest_payload.get("kpis", {}).get("total_downtime_avoided_hours", 14.8),
-            "cost_saved_usd": latest_payload.get("kpis", {}).get("total_cost_savings_usd", 3404000),
-            "quality_yield_pct": 96.8,
-            "energy_waste_mitigated_pct": 28.5
+            "downtime_avoided_hours": latest_payload.get("kpis", {}).get("total_downtime_avoided_hours", 0.0),
+            "cost_saved_usd": latest_payload.get("kpis", {}).get("total_cost_savings_usd", 0.0),
+            "quality_yield_pct": yield_pct,
+            "energy_waste_mitigated_pct": waste_mitigated
         },
         "heatmap": heatmap,
         "top_root_causes": top_causes

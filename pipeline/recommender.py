@@ -86,7 +86,8 @@ class RecommendationEngine:
 
             # Rule 1: Sudden Stoppage / Extreme Bottleneck -> Dynamic Parallel Reroute
             if risk >= 0.80 or ct >= 120.0:
-                dt_avoided = 35.0
+                nearest_impact_sec = min([n.get("time_to_impact_sec", 2100.0) for n in impacted]) if impacted else 2100.0
+                dt_avoided = round(max(5.0, nearest_impact_sec / 60.0), 1)
                 cars_saved = len(impacted) * 4
                 recommendations.append({
                     "id": f"REC-{sid}-{uuid.uuid4().hex[:6].upper()}",
@@ -108,7 +109,8 @@ class RecommendationEngine:
 
             # Rule 2: Gradual Drift -> Preventive Tool Calibration
             elif risk >= 0.60 or spc.get("ewma_drift_flag"):
-                dt_avoided = 15.0
+                nearest_impact_sec = min([n.get("time_to_impact_sec", 900.0) for n in impacted]) if impacted else 900.0
+                dt_avoided = round(max(5.0, nearest_impact_sec / 60.0), 1)
                 target_ct = meta.get("target_cycle_time_s", 60.0) or 60.0
                 recommendations.append({
                     "id": f"REC-{sid}-{uuid.uuid4().hex[:6].upper()}",

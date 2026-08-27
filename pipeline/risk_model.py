@@ -91,21 +91,21 @@ class RiskScoringModel:
             auc = sum(1.0 for p in pos_scores for neg in neg_scores if p > neg) + 0.5 * sum(1.0 for p in pos_scores for neg in neg_scores if p == neg)
             auc /= (len(pos_scores) * len(neg_scores))
         else:
-            auc = 0.88
+            auc = 0.5
             
         tp = sum(1 for i in range(len(X_test)) if bn_preds[i] == 1 and y_bn_test[i] == 1)
         fp = sum(1 for i in range(len(X_test)) if bn_preds[i] == 1 and y_bn_test[i] == 0)
         fn = sum(1 for i in range(len(X_test)) if bn_preds[i] == 0 and y_bn_test[i] == 1)
         
-        prec = tp / (tp + fp) if (tp + fp) > 0 else 0.85
-        rec = tp / (tp + fn) if (tp + fn) > 0 else 0.85
+        prec = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        rec = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         
         return {
             "train_samples": len(X_train),
             "test_samples": len(X_test),
-            "bottleneck_auc": round(max(0.75, auc), 3),
-            "bottleneck_precision": round(max(0.70, prec), 3),
-            "bottleneck_recall": round(max(0.70, rec), 3)
+            "bottleneck_auc": round(auc, 3),
+            "bottleneck_precision": round(prec, 3),
+            "bottleneck_recall": round(rec, 3)
         }
 
     def predict_risk(self, features: List[float]) -> Tuple[float, float, str]:
