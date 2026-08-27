@@ -35,18 +35,19 @@ DigitalTwin.ai is an end-to-end predictive digital twin prototype for automotive
 ---
 
 ## 📊 Core Parameters & Operating Threshold Derivation
+> 📘 **Full Industrial Standards & Mathematics Registry**: See the comprehensive [`REFERENCES.md`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/REFERENCES.md) for full mathematical formulations, OEM citations, and code mapping.
 
 | Simplified Parameter Name | Technical Name | Normal Operating Range | Warning Threshold (Amber) | Critical Threshold (Red) | Engineering Derivation & Physical Rationale |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **Processing Time** | `cycle_time_s` | $50 - 65	ext{ s}$ | $> 1.15	imes 	ext{ Target}$ ($z > 2.0$) | $> 1.30	imes 	ext{ Target}$ ($z > 3.0$) | Calibrated to plant takt time ($55-60	ext{ JPH}$). Natural variation is $\pm 3\sigma$ ($\sigma pprox 4\%$). Progressive drift signals tip wear/motor friction; sudden $10	imes$ surge signals stoppage. |
-| **Waiting Line (Queue)** | `buffer_level` | $4 - 8	ext{ units}$ ($40-70\%$) | $< 25\%$ or $> 80\%$ | $< 10\%$ (Starvation) or $100\%$ (Blockage) | Buffer capacity is $5-15	ext{ cars}$. $<25\%$ fill gives downstream machines $<5	ext{ mins}$ before running dry. $>80\%$ fill blocks upstream discharge. |
-| **Machine Shaking** | `vibration` (RMS) | $0.6 - 1.2	ext{ mm/s}$ | $1.2 - 2.0	ext{ mm/s}$ | $> 2.0	ext{ mm/s}$ | Derived from **ISO 10816-3 Industrial Vibration Severity Standard**. $>2.0	ext{ mm/s}$ indicates severe bearing fatigue or loose robot joints. |
-| **Motor Heat** | `temperature` | $20^\circ	ext{C} - 35^\circ	ext{C}$ | $> 45^\circ	ext{C}$ | $> 65^\circ	ext{C}$ | Thermal dissipation of servomotors and paint ovens. Overheating accelerates insulation breakdown and mechanical seizure. |
-| **Power Draw** | `power_kw` | $15 - 40	ext{ kW}$ | $> 1.5	imes 	ext{ Base}$ | $> 1.8	imes 	ext{ Base}$ | Base active motor load ($20	ext{ kW}$ Body, $60	ext{ kW}$ Paint, $15	ext{ kW}$ Assembly). $>1.8	imes$ draw while queue is empty indicates high idle energy waste. |
-| **Sensor Trust Score** | `twin_confidence` | $90\% - 100\%$ | $65\% - 80\%$ | $< 65\%$ | Weighted by PRD Section 5.2 formula: $0.5 \cdot C_{	ext{tier}} + 0.3 \cdot C_{	ext{recency}} + 0.2 \cdot C_{	ext{agreement}}$. Drops when sensors blackout or manual logs age. |
+| **Processing Time** | `cycle_time_s` | $50 - 65\text{ s}$ | $> 1.15 \times \text{Target}$ ($z > 2.0$) | $> 1.30 \times \text{Target}$ ($z > 3.0$) | Calibrated to plant takt time ($55-60\text{ JPH}$). Natural variation is $\pm 3\sigma$ ($\sigma \approx 4\%$). Progressive drift signals tip wear/motor friction; sudden surge signals stoppage. |
+| **Waiting Line (Queue)** | `buffer_level` | $4 - 8\text{ units}$ ($40-70\%$) | $< 25\%$ or $> 80\%$ | $< 10\%$ (Starvation) or $100\%$ (Blockage) | Buffer capacity is $5-15\text{ cars}$. $<25\%$ fill gives downstream machines $<5\text{ mins}$ before running dry. $>80\%$ fill blocks upstream discharge. |
+| **Machine Shaking** | `vibration` (RMS) | $0.4 - 1.2\text{ mm/s}$ | $2.8 - 4.5\text{ mm/s}$ (Zone C) | **$> 4.5\text{ mm/s}$** (Zone D Alarm) | Derived from **ISO 10816-3 / ISO 20816-1 Industrial Vibration Severity Standard**. $>4.5\text{ mm/s}$ signals imminent bearing/spindle seizure. |
+| **Motor & Process Heat** | `temperature` | $24^\circ\text{C}$ (Ambient)<br>$55^\circ\text{C}$ (Pretreatment)<br>$190^\circ\text{C}$ (Oven) | $> 65^\circ\text{C}$ (Bath)<br>$> 205^\circ\text{C}$ (Oven) | $> 75^\circ\text{C}$ (Bath)<br>$> 220^\circ\text{C}$ (Oven) | **PPG/Axalta E-Coat Curing** ($180-200^\circ\text{C}$ crosslinking) & **Henkel Bath Guide** ($50-60^\circ\text{C}$). Overheating accelerates insulation breakdown & paint defects. |
+| **Power Draw** | `power_kw` | $15 - 55\text{ kW}$ | $> 1.5 \times \text{Base}$ | $> 1.8 \times \text{Base}$ | Base active motor load ($28-32\text{ kW}$ Weld, $55\text{ kW}$ Oven, $15-50\text{ kW}$ Assembly). $>1.8\times$ draw while queue is empty indicates high idle energy waste. |
+| **Sensor Trust Score** | `twin_confidence` | $90\% - 100\%$ | $65\% - 80\%$ | $< 65\%$ | Weighted by PRD Section 5.2 formula: $0.5 \cdot C_{\text{tier}} + 0.3 \cdot C_{\text{recency}} + 0.2 \cdot C_{\text{agreement}}$. Drops when sensors blackout or manual logs age. |
 | **Stoppage Chance** | `composite_risk` | $< 15\%$ | $60\% - 80\%$ | $> 80\%$ | GBDT classifier output predicting probability of line bottleneck within the next 15 minutes. |
-| **Starvation Countdown** | `time_to_impact` | $> 20	ext{ mins}$ | $5 - 15	ext{ mins}$ | $< 5	ext{ mins}$ | $	ext{time\_to\_impact} = rac{	ext{buffer\_units}}{	ext{outflow} - 	ext{inflow}} 	imes T_{	ext{target}}$. Time remaining before downstream station exhausts buffer. |
-| **Cars Built Per Hour** | `jobs_per_hour` | $50 - 60	ext{ JPH}$ | $35 - 50	ext{ JPH}$ | $< 35	ext{ JPH}$ | Actual count of completed vehicles traversing `ST01` through `ST40` per elapsed hour. |
+| **Starvation Countdown** | `time_to_impact` | $> 20\text{ mins}$ | $5 - 15\text{ mins}$ | $< 5\text{ mins}$ | $\text{time\_to\_impact} = \frac{\text{buffer\_units}}{\text{outflow} - \text{inflow}} \times T_{\text{target}}$. Time remaining before downstream station exhausts buffer. |
+| **Cars Built Per Hour** | `jobs_per_hour` | $50 - 60\text{ JPH}$ | $35 - 50\text{ JPH}$ | $< 35\text{ JPH}$ | Actual count of completed vehicles traversing `ST01` through `ST40` per elapsed hour. |
 
 ---
 

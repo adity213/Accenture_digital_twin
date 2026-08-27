@@ -17,10 +17,10 @@ from .topology import build_line_topology
 from .anomalies import AnomalyManager
 
 class LineSimulator:
-    def __init__(self, seed: int = 42, start_time: Optional[datetime] = None):
+    def __init__(self, seed: int = 42, start_time: Optional[datetime] = None, custom_topology: Optional[Dict[str, Any]] = None):
         self.seed = seed
         self.rng = random.Random(seed)
-        self.topology = build_line_topology(seed=seed)
+        self.topology = custom_topology if custom_topology else build_line_topology(seed=seed)
         self.stations = self.topology["stations"]
         self.edges = self.topology["edges"]
         
@@ -147,37 +147,50 @@ class LineSimulator:
             self.buffers[sid] = max(0, min(cap, self.buffers[sid] + inflow - outflow))
             
             # Physics signals: vibration & temperature
-            base_vib = 1.2 if s["station_type"] in ["RoboticWeld", "RespotWeld", "MechanicalTorque"] else 0.4
+            robotic_types = [
+                "RoboticWeld", "RespotWeld", "MechanicalTorque", "RoboticTorque",
+                "AutomatedTorque", "RoboticSpray", "RoboticUrethane", "LaserBrazing",
+                "AutomatedMarriage", "MainFraming"
+            ]
+            base_vib = 1.2 if s["station_type"] in robotic_types else 0.4
             vib_noise = self.rng.gauss(0, 0.08)
             vibration = max(0.1, base_vib + vib_noise)
-            if ct_multiplier > 1.2:
-                vibration += (ct_multiplier - 1.0) * 2.5
-            if is_stopped:
-                vibration = 0.05
-                
+
             base_temp = 24.0
-            if s["station_type"] in ["ThermalOven", "LaserBrazing", "ElectroDeposition"]:
-                base_temp = 75.0
+            if s["station_type"] in ["ThermalOven"]:
+                base_temp = 190.0
+            elif s["station_type"] in ["ChemicalBath", "ElectroDeposition"]:
+                base_temp = 55.0
+
             temp_noise = self.rng.gauss(0, 0.5)
             temperature = base_temp + temp_noise
-            if ct_multiplier > 1.2:
-                temperature += (ct_multiplier - 1.0) * 12.0
+
+            if is_stopped:
+                vibration = 0.05
+                temperature = base_temp + temp_noise
+            elif ct_multiplier > 1.2:
+                vibration += min(3.5, (ct_multiplier - 1.0) * 3.5)
+                temperature += min(35.0, (ct_multiplier - 1.0) * 12.0)
 
             # Power & Energy (kW & kWh)
-            load_factor = 0.9 if not is_stopped else 0.25
-            if power_multiplier > 1.0:
-                load_factor = min(2.5, load_factor * power_multiplier)
-            power_kw = base_kw * load_factor + self.rng.gauss(0, 0.3)
-            energy_kwh = (power_kw / 60.0)
+            if base_kw is not None:
+                load_factor = 0.9 if not is_stopped else 0.25
+                if power_multiplier > 1.0:
+                    load_factor = min(2.5, load_factor * power_multiplier)
+                power_kw = base_kw * load_factor + self.rng.gauss(0, 0.3)
+                energy_kwh = (power_kw / 60.0)
+            else:
+                power_kw = None
+                energy_kwh = None
 
-            # Manual sensor blackout behavior
-            if tier == "manual" and is_blackout:
+            # Sensor blackout behavior (applies to any station when blackout is active)
+            if is_blackout:
                 event = {
                     "tick": self.current_tick,
                     "timestamp": sim_time_str,
                     "station_id": sid,
                     "cycle_time_s": None,
-                    "buffer_level": None,
+                    "buffer_level": self.buffers[sid],
                     "buffer_capacity": cap,
                     "vibration": None,
                     "temperature": None,
@@ -187,7 +200,8 @@ class LineSimulator:
                     "defect_type": None,
                     "vehicle_id": None,
                     "sensor_tier": tier,
-                    "is_blackout": True
+                    "is_blackout": True,
+                    "is_stopped": False
                 }
             else:
                 event = {
@@ -199,13 +213,14 @@ class LineSimulator:
                     "buffer_capacity": cap,
                     "vibration": round(vibration, 3),
                     "temperature": round(temperature, 2),
-                    "power_kw": round(power_kw, 2),
-                    "energy_kwh": round(energy_kwh, 4),
+                    "power_kw": round(power_kw, 2) if power_kw is not None else None,
+                    "energy_kwh": round(energy_kwh, 4) if energy_kwh is not None else None,
                     "defect_flag": defect_flag,
                     "defect_type": defect_type,
                     "vehicle_id": self.station_vehicles.get(sid),
                     "sensor_tier": tier,
-                    "is_blackout": False
+                    "is_blackout": False,
+                    "is_stopped": is_stopped
                 }
             
             tick_telemetry.append(event)

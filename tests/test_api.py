@@ -55,3 +55,41 @@ def test_api_simulator_control():
     r3 = client.post("/api/simulator/control", json={"action": "inject_anomaly", "anomaly_type": "sudden_stoppage", "station_id": "ST06"})
     assert r3.status_code == 200
     assert r3.json()["status"] == "ANOMALY_INJECTED"
+
+def test_api_topology_apply():
+    # Test applying topology with added station ST41
+    res = client.get("/api/stations")
+    data = res.json()
+    stations = data["stations"]
+    edges = data["edges"]
+    
+    stations["ST41"] = {
+        "id": "ST41",
+        "name": "Robotic Vision Inspection Cell",
+        "zone": "Assembly",
+        "station_type": "QualityScan",
+        "sensor_tier": "rich",
+        "target_cycle_time_s": 50.0,
+        "power_base_kw": 22.0,
+        "buffer_capacity_units": 8
+    }
+    edges.append(["ST40", "ST41"])
+    
+    req = {
+        "stations": stations,
+        "edges": edges,
+        "metadata": {"name": "Test DAG Layout"}
+    }
+    resp = client.post("/api/topology/apply", json=req)
+    assert resp.status_code == 200
+    res_data = resp.json()
+    assert res_data["status"] == "TOPOLOGY_APPLIED"
+    assert res_data["station_count"] == 41
+
+def test_api_topology_reset():
+    resp = client.post("/api/topology/reset")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "TOPOLOGY_RESET"
+    assert data["station_count"] == 40
+

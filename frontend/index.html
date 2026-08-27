@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TwinSphere | Plant Control-Room Digital Twin</title>
-  <link rel="stylesheet" href="css/style.css?v=3.0">
+  <link rel="stylesheet" href="css/style.css?v=3.2">
 </head>
 <body class="blueprint-grid-bg">
   <div class="app-layout">
@@ -43,32 +43,46 @@
           </svg>
           <span class="dock-label-micro">TREND</span>
         </button>
+
+        <button id="dock-btn-topology" class="dock-btn" onclick="switchView('topology')" title="Plant Manager Dynamic Layout Editor">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.93 4.93l2.12 2.12m9.9 9.9l2.12 2.12M4.93 19.07l2.12-2.12m9.9-9.9l2.12-2.12" />
+          </svg>
+          <span class="dock-label-micro">LAYOUT</span>
+        </button>
       </div>
 
-      <div style="font-family: var(--font-mono); font-size: 0.62rem; font-weight: 800; color: var(--text-muted);">
-        v3.0
+      <div style="font-family: var(--font-mono); font-size: 0.65rem; font-weight: 700; color: #94a3b8;">
+        V3.2
       </div>
     </nav>
 
-    <!-- MAIN SCADA VIEWPORT -->
+    <!-- SCADA MAIN ENGINE VIEWPORT -->
     <main class="main-viewport">
       
-      <!-- TOP SCADA BAR -->
+      <!-- TOP STATUS & CONTROLS STRIP -->
       <header class="scada-topbar">
         <div class="plant-identity">
-          <div class="plant-title">TwinSphere <span>DIGITAL TWIN</span></div>
-          <span class="plant-tag">ASSEMBLY PLANT 04 // 40 STATIONS</span>
-          <span id="ws-status-label" style="font-family: var(--font-mono); font-size: 0.72rem; font-weight: 800; color: var(--status-nominal);">
-            ● SCADA STREAM ACTIVE
-          </span>
+          <div class="plant-title">
+            TwinSphere <span>DIGITAL TWIN</span>
+          </div>
+          <div class="plant-tag" id="plant-station-count-tag">ASSEMBLY PLANT 04 // 40 STATIONS</div>
+          <div class="plant-status-pill">
+            <div class="status-pulse-dot"></div>
+            <span id="scada-ws-status-text">SCADA WS STREAM ACTIVE</span>
+          </div>
         </div>
 
-        <div class="hmi-transport">
-          <button class="hmi-btn active-play" id="btn-play" onclick="controlSim('play')">▶ RUN</button>
-          <button class="hmi-btn" id="btn-pause" onclick="controlSim('pause')">⏸ HOLD</button>
-          <button class="hmi-btn" id="btn-step" onclick="controlSim('step')">⏭ STEP</button>
+        <!-- HMI Simulation Controller -->
+        <div class="sim-ctrl-box">
+          <div class="sim-btn-group">
+            <button id="btn-run" class="hmi-btn active-play" onclick="controlSim('run')">▶ RUN</button>
+            <button id="btn-hold" class="hmi-btn" onclick="controlSim('pause')">⏸ HOLD</button>
+            <button id="btn-step" class="hmi-btn" onclick="controlSim('step')">⏭ STEP</button>
+          </div>
           
-          <div class="hmi-speed-pill">
+          <div class="speed-selector-strip">
             <button class="speed-tick selected" onclick="setSpeed(1, this)">1X</button>
             <button class="speed-tick" onclick="setSpeed(2, this)">2X</button>
             <button class="speed-tick" onclick="setSpeed(5, this)">5X</button>
@@ -84,18 +98,27 @@
       <!-- HAZARD FAULT INJECTION BAR -->
       <div class="fault-injection-bar">
         <div class="hazard-title-wrap">
-          <span class="hazard-stripe-badge">TEST FAULT INJECTION</span>
-          <span style="font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); font-family: var(--font-brand);">
-            Trigger Anomaly Scenarios to Observe Real-Time Propagation:
-          </span>
-        </div>
-
-        <div class="hazard-switches">
-          <button class="fault-btn" onclick="injectAnomaly('stoppage', 'ST06')">⚡ 85m Stoppage (ST06)</button>
-          <button class="fault-btn" onclick="injectAnomaly('drift', 'ST02')">📈 Cycle Drift (ST02)</button>
-          <button class="fault-btn" onclick="injectAnomaly('defect_spike', 'ST07')">⚠️ Defect Spike (ST07)</button>
-          <button class="fault-btn" onclick="injectAnomaly('sensor_blackout', 'ST09')">🔌 Blackout (ST09)</button>
-          <button class="fault-btn" onclick="injectAnomaly('power_surge', 'ST17')">⚡ Power Surge (ST17)</button>
+          <span class="hazard-stripe-badge">⚡ FAULT INJECTOR</span>
+          <div class="hazard-custom-injector">
+            <span style="font-size: 0.72rem; font-weight: 700; color: #475569; font-family: var(--font-brand);">TARGET:</span>
+            <select id="fault-target-station" class="fault-select" onchange="onFaultStationSelectChange(this.value)">
+              <!-- Populated dynamically ST01 - ST40 -->
+            </select>
+            <span style="font-size: 0.72rem; font-weight: 700; color: #475569; font-family: var(--font-brand);">ANOMALY:</span>
+            <select id="fault-type-select" class="fault-select">
+              <option value="stoppage">⚡ Sudden Stoppage (0 JPH Halt)</option>
+              <option value="drift">📈 Gradual Tool Drift (+15s / 1.5mm/s)</option>
+              <option value="latent_defect">⚠️ Latent Defect (Quality Escape)</option>
+              <option value="sensor_blackout">🔌 Sensor Blackout (Manual Fallback)</option>
+              <option value="energy_waste">🔋 Energy Waste (Idle Power Surge)</option>
+            </select>
+            <button class="fault-btn-primary" onclick="injectCustomFault()" title="Inject selected anomaly into targeted cell">
+              🚨 INJECT FAULT
+            </button>
+            <button class="fault-btn" onclick="clearAllAnomalies()" style="margin-left: 8px; font-weight: 800; color: #0284c7; border-color: #bae6fd;" title="Clear all active anomaly injections across plant">
+              🔄 CLEAR ACTIVE FAULTS
+            </button>
+          </div>
         </div>
       </div>
 
@@ -173,11 +196,20 @@
 
               <div class="gauge-cell">
                 <div class="gauge-title">Vibration (ISO 10816)</div>
-                <div class="gauge-val-readout" id="focus-vib">0.42 mm/s</div>
+                <div class="gauge-val-readout" id="focus-vib">1.20 mm/s</div>
                 <div class="gauge-needle-track">
                   <div class="gauge-needle-fill" id="gauge-vib-fill" style="width: 25%;"></div>
                 </div>
-                <div class="gauge-threshold-marks"><span>0.0</span><span>Warn: 1.5</span><span>2.5</span></div>
+                <div class="gauge-threshold-marks"><span>Good &lt;1.12</span><span>Sat 2.8</span><span>Crit &gt;4.5</span></div>
+              </div>
+
+              <div class="gauge-cell">
+                <div class="gauge-title">Thermal / Heat</div>
+                <div class="gauge-val-readout" id="focus-temp">24.0°C</div>
+                <div class="gauge-needle-track">
+                  <div class="gauge-needle-fill" id="gauge-temp-fill" style="width: 15%;"></div>
+                </div>
+                <div class="gauge-threshold-marks"><span>Amb 24°</span><span>Bath 55°</span><span>Oven 190°</span></div>
               </div>
 
               <div class="gauge-cell">
@@ -187,6 +219,15 @@
                   <div class="gauge-needle-fill" id="gauge-power-fill" style="width: 60%;"></div>
                 </div>
                 <div class="gauge-threshold-marks"><span>0</span><span>Base: 45</span><span>75</span></div>
+              </div>
+
+              <div class="gauge-cell">
+                <div class="gauge-title">Twin Confidence / SPC</div>
+                <div class="gauge-val-readout" id="focus-spc-conf">96% (Stable)</div>
+                <div class="gauge-needle-track">
+                  <div class="gauge-needle-fill" id="gauge-conf-fill" style="width: 96%; background: var(--status-nominal);"></div>
+                </div>
+                <div class="gauge-threshold-marks"><span>&lt;65% Crit</span><span>80% Warn</span><span>100% Nom</span></div>
               </div>
             </div>
 
@@ -337,21 +378,156 @@
               </div>
               <input type="range" min="45" max="65" value="55" style="width: 100%; margin-top: 8px;" oninput="updateLineBalancing(this.value)">
             </div>
-
-            <div style="margin-top: 24px; padding: 14px; background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
-              <div style="font-weight: 800; font-size: 0.8rem; color: #0f172a;">OPTIMAL BALANCING VERDICT</div>
-              <div style="font-size: 0.76rem; color: var(--text-secondary); margin-top: 4px; line-height: 1.4;">
-                Line cadence at 55 JPH maintains 4.2 units average buffer cushion without risk of thermal oven starvation.
-              </div>
-            </div>
           </div>
         </div>
       </div>
 
+      <!-- VIEW 4: TOPOLOGY EDITOR -->
+      <div id="view-topology" class="view-panel">
+        <div class="schematic-toolbar">
+          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <span style="font-weight: 800; color: #0f172a; font-family: var(--font-brand); font-size: 0.85rem;">
+              PLANT MANAGER // DYNAMIC DAG TOPOLOGY EDITOR
+            </span>
+            <span class="plant-tag" id="editor-station-count">40 STATIONS // 42 FLOW EDGES</span>
+            <span id="editor-mode-indicator" class="editor-status-pill" style="display: none;"></span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <button id="btn-undo" class="hmi-btn" onclick="undo()" title="Undo last layout action (Ctrl+Z)" disabled>↩ UNDO</button>
+            <button id="btn-redo" class="hmi-btn" onclick="redo()" title="Redo last layout action (Ctrl+Y)" disabled>↪ REDO</button>
+            <button class="hmi-btn" onclick="showAddStationModal()" title="Add a new custom machine or QC cell">+ ADD STATION</button>
+            <button class="hmi-btn" onclick="autoArrangeLayout()" title="Auto-align stations in clean zone lanes">📐 AUTO-ARRANGE</button>
+            <button class="hmi-btn" onclick="showConnectionsModal()" title="View and manage conveyor connections">🔗 CONNECTIONS</button>
+            <button class="hmi-btn" onclick="resetEditorToDefault()" title="Reset to standard 40-station topology">RESET DEFAULT</button>
+            <button class="hmi-btn active-play" onclick="applyTopology()" title="Apply layout to physics simulation & reboot twin">⚡ APPLY LAYOUT (REBOOT TWIN)</button>
+          </div>
+        </div>
+
+        <!-- Canvas Instructions Banner -->
+        <div class="editor-hint-banner">
+          <span>🖐️ <strong>Drag</strong> to move</span>
+          <span>•</span>
+          <span>🔗 <strong>[OUT] → [IN]</strong> to link</span>
+          <span>•</span>
+          <span>✂️ <strong>Click curve</strong> to disconnect</span>
+          <span>•</span>
+          <span>🗑️ <strong>Click ✕</strong> to remove</span>
+          <span>•</span>
+          <span>↩️ <strong>Ctrl+Z</strong> Undo</span>
+          <span>•</span>
+          <span>↪️ <strong>Ctrl+Y</strong> Redo</span>
+        </div>
+
+        <div id="editor-canvas" class="editor-canvas blueprint-grid-bg">
+          <!-- Rendered dynamically by topology_editor.js -->
+        </div>
+      </div>
+
     </main>
+
+    <!-- ADD STATION MODAL -->
+    <div id="add-station-modal" class="editor-modal-wrap">
+      <div class="editor-modal-box">
+        <div class="editor-modal-title">
+          <span>ADD FACTORY STATION</span>
+          <button style="background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #64748b;" onclick="closeAddStationModal()">✕</button>
+        </div>
+        
+        <div class="modal-form-group">
+          <label>Station ID (e.g. ST41)</label>
+          <input type="text" id="new-sid" class="modal-form-input" placeholder="ST41">
+        </div>
+        
+        <div class="modal-form-group">
+          <label>Station Name</label>
+          <input type="text" id="new-name" class="modal-form-input" placeholder="Robotic Vision Inspection Cell">
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="modal-form-group">
+            <label>Zone</label>
+            <select id="new-zone" class="modal-form-select">
+              <option value="Body">Zone 1: Body Construction</option>
+              <option value="Paint">Zone 2: Paint Shop</option>
+              <option value="Assembly">Zone 3: Final Assembly</option>
+            </select>
+          </div>
+
+          <div class="modal-form-group">
+            <label>Station Category</label>
+            <select id="new-type" class="modal-form-select">
+              <option value="RoboticWeld">Robotic Weld Arm</option>
+              <option value="MechanicalTorque">Torque & Marriage</option>
+              <option value="RoboticSpray">Robotic Spray Booth</option>
+              <option value="ThermalOven">Thermal Curing Oven (190°C)</option>
+              <option value="ChemicalBath">Chemical Bath (55°C)</option>
+              <option value="ManualAssembly">Manual Assembly</option>
+              <option value="QualityScan">CMM / Vision QC</option>
+              <option value="TransferBuffer">Conveyor Transfer Buffer</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="modal-form-group">
+            <label>Sensor Tier</label>
+            <select id="new-tier" class="modal-form-select" onchange="toggleSensorFields()">
+              <option value="rich">RICH (PLC Instrumented)</option>
+              <option value="manual">MANUAL (Manual Checklist)</option>
+            </select>
+          </div>
+
+          <div class="modal-form-group">
+            <label>Target Cycle Time (s)</label>
+            <input type="number" id="new-ct" class="modal-form-input" value="55.0" step="1.0">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="modal-form-group">
+            <label>Buffer Capacity (Units)</label>
+            <input type="number" id="new-buffer" class="modal-form-input" value="8" min="2" max="25">
+          </div>
+
+          <div class="modal-form-group" id="sensor-specific-fields">
+            <label>Base Power Draw (kW)</label>
+            <input type="number" id="new-power" class="modal-form-input" value="28.0" step="1.0">
+          </div>
+        </div>
+
+        <div class="modal-btn-row">
+          <button class="fault-btn" onclick="closeAddStationModal()">Cancel</button>
+          <button class="hmi-btn active-play" onclick="submitAddStation()">+ Add Station to DAG</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONNECTIONS LIST MODAL -->
+    <div id="connections-modal" class="editor-modal-wrap">
+      <div class="editor-modal-box" style="width: 520px;">
+        <div class="editor-modal-title">
+          <span>FACTORY FLOW CONNECTIONS</span>
+          <button style="background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #64748b;" onclick="closeConnectionsModal()">✕</button>
+        </div>
+        <div style="font-size: 0.76rem; color: var(--text-secondary); margin-bottom: 12px;">
+          Active conveyor linkages between stations. Click <strong>Disconnect</strong> to remove a link.
+        </div>
+        <div id="connections-list-container" class="connections-list-wrap">
+          <!-- Populated dynamically -->
+        </div>
+        <div class="modal-btn-row">
+          <button class="fault-btn" onclick="closeConnectionsModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="editor-toast" class="editor-toast"></div>
+
   </div>
 
-  <script src="js/twin_scene.js?v=3.0"></script>
-  <script src="js/app.js?v=3.0"></script>
+  <script src="js/twin_scene.js?v=3.2"></script>
+  <script src="js/topology_editor.js?v=3.2"></script>
+  <script src="js/app.js?v=3.2"></script>
 </body>
 </html>

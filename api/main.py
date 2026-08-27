@@ -25,7 +25,7 @@ from pipeline.risk_model import RiskScoringModel
 from pipeline.propagation import GraphPropagationEngine
 from pipeline.recommender import RecommendationEngine
 from api.ws import ConnectionManager
-from api.schemas import SimulatorControlRequest, OverrideRequest
+from api.schemas import SimulatorControlRequest, OverrideRequest, TopologyUpdateRequest
 
 app = FastAPI(title="DigitalTwin.ai REST API", version="1.0.0")
 
@@ -40,7 +40,7 @@ app.add_middleware(
 # Core Instances
 topology = build_line_topology(seed=42)
 stations_meta = topology["stations"]
-simulator = LineSimulator(seed=42)
+simulator = LineSimulator(seed=42, custom_topology=topology)
 db = TwinStore()
 spc_engine = SPCEngine(lambda_ewma=0.3, z_threshold=3.0)
 virtual_sensor_engine = VirtualSensorEngine(stations_meta)
@@ -81,13 +81,24 @@ def process_simulation_tick() -> Dict[str, Any]:
     for sid, meta in stations_meta.items():
         ev = event_map.get(sid, {})
         target_ct = meta["target_cycle_time_s"]
-        actual_ct = ev.get("cycle_time_s") or target_ct
+        is_blackout = ev.get("is_blackout", False)
+        actual_ct = ev.get("cycle_time_s")
         
-        spc_res = spc_engine.update_station(sid, actual_ct, target_ct)
+        # Virtual sensing imputation when telemetry is missing
+        imputed_data = None
+        if is_blackout or actual_ct is None:
+            imputed_data = virtual_sensor_engine.impute_station_telemetry(sid, simulator.current_tick, event_map)
+            actual_ct = imputed_data["imputed_cycle_time_s"]
+            imputation_disagreement = imputed_data["imputation_disagreement"]
+        else:
+            imputation_disagreement = 0.0
+
+        spc_res = spc_engine.update_station(sid, actual_ct, target_ct, vibration=ev.get("vibration"))
         data_conf = confidence_engine.compute_data_confidence(
             sensor_tier=meta["sensor_tier"],
-            is_blackout=ev.get("is_blackout", False),
-            ticks_since_last_reading=0
+            is_blackout=is_blackout,
+            ticks_since_last_reading=3 if is_blackout else 0,
+            imputation_disagreement=imputation_disagreement
         )
         
         # Risk Scoring (Strict Zero Data Leakage)
@@ -112,27 +123,32 @@ def process_simulation_tick() -> Dict[str, Any]:
         )
         
         raw_risks[sid] = comp_risk
-        current_buffers[sid] = ev.get("buffer_level") or int(meta["buffer_capacity_units"] * 0.5)
+        current_buffers[sid] = ev.get("buffer_level") if ev.get("buffer_level") is not None else int(meta["buffer_capacity_units"] * 0.5)
         
         station_states[sid] = {
             "station_id": sid,
             "name": meta["name"],
             "zone": meta["zone"],
             "sensor_tier": meta["sensor_tier"],
-            "cycle_time_s": ev.get("cycle_time_s"),
+            "cycle_time_s": ev.get("cycle_time_s") if not is_blackout else (imputed_data["imputed_cycle_time_s"] if imputed_data else target_ct),
             "target_cycle_time_s": target_ct,
             "spc_z_score": spc_res["z_score"],
             "spc_trend": spc_res["trend"],
+            "iso_vibration_status": spc_res.get("iso_vibration_status", "NORMAL"),
+            "iso_vibration_alarm": spc_res.get("iso_vibration_alarm", False),
             "twin_confidence": twin_conf,
             "buffer_level": current_buffers[sid],
             "buffer_capacity": meta["buffer_capacity_units"],
             "vibration": ev.get("vibration"),
+            "temperature": ev.get("temperature"),
             "power_kw": ev.get("power_kw"),
             "bottleneck_risk": bn_risk,
             "defect_risk": def_risk,
             "composite_risk": comp_risk,
             "risk_level": risk_level,
-            "is_stopped": ev.get("is_stopped", False)
+            "is_stopped": ev.get("is_stopped", False),
+            "is_blackout": is_blackout,
+            "is_virtual_sensing": is_blackout or (ev.get("cycle_time_s") is None)
         }
         
     # 2. Graph Ripple Propagation
@@ -307,6 +323,44 @@ def get_leadership_summary():
         "top_root_causes": top_causes
     }
 
+@app.get("/api/plant_manager/weekly_trends")
+def get_plant_manager_trends():
+    """Weekly aggregated view for plant managers to plan maintenance."""
+    gt_logs = db.get_ground_truth_logs(limit=1000)
+    cause_counts = {}
+    for g in gt_logs:
+        atype = g.get("true_anomaly_type", "unspecified")
+        sid = g.get("station_id", "ST01")
+        key = f"{atype.replace('_', ' ').title()} at {sid}"
+        cause_counts[key] = cause_counts.get(key, 0) + 1
+        
+    top_causes = [{"cause": k, "count": v} for k, v in sorted(cause_counts.items(), key=lambda x: x[1], reverse=True)[:10]]
+    
+    completed = len(simulator.completed_vehicles)
+    defects = sum(1 for v in simulator.completed_vehicles if v["defect_flag"] == 1)
+    
+    return {
+        "view": "PLANT_MANAGER_WEEKLY",
+        "maintenance_priorities": top_causes,
+        "weekly_production_volume": completed,
+        "weekly_defect_count": defects,
+        "overall_equipment_effectiveness_trend": "Decline detected in Paint Shop (Zone 2)"
+    }
+
+@app.get("/api/floor_supervisor/realtime")
+def get_floor_supervisor_realtime():
+    """Real-time operational view for the floor supervisor."""
+    global latest_payload
+    active_alerts = [s for s in latest_payload.get("stations", {}).values() if s.get("risk_level") in ["WARNING", "CRITICAL"]]
+    
+    return {
+        "view": "FLOOR_SUPERVISOR_REALTIME",
+        "tick": simulator.current_tick,
+        "active_critical_alerts": len(active_alerts),
+        "alert_details": active_alerts,
+        "active_recommendations": latest_payload.get("recommendations", [])
+    }
+
 @app.get("/api/vehicles/{vin}/genealogy")
 def get_vehicle_genealogy(vin: str):
     records = db.get_vehicle_genealogy(vin)
@@ -332,24 +386,30 @@ def get_vehicle_genealogy(vin: str):
     }
 
 @app.post("/api/simulator/control")
-def control_simulator(req: SimulatorControlRequest):
-    global is_sim_running, speed_multiplier
+async def control_simulator(req: SimulatorControlRequest):
+    global is_sim_running, speed_multiplier, latest_payload
     action = req.action.lower()
     
-    if action == "play":
+    if action in ["play", "run"]:
         is_sim_running = True
         return {"status": "PLAYING", "is_running": True}
-    elif action == "pause":
+    elif action in ["pause", "hold"]:
         is_sim_running = False
         return {"status": "PAUSED", "is_running": False}
     elif action == "step":
         is_sim_running = False
-        payload = process_simulation_tick()
-        return {"status": "STEPPED", "tick": payload["tick"]}
+        latest_payload = process_simulation_tick()
+        await ws_manager.broadcast_json(latest_payload)
+        return {"status": "STEPPED", "tick": latest_payload["tick"], "payload": latest_payload}
     elif action == "set_speed":
         if req.speed_multiplier:
             speed_multiplier = max(0.1, min(20.0, req.speed_multiplier))
         return {"status": "SPEED_UPDATED", "speed_multiplier": speed_multiplier}
+    elif action in ["clear_anomalies", "reset_anomalies", "clear"]:
+        simulator.anomaly_mgr.active_anomalies.clear()
+        latest_payload = process_simulation_tick()
+        await ws_manager.broadcast_json(latest_payload)
+        return {"status": "ANOMALIES_CLEARED", "payload": latest_payload}
     elif action == "inject_anomaly":
         if not req.anomaly_type or not req.station_id:
             raise HTTPException(status_code=400, detail="Missing anomaly_type or station_id")
@@ -359,24 +419,146 @@ def control_simulator(req: SimulatorControlRequest):
         cur_tick = simulator.current_tick
         dur = req.duration_ticks or 60
         
-        if atype == "gradual_drift":
+        if atype in ["gradual_drift", "drift"]:
             aid = simulator.anomaly_mgr.inject_gradual_drift(sid, cur_tick, dur)
-        elif atype == "sudden_stoppage":
+        elif atype in ["sudden_stoppage", "stoppage"]:
             aid = simulator.anomaly_mgr.inject_sudden_stoppage(sid, cur_tick, dur)
-        elif atype == "latent_defect":
+        elif atype in ["latent_defect", "defect_spike", "defect"]:
             aid = simulator.anomaly_mgr.inject_latent_defect(sid, "ST22", cur_tick, dur)
-        elif atype == "sensor_blackout":
+        elif atype in ["sensor_blackout", "blackout"]:
             aid = simulator.anomaly_mgr.inject_sensor_blackout(sid, cur_tick, dur)
-        elif atype == "energy_waste":
+        elif atype in ["energy_waste", "power_surge", "energy"]:
             aid = simulator.anomaly_mgr.inject_energy_waste(sid, cur_tick, dur)
         else:
             raise HTTPException(status_code=400, detail=f"Unknown anomaly type: {atype}")
             
         # Immediately step tick to update state
-        payload = process_simulation_tick()
-        return {"status": "ANOMALY_INJECTED", "anomaly_id": aid, "type": atype, "station_id": sid}
+        latest_payload = process_simulation_tick()
+        await ws_manager.broadcast_json(latest_payload)
+        return {
+            "status": "ANOMALY_INJECTED",
+            "anomaly_id": aid,
+            "type": atype,
+            "station_id": sid,
+            "payload": latest_payload
+        }
     else:
         raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
+
+@app.post("/api/topology/apply")
+def apply_topology(req: TopologyUpdateRequest):
+    global topology, stations_meta, simulator, spc_engine, virtual_sensor_engine
+    global confidence_engine, risk_model, propagation_engine, recommender_engine
+    global latest_payload, cumulative_downtime_avoided_min, is_sim_running
+    
+    was_running = is_sim_running
+    is_sim_running = False
+    
+    try:
+        # Normalize edges to list of 2-element tuples
+        normalized_edges = [(str(e[0]), str(e[1])) for e in req.edges if len(e) >= 2]
+        
+        # Build upstream and downstream maps
+        upstream_map = {str(sid): [] for sid in req.stations.keys()}
+        downstream_map = {str(sid): [] for sid in req.stations.keys()}
+        for u, v in normalized_edges:
+            if u in downstream_map:
+                downstream_map[u].append(v)
+            if v in upstream_map:
+                upstream_map[v].append(u)
+                
+        # Normalize station records
+        normalized_stations = {}
+        for sid, st in req.stations.items():
+            sid_str = str(sid)
+            name = st.get("name", sid_str)
+            zone = st.get("zone", "Body")
+            st_type = st.get("station_type") or st.get("type") or "RoboticWeld"
+            tier = st.get("sensor_tier", "rich")
+            target_ct = float(st.get("target_cycle_time_s") or st.get("target_cycle_time") or 55.0)
+            power_kw = float(st.get("power_base_kw") or 28.0) if tier == "rich" else None
+            cap = int(st.get("buffer_capacity_units") or 8)
+            
+            normalized_stations[sid_str] = {
+                "id": sid_str,
+                "station_id": sid_str,
+                "name": name,
+                "zone": zone,
+                "station_type": st_type,
+                "type": st_type,
+                "sensor_tier": tier,
+                "target_cycle_time_s": target_ct,
+                "target_cycle_time": target_ct,
+                "power_base_kw": power_kw,
+                "buffer_capacity_units": cap,
+                "upstream_ids": upstream_map.get(sid_str, []),
+                "downstream_ids": downstream_map.get(sid_str, [])
+            }
+            
+        new_topology = {
+            "stations": normalized_stations,
+            "edges": normalized_edges,
+            "metadata": req.metadata or {
+                "total_stations": len(normalized_stations),
+                "seed": 42
+            }
+        }
+        
+        topology = new_topology
+        stations_meta = topology["stations"]
+        
+        # Completely re-instantiate the physics and pipeline models for the new DAG layout
+        simulator = LineSimulator(seed=42, custom_topology=topology)
+        spc_engine = SPCEngine(lambda_ewma=0.3, z_threshold=3.0)
+        virtual_sensor_engine = VirtualSensorEngine(stations_meta)
+        confidence_engine = ConfidenceEngine(w1=0.5, w2=0.3, w3=0.2)
+        risk_model = RiskScoringModel()
+        propagation_engine = GraphPropagationEngine(topology)
+        recommender_engine = RecommendationEngine(stations_meta)
+        
+        cumulative_downtime_avoided_min = 0.0
+        latest_payload = process_simulation_tick()
+        
+        return {
+            "status": "TOPOLOGY_APPLIED",
+            "station_count": len(stations_meta),
+            "edges_count": len(normalized_edges)
+        }
+    finally:
+        is_sim_running = was_running
+
+@app.post("/api/topology/reset")
+def reset_topology():
+    global topology, stations_meta, simulator, spc_engine, virtual_sensor_engine
+    global confidence_engine, risk_model, propagation_engine, recommender_engine
+    global latest_payload, cumulative_downtime_avoided_min, is_sim_running
+    
+    was_running = is_sim_running
+    is_sim_running = False
+    
+    try:
+        topology = build_line_topology()
+        stations_meta = topology["stations"]
+        
+        # Completely re-instantiate the baseline physics and ML models
+        simulator = LineSimulator(seed=42, custom_topology=topology)
+        spc_engine = SPCEngine(lambda_ewma=0.3, z_threshold=3.0)
+        virtual_sensor_engine = VirtualSensorEngine(stations_meta)
+        confidence_engine = ConfidenceEngine(w1=0.5, w2=0.3, w3=0.2)
+        risk_model = RiskScoringModel()
+        propagation_engine = GraphPropagationEngine(topology)
+        recommender_engine = RecommendationEngine(stations_meta)
+        
+        cumulative_downtime_avoided_min = 0.0
+        latest_payload = process_simulation_tick()
+        
+        return {
+            "status": "TOPOLOGY_RESET",
+            "station_count": len(stations_meta),
+            "edges_count": len(topology["edges"])
+        }
+    finally:
+        is_sim_running = was_running
 
 # Mount static frontend
 frontend_dir = os.path.join(base_dir, "frontend")

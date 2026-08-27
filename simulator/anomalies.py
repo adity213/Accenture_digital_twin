@@ -127,9 +127,11 @@ class AnomalyManager:
                 })
                 
                 if anom.anomaly_type == "gradual_drift":
-                    progress = (current_tick - anom.start_tick) / anom.duration_ticks
-                    drift = anom.params.get("drift_factor", 0.45) * progress
-                    effects["cycle_time_multiplier"] = max(effects["cycle_time_multiplier"], 1.0 + drift)
+                    progress = (current_tick - anom.start_tick) / max(1, anom.duration_ticks)
+                    # Immediate +22% baseline jump that ramps up to +67%
+                    base_drift = 0.22
+                    ramp_drift = anom.params.get("drift_factor", 0.45) * progress
+                    effects["cycle_time_multiplier"] = max(effects["cycle_time_multiplier"], 1.0 + base_drift + ramp_drift)
                 
                 elif anom.anomaly_type == "sudden_stoppage":
                     effects["is_stopped"] = True

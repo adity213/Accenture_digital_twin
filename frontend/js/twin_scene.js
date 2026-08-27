@@ -132,10 +132,164 @@ class TwinSceneEngine {
     }
   }
 
+  calculateFloorCoordinates(stations, edges) {
+    if (typeof window.stationCoords === "undefined") {
+      window.stationCoords = {};
+    }
+
+    // Industrial calibrated floor baseline for standard ST01 - ST40
+    const baseline = (typeof getBaselineFactoryCoordinates === "function") 
+      ? getBaselineFactoryCoordinates() 
+      : {
+        "ST01": { x: 100,  y: 130, isParallel: false },
+        "ST02": { x: 260,  y: 130, isParallel: false },
+        "ST03": { x: 420,  y: 40,  isParallel: true, branch: "FORK: UPPER LH" },
+        "ST04": { x: 420,  y: 220, isParallel: true, branch: "FORK: LOWER RH" },
+        "ST05": { x: 580,  y: 130, isParallel: false, branch: "MERGE" },
+        "ST06": { x: 740,  y: 130, isParallel: false },
+        "ST07": { x: 900,  y: 40,  isParallel: true, branch: "FORK: RESPOT A" },
+        "ST08": { x: 900,  y: 220, isParallel: true, branch: "FORK: RESPOT B" },
+        "ST09": { x: 1060, y: 130, isParallel: false, branch: "MERGE" },
+        "ST10": { x: 1220, y: 130, isParallel: false },
+        "ST11": { x: 1380, y: 130, isParallel: false },
+        "ST12": { x: 1540, y: 130, isParallel: false },
+        "ST13": { x: 1700, y: 130, isParallel: false },
+        "ST14": { x: 1860, y: 130, isParallel: false },
+
+        "ST15": { x: 1860, y: 420, isParallel: false },
+        "ST16": { x: 1610, y: 420, isParallel: false },
+        "ST17": { x: 1360, y: 420, isParallel: false },
+        "ST18": { x: 1110, y: 420, isParallel: false },
+        "ST19": { x: 860,  y: 420, isParallel: false },
+        "ST20": { x: 610,  y: 420, isParallel: false },
+        "ST21": { x: 360,  y: 420, isParallel: false },
+        "ST22": { x: 110,  y: 420, isParallel: false },
+
+        "ST23": { x: 110,  y: 710, isParallel: false },
+        "ST24": { x: 270,  y: 710, isParallel: false },
+        "ST25": { x: 430,  y: 630, isParallel: true, branch: "FORK: COCKPIT" },
+        "ST26": { x: 430,  y: 790, isParallel: true, branch: "FORK: SUSPENSION" },
+        "ST27": { x: 590,  y: 710, isParallel: false, branch: "MERGE" },
+        "ST28": { x: 750,  y: 710, isParallel: false },
+        "ST29": { x: 910,  y: 710, isParallel: false },
+        "ST30": { x: 1070, y: 710, isParallel: false },
+        "ST31": { x: 1230, y: 710, isParallel: false },
+        "ST32": { x: 1390, y: 710, isParallel: false },
+
+        "ST33": { x: 1390, y: 940, isParallel: false },
+        "ST34": { x: 1210, y: 940, isParallel: false },
+        "ST35": { x: 1030, y: 940, isParallel: false },
+        "ST36": { x: 850,  y: 940, isParallel: false },
+        "ST37": { x: 670,  y: 940, isParallel: false },
+        "ST38": { x: 490,  y: 940, isParallel: false },
+        "ST39": { x: 310,  y: 940, isParallel: false },
+        "ST40": { x: 130,  y: 940, isParallel: false }
+      };
+
+    // Ensure baseline keys exist in window.stationCoords
+    Object.keys(baseline).forEach(sid => {
+      if (!window.stationCoords[sid]) {
+        window.stationCoords[sid] = Object.assign({}, baseline[sid]);
+      }
+    });
+
+    // Smart Calibrated Layout Placement for Custom / Added Stations
+    Object.keys(stations).forEach(sid => {
+      if (baseline[sid] && window.stationCoords[sid]) return;
+
+      const meta = stations[sid] || {};
+      const zone = (meta.zone || "Body").toLowerCase();
+      let pos = window.stationCoords[sid];
+
+      // Define Zone Y bounds
+      let expectedMinY = 20, expectedMaxY = 360, defaultY = 130;
+      let flowDirection = "ltr"; // left-to-right
+
+      if (zone.includes("paint")) {
+        expectedMinY = 380;
+        expectedMaxY = 570;
+        defaultY = 420;
+        flowDirection = "rtl"; // right-to-left
+      } else if (zone.includes("assembly")) {
+        expectedMinY = 590;
+        expectedMaxY = 1100;
+        defaultY = 710;
+        flowDirection = "ltr";
+      }
+
+      // Check if position needs recalibration to fit proper floor zone bay
+      const isOutOfBounds = !pos || pos.y < expectedMinY || pos.y > expectedMaxY;
+
+      if (isOutOfBounds) {
+        // Find upstream link in DAG
+        const upstreamEdge = edges.find(e => e[1] === sid);
+        const upstreamSid = upstreamEdge ? upstreamEdge[0] : null;
+        const upstreamPos = upstreamSid ? window.stationCoords[upstreamSid] : null;
+
+        let newX = 110;
+        let newY = defaultY;
+
+        if (upstreamPos && upstreamPos.y >= expectedMinY && upstreamPos.y <= expectedMaxY) {
+          if (flowDirection === "ltr") {
+            newX = upstreamPos.x + 160;
+            newY = upstreamPos.y;
+          } else {
+            // Paint (Reverse Flow)
+            if (upstreamPos.x >= 270) {
+              newX = upstreamPos.x - 160;
+              newY = upstreamPos.y;
+            } else {
+              // Near left edge of Paint shop, place on lower parallel spur
+              newX = upstreamPos.x + 150;
+              newY = upstreamPos.y + 70;
+            }
+          }
+        } else {
+          // Place after other stations in this zone
+          const existingInZone = Object.keys(stations).filter(s => s !== sid && (stations[s].zone || "").toLowerCase().includes(zone));
+          if (existingInZone.length > 0) {
+            const lastSid = existingInZone[existingInZone.length - 1];
+            const lastPos = window.stationCoords[lastSid];
+            if (lastPos) {
+              newX = flowDirection === "ltr" ? lastPos.x + 160 : Math.max(110, lastPos.x - 160);
+              newY = lastPos.y;
+            }
+          }
+        }
+
+        window.stationCoords[sid] = { x: newX, y: newY, branch: pos?.branch || "" };
+      }
+    });
+
+    // Zero-Overlap Collision Resolver
+    const allSids = Object.keys(stations);
+    for (let i = 0; i < allSids.length; i++) {
+      for (let j = i + 1; j < allSids.length; j++) {
+        const s1 = allSids[i];
+        const s2 = allSids[j];
+        const p1 = window.stationCoords[s1];
+        const p2 = window.stationCoords[s2];
+        if (p1 && p2) {
+          const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+          if (dist < 110) {
+            p2.x += 160;
+            if (p2.x > 2100) {
+              p2.x = 110;
+              p2.y += 70;
+            }
+          }
+        }
+      }
+    }
+  }
+
   renderScene(stationsMeta, edges) {
     this.stations = stationsMeta;
     this.edges = edges;
     if (!this.container || !this.svgLayer) return;
+
+    // Recalibrate coordinates for all active stations
+    this.calculateFloorCoordinates(this.stations, this.edges);
 
     this.container.innerHTML = "";
     this.svgLayer.innerHTML = "";
@@ -145,8 +299,8 @@ class TwinSceneEngine {
 
     // Smart Continuous Port-to-Port Conveyor Rail Bezier Calculations
     this.edges.forEach(([u, v]) => {
-      const p1 = stationCoords[u];
-      const p2 = stationCoords[v];
+      const p1 = window.stationCoords[u];
+      const p2 = window.stationCoords[v];
       if (!p1 || !p2) return;
 
       let x1, y1, x2, y2, cx1, cy1, cx2, cy2;
@@ -177,15 +331,15 @@ class TwinSceneEngine {
         cy2 = y2;
       } else {
         // Vertical Turnaround Transfers (ST14->ST15, ST22->ST23, ST32->ST33)
-        if (p1.x > 1000) {
+        if (p1.x > 900) {
           // Right-side U-Turn Loop (Zone 1->2 and Zone 3A->3B)
           x1 = p1.x + NODE_W;
           y1 = p1.y + NODE_H * 0.5;
           x2 = p2.x + NODE_W;
           y2 = p2.y + NODE_H * 0.5;
-          cx1 = x1 + 90;
+          cx1 = Math.min(2220, Math.max(x1, x2) + 75);
           cy1 = y1;
-          cx2 = x2 + 90;
+          cx2 = cx1;
           cy2 = y2;
         } else {
           // Left-side U-Turn Loop (Zone 2->3)
@@ -193,9 +347,9 @@ class TwinSceneEngine {
           y1 = p1.y + NODE_H * 0.5;
           x2 = p2.x;
           y2 = p2.y + NODE_H * 0.5;
-          cx1 = x1 - 90;
+          cx1 = Math.max(35, Math.min(x1, x2) - 65);
           cy1 = y1;
-          cx2 = x2 - 90;
+          cx2 = cx1;
           cy2 = y2;
         }
       }
@@ -218,10 +372,10 @@ class TwinSceneEngine {
       this.svgLayer.appendChild(pathChev);
     });
 
-    // Render 40 Station Nodes
+    // Render Station Nodes
     Object.keys(this.stations).forEach((sid) => {
       const meta = this.stations[sid];
-      const pos = stationCoords[sid] || { x: 50, y: 80 };
+      const pos = window.stationCoords[sid] || { x: 50, y: 80 };
       const isManual = meta.sensor_tier === "manual";
 
       const node = document.createElement("div");
@@ -244,14 +398,14 @@ class TwinSceneEngine {
         ${forkBadge}
         <div class="node-hud-top">
           <span class="node-sid">${sid}</span>
-          <span class="node-tier-pill ${isManual ? 'manual' : ''}">${meta.sensor_tier.toUpperCase()}</span>
+          <span class="node-tier-pill ${isManual ? 'manual' : ''}">${(meta.sensor_tier || "RICH").toUpperCase()}</span>
         </div>
         <div class="station-glyph-wrap" id="glyph-${sid}">
-          ${TwinSceneEngine.getMachineGlyph(meta.station_type, sid, "#15803d", isManual)}
+          ${TwinSceneEngine.getMachineGlyph(meta.station_type || meta.type, sid, "#15803d", isManual)}
         </div>
         <div class="node-name-label">${meta.name}</div>
         <div class="node-hud-footer">
-          <span class="node-val-ct" id="s-ct-${sid}">${meta.target_cycle_time_s.toFixed(1)}s</span>
+          <span class="node-val-ct" id="s-ct-${sid}">${(meta.target_cycle_time_s || meta.target_cycle_time || 55.0).toFixed(1)}s</span>
           <span class="node-val-risk" id="s-risk-${sid}">5%</span>
         </div>
       `;
@@ -263,16 +417,17 @@ class TwinSceneEngine {
   }
 
   initLivingLineVehicles() {
-    this.carBodies = [
-      { id: "car-1", currentSid: "ST02" },
-      { id: "car-2", currentSid: "ST06" },
-      { id: "car-3", currentSid: "ST10" },
-      { id: "car-4", currentSid: "ST17" },
-      { id: "car-5", currentSid: "ST20" },
-      { id: "car-6", currentSid: "ST25" },
-      { id: "car-7", currentSid: "ST30" },
-      { id: "car-8", currentSid: "ST36" }
-    ];
+    const sids = Object.keys(this.stations);
+    this.carBodies = [];
+    if (sids.length === 0) return;
+
+    const numVehicles = Math.min(8, sids.length);
+    const step = Math.max(1, Math.floor(sids.length / numVehicles));
+
+    for (let i = 0; i < numVehicles; i++) {
+      const sid = sids[Math.min(i * step, sids.length - 1)];
+      this.carBodies.push({ id: `car-${i + 1}`, currentSid: sid });
+    }
 
     this.carBodies.forEach((c) => {
       const el = document.createElement("div");
@@ -291,7 +446,7 @@ class TwinSceneEngine {
 
   updateVehiclePosition(car) {
     const el = document.getElementById(`vehicle-${car.id}`);
-    const pos = stationCoords[car.currentSid];
+    const pos = window.stationCoords[car.currentSid];
     if (!el || !pos) return;
 
     el.style.left = `${pos.x + 72}px`;

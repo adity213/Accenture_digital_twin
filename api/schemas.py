@@ -18,6 +18,11 @@ class OverrideRequest(BaseModel):
     action: str
     reason: Optional[str] = ""
 
+class TopologyUpdateRequest(BaseModel):
+    stations: Dict[str, Any]
+    edges: List[List[str]]
+    metadata: Dict[str, Any]
+
 class StationTelemetrySchema(BaseModel):
     station_id: str
     cycle_time_s: Optional[float] = None

@@ -127,7 +127,8 @@ class RiskScoringModel:
                 bn_risk = 0.65
 
             def_risk = 0.02
-            if machine_shaking_vibration > 2.0 or motor_heat_temperature > 65.0:
+            # ISO 10816: Unacceptable vibration warning limit is > 4.5 mm/s for Class I/II machinery
+            if machine_shaking_vibration > 4.5 or (motor_heat_temperature > 220.0 and machine_shaking_vibration > 1.0):
                 def_risk = 0.45
 
             comp_risk = max(bn_risk, def_risk)

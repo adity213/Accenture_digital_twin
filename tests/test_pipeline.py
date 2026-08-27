@@ -91,3 +91,28 @@ def test_monotonic_propagation_countdown():
     nearest = tree[0]
     assert nearest["station_id"] in ["ST07", "ST08", "ST09"], f"First impacted should be immediate downstream, got {nearest['station_id']}"
     assert nearest["time_to_impact_sec"] > 0
+
+def test_iso_10816_vibration_classification():
+    spc = SPCEngine(iso_vibration_limit=4.5)
+    
+    # 1. Good status (<1.12 mm/s)
+    res_good = spc.update_station("ST02", 50.0, 50.0, vibration=0.85)
+    assert res_good["iso_vibration_status"] == "GOOD"
+    assert res_good["iso_vibration_alarm"] is False
+    assert res_good["deviation_flag"] is False
+    
+    # 2. Satisfactory status (1.12 - 2.80 mm/s)
+    res_sat = spc.update_station("ST02", 50.0, 50.0, vibration=1.85)
+    assert res_sat["iso_vibration_status"] == "SATISFACTORY"
+    assert res_sat["iso_vibration_alarm"] is False
+    
+    # 3. Unsatisfactory warning status (2.80 - 4.50 mm/s)
+    res_unsat = spc.update_station("ST02", 50.0, 50.0, vibration=3.60)
+    assert res_unsat["iso_vibration_status"] == "UNSATISFACTORY"
+    assert res_unsat["iso_vibration_alarm"] is False
+    
+    # 4. Unacceptable critical alarm status (> 4.50 mm/s)
+    res_crit = spc.update_station("ST02", 50.0, 50.0, vibration=5.20)
+    assert res_crit["iso_vibration_status"] == "UNACCEPTABLE"
+    assert res_crit["iso_vibration_alarm"] is True
+    assert res_crit["deviation_flag"] is True

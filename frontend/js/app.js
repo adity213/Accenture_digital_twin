@@ -11,57 +11,64 @@ let pollTimer = null;
 let currentView = "floor";
 let sceneEngine = null;
 
-// Calibrated Coordinates: Node Width = 144px, Node Height = 124px
-const stationCoords = {
-  // === ZONE 1: BODY CONSTRUCTION (ST01 - ST14) [Top: 10px, Height: 360px] ===
-  "ST01": { x: 30,   y: 130, isParallel: false },
-  "ST02": { x: 190,  y: 130, isParallel: false },
-  "ST03": { x: 350,  y: 40,  isParallel: true, branch: "FORK: UPPER LH" },
-  "ST04": { x: 350,  y: 220, isParallel: true, branch: "FORK: LOWER RH" },
-  "ST05": { x: 510,  y: 130, isParallel: false, branch: "MERGE" },
-  "ST06": { x: 670,  y: 130, isParallel: false },
-  "ST07": { x: 830,  y: 40,  isParallel: true, branch: "FORK: RESPOT A" },
-  "ST08": { x: 830,  y: 220, isParallel: true, branch: "FORK: RESPOT B" },
-  "ST09": { x: 990,  y: 130, isParallel: false, branch: "MERGE" },
-  "ST10": { x: 1150, y: 130, isParallel: false },
-  "ST11": { x: 1310, y: 130, isParallel: false },
-  "ST12": { x: 1470, y: 130, isParallel: false },
-  "ST13": { x: 1630, y: 130, isParallel: false },
-  "ST14": { x: 1790, y: 130, isParallel: false },
+function getBaselineFactoryCoordinates() {
+  return {
+    // === ZONE 1: BODY CONSTRUCTION (ST01 - ST14) [Top: 10px, Height: 360px] ===
+    "ST01": { x: 100,  y: 130, isParallel: false },
+    "ST02": { x: 260,  y: 130, isParallel: false },
+    "ST03": { x: 420,  y: 40,  isParallel: true, branch: "FORK: UPPER LH" },
+    "ST04": { x: 420,  y: 220, isParallel: true, branch: "FORK: LOWER RH" },
+    "ST05": { x: 580,  y: 130, isParallel: false, branch: "MERGE" },
+    "ST06": { x: 740,  y: 130, isParallel: false },
+    "ST07": { x: 900,  y: 40,  isParallel: true, branch: "FORK: RESPOT A" },
+    "ST08": { x: 900,  y: 220, isParallel: true, branch: "FORK: RESPOT B" },
+    "ST09": { x: 1060, y: 130, isParallel: false, branch: "MERGE" },
+    "ST10": { x: 1220, y: 130, isParallel: false },
+    "ST11": { x: 1380, y: 130, isParallel: false },
+    "ST12": { x: 1540, y: 130, isParallel: false },
+    "ST13": { x: 1700, y: 130, isParallel: false },
+    "ST14": { x: 1860, y: 130, isParallel: false },
 
-  // === ZONE 2: PAINT SHOP (ST15 - ST22) [Top: 390px, Height: 190px, Reverse Flow] ===
-  "ST15": { x: 1790, y: 420, isParallel: false },
-  "ST16": { x: 1540, y: 420, isParallel: false },
-  "ST17": { x: 1290, y: 420, isParallel: false },
-  "ST18": { x: 1040, y: 420, isParallel: false },
-  "ST19": { x: 790,  y: 420, isParallel: false },
-  "ST20": { x: 540,  y: 420, isParallel: false },
-  "ST21": { x: 290,  y: 420, isParallel: false },
-  "ST22": { x: 40,   y: 420, isParallel: false },
+    // === ZONE 2: PAINT SHOP (ST15 - ST22) [Top: 390px, Height: 190px, Reverse Flow] ===
+    "ST15": { x: 1860, y: 420, isParallel: false },
+    "ST16": { x: 1610, y: 420, isParallel: false },
+    "ST17": { x: 1360, y: 420, isParallel: false },
+    "ST18": { x: 1110, y: 420, isParallel: false },
+    "ST19": { x: 860,  y: 420, isParallel: false },
+    "ST20": { x: 610,  y: 420, isParallel: false },
+    "ST21": { x: 360,  y: 420, isParallel: false },
+    "ST22": { x: 110,  y: 420, isParallel: false },
 
-  // === ZONE 3: FINAL ASSEMBLY (ST23 - ST40) [Top: 600px, Height: 500px] ===
-  // Row 3A (Forward Flow)
-  "ST23": { x: 40,   y: 710, isParallel: false },
-  "ST24": { x: 200,  y: 710, isParallel: false },
-  "ST25": { x: 360,  y: 630, isParallel: true, branch: "FORK: COCKPIT" },
-  "ST26": { x: 360,  y: 790, isParallel: true, branch: "FORK: SUSPENSION" },
-  "ST27": { x: 520,  y: 710, isParallel: false, branch: "MERGE" },
-  "ST28": { x: 680,  y: 710, isParallel: false },
-  "ST29": { x: 840,  y: 710, isParallel: false },
-  "ST30": { x: 1000, y: 710, isParallel: false },
-  "ST31": { x: 1160, y: 710, isParallel: false },
-  "ST32": { x: 1320, y: 710, isParallel: false },
+    // === ZONE 3: FINAL ASSEMBLY (ST23 - ST40) [Top: 600px, Height: 500px] ===
+    // Row 3A (Forward Flow)
+    "ST23": { x: 110,  y: 710, isParallel: false },
+    "ST24": { x: 270,  y: 710, isParallel: false },
+    "ST25": { x: 430,  y: 630, isParallel: true, branch: "FORK: COCKPIT" },
+    "ST26": { x: 430,  y: 790, isParallel: true, branch: "FORK: SUSPENSION" },
+    "ST27": { x: 590,  y: 710, isParallel: false, branch: "MERGE" },
+    "ST28": { x: 750,  y: 710, isParallel: false },
+    "ST29": { x: 910,  y: 710, isParallel: false },
+    "ST30": { x: 1070, y: 710, isParallel: false },
+    "ST31": { x: 1230, y: 710, isParallel: false },
+    "ST32": { x: 1390, y: 710, isParallel: false },
 
-  // Row 3B (Reverse Flow)
-  "ST33": { x: 1320, y: 940, isParallel: false },
-  "ST34": { x: 1140, y: 940, isParallel: false },
-  "ST35": { x: 960,  y: 940, isParallel: false },
-  "ST36": { x: 780,  y: 940, isParallel: false },
-  "ST37": { x: 600,  y: 940, isParallel: false },
-  "ST38": { x: 420,  y: 940, isParallel: false },
-  "ST39": { x: 240,  y: 940, isParallel: false },
-  "ST40": { x: 60,   y: 940, isParallel: false }
-};
+    // Row 3B (Reverse Flow)
+    "ST33": { x: 1390, y: 940, isParallel: false },
+    "ST34": { x: 1210, y: 940, isParallel: false },
+    "ST35": { x: 1030, y: 940, isParallel: false },
+    "ST36": { x: 850,  y: 940, isParallel: false },
+    "ST37": { x: 670,  y: 940, isParallel: false },
+    "ST38": { x: 490,  y: 940, isParallel: false },
+    "ST39": { x: 310,  y: 940, isParallel: false },
+    "ST40": { x: 130,  y: 940, isParallel: false }
+  };
+}
+
+function resetBaselineCoordinates() {
+  window.stationCoords = getBaselineFactoryCoordinates();
+}
+
+window.stationCoords = Object.assign(window.stationCoords || {}, getBaselineFactoryCoordinates());
 
 document.addEventListener("DOMContentLoaded", async () => {
   sceneEngine = new TwinSceneEngine("nodes-container", "conveyor-rails-svg");
@@ -77,20 +84,25 @@ function switchView(viewName) {
   const dockFloor = document.getElementById("dock-btn-floor");
   const dockLead = document.getElementById("dock-btn-leadership");
   const dockWeekly = document.getElementById("dock-btn-weekly");
+  const dockTopology = document.getElementById("dock-btn-topology");
   
   if (dockFloor) dockFloor.classList.toggle("active", viewName === "floor");
   if (dockLead) dockLead.classList.toggle("active", viewName === "leadership");
   if (dockWeekly) dockWeekly.classList.toggle("active", viewName === "weekly");
+  if (dockTopology) dockTopology.classList.toggle("active", viewName === "topology");
 
   const viewFloor = document.getElementById("view-floor");
   const viewLead = document.getElementById("view-leadership");
   const viewWeekly = document.getElementById("view-weekly");
+  const viewTopology = document.getElementById("view-topology");
 
   if (viewFloor) viewFloor.classList.toggle("active", viewName === "floor");
   if (viewLead) viewLead.classList.toggle("active", viewName === "leadership");
   if (viewWeekly) viewWeekly.classList.toggle("active", viewName === "weekly");
+  if (viewTopology) viewTopology.classList.toggle("active", viewName === "topology");
 
   if (viewName === "leadership") loadLeadershipData();
+  if (viewName === "topology" && typeof initTopologyEditor === "function") initTopologyEditor();
 }
 
 function resetSchematicView() {
@@ -107,6 +119,7 @@ async function loadStationsTopology() {
     if (sceneEngine) {
       sceneEngine.renderScene(stationsMeta, edgesList);
     }
+    populateFaultStationDropdown();
   } catch (err) {
     console.error("Failed to load stations topology:", err);
   }
@@ -221,6 +234,11 @@ function selectStation(sid) {
   const node = document.getElementById(`station-node-${sid}`);
   if (node) node.classList.add("selected");
 
+  const faultSelect = document.getElementById("fault-target-station");
+  if (faultSelect && faultSelect.value !== sid) {
+    faultSelect.value = sid;
+  }
+
   updateCockpitDrawer(sid);
 }
 
@@ -234,17 +252,26 @@ function updateCockpitDrawer(sid) {
   document.getElementById("focus-name").innerText = meta.name;
   document.getElementById("focus-zone").innerText = `${meta.zone.toUpperCase()} // ${meta.station_type}`;
 
+  const isBlackout = Boolean(st.is_blackout);
+  const isStopped = Boolean(st.is_stopped);
+
   const tierBadge = document.getElementById("focus-tier");
-  tierBadge.innerText = `${meta.sensor_tier.toUpperCase()} SENSOR`;
-  tierBadge.className = `node-tier-pill ${meta.sensor_tier === 'manual' ? 'manual' : ''}`;
+  if (isBlackout) {
+    tierBadge.innerText = "SENSOR BLACKOUT (OFFLINE)";
+    tierBadge.className = "node-tier-pill manual";
+  } else {
+    tierBadge.innerText = `${meta.sensor_tier.toUpperCase()} SENSOR`;
+    tierBadge.className = `node-tier-pill ${meta.sensor_tier === 'manual' ? 'manual' : ''}`;
+  }
 
   const ct = st.cycle_time_s || meta.target_cycle_time_s;
-  document.getElementById("focus-ct").innerText = `${ct.toFixed(1)}s`;
+  const ctSuffix = isBlackout ? " (VIRTUAL)" : (isStopped ? " (HALT)" : "");
+  document.getElementById("focus-ct").innerText = `${ct.toFixed(1)}s${ctSuffix}`;
   const ctFill = document.getElementById("gauge-ct-fill");
   if (ctFill) {
     const pct = Math.min(100, Math.max(10, ((ct - 45) / 35) * 100));
     ctFill.style.width = `${pct}%`;
-    ctFill.style.background = ct > 72 ? "var(--status-critical)" : (ct > 67 ? "var(--status-warning)" : "var(--status-nominal)");
+    ctFill.style.background = isStopped || ct > 72 ? "var(--status-critical)" : (ct > 67 ? "var(--status-warning)" : "var(--status-nominal)");
   }
 
   const buf = st.buffer_level !== undefined ? st.buffer_level : 4;
@@ -257,22 +284,43 @@ function updateCockpitDrawer(sid) {
     bufFill.style.background = bufPct >= 90 ? "var(--status-critical)" : (bufPct >= 70 ? "var(--status-warning)" : "var(--status-nominal)");
   }
 
-  const vib = st.vibration || 0.53;
-  document.getElementById("focus-vib").innerText = `${vib.toFixed(2)} mm/s`;
+  const vib = st.vibration !== undefined && st.vibration !== null ? st.vibration : 1.20;
+  const isoStatus = isBlackout ? "VIRTUAL" : (st.iso_vibration_status || (vib < 1.12 ? "GOOD" : (vib <= 2.8 ? "SAT" : (vib <= 4.5 ? "WARN" : "CRIT"))));
+  document.getElementById("focus-vib").innerText = isBlackout ? "IMPUTED (NO SIGNAL)" : `${vib.toFixed(2)} mm/s (${isoStatus})`;
   const vibFill = document.getElementById("gauge-vib-fill");
   if (vibFill) {
-    const vibPct = Math.min(100, (vib / 2.5) * 100);
+    const vibPct = isBlackout ? 20 : Math.min(100, Math.max(5, (vib / 5.0) * 100));
     vibFill.style.width = `${vibPct}%`;
-    vibFill.style.background = vib > 1.8 ? "var(--status-critical)" : (vib > 1.2 ? "var(--status-warning)" : "var(--status-nominal)");
+    vibFill.style.background = isBlackout ? "#94a3b8" : (vib > 4.5 ? "var(--status-critical)" : (vib > 2.8 ? "var(--status-warning)" : "var(--status-nominal)"));
   }
 
-  const pwr = st.power_kw || meta.power_base_kw;
-  document.getElementById("focus-power").innerText = `${pwr.toFixed(1)} kW`;
+  const temp = st.temperature !== undefined && st.temperature !== null ? st.temperature : 24.0;
+  const tempEl = document.getElementById("focus-temp");
+  if (tempEl) tempEl.innerText = isBlackout ? "IMPUTED (NO SIGNAL)" : `${temp.toFixed(1)}°C`;
+  const tempFill = document.getElementById("gauge-temp-fill");
+  if (tempFill) {
+    const tempPct = isBlackout ? 15 : Math.min(100, Math.max(8, (temp / 210.0) * 100));
+    tempFill.style.width = `${tempPct}%`;
+    tempFill.style.background = isBlackout ? "#94a3b8" : (temp > 200.0 ? "var(--status-critical)" : (temp > 65.0 && temp < 180.0 ? "var(--status-warning)" : "var(--status-nominal)"));
+  }
+
+  const pwr = st.power_kw || meta.power_base_kw || 30.0;
+  document.getElementById("focus-power").innerText = isBlackout ? "IMPUTED" : `${pwr.toFixed(1)} kW`;
   const pwrFill = document.getElementById("gauge-power-fill");
   if (pwrFill) {
-    const pwrPct = Math.min(100, (pwr / 60) * 100);
+    const pwrPct = isBlackout ? 20 : Math.min(100, (pwr / 75.0) * 100);
     pwrFill.style.width = `${pwrPct}%`;
-    pwrFill.style.background = pwr > meta.power_base_kw * 1.4 ? "var(--status-warning)" : "var(--status-nominal)";
+    pwrFill.style.background = isBlackout ? "#94a3b8" : (pwr > (meta.power_base_kw || 30.0) * 1.5 ? "var(--status-warning)" : "var(--status-nominal)");
+  }
+
+  const conf = st.twin_confidence !== undefined ? st.twin_confidence : 95.0;
+  const spcTrend = isBlackout ? "BLACKOUT" : (st.spc_trend || "STABLE");
+  const confEl = document.getElementById("focus-spc-conf");
+  if (confEl) confEl.innerText = `${conf.toFixed(0)}% (${spcTrend})`;
+  const confFill = document.getElementById("gauge-conf-fill");
+  if (confFill) {
+    confFill.style.width = `${Math.min(100, Math.max(5, conf))}%`;
+    confFill.style.background = conf < 65 ? "var(--status-critical)" : (conf < 80 ? "var(--status-warning)" : "var(--status-nominal)");
   }
 
   const propList = document.getElementById("focus-prop-list");
@@ -387,11 +435,64 @@ async function injectAnomaly(anomalyType, stationId) {
       })
     });
     const data = await res.json();
+    if (data.payload) {
+      handleTickUpdate(data.payload);
+    }
     selectStation(stationId);
-    console.log("Injected anomaly:", data);
+    console.log("Injected anomaly successfully:", data);
   } catch (err) {
     console.error("Injection error:", err);
   }
+}
+
+async function clearAllAnomalies() {
+  try {
+    const res = await fetch("/api/simulator/control", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "clear_anomalies" })
+    });
+    const data = await res.json();
+    if (data.payload) {
+      handleTickUpdate(data.payload);
+    }
+    selectStation(selectedStationId);
+    console.log("Cleared all anomalies:", data);
+  } catch (err) {
+    console.error("Error clearing anomalies:", err);
+  }
+}
+
+function populateFaultStationDropdown() {
+  const select = document.getElementById("fault-target-station");
+  if (!select) return;
+  select.innerHTML = "";
+
+  const sids = Object.keys(stationsMeta);
+  sids.forEach(sid => {
+    const meta = stationsMeta[sid];
+    const opt = document.createElement("option");
+    opt.value = sid;
+    opt.innerText = `${sid}: ${meta.name || sid}`;
+    if (sid === selectedStationId) opt.selected = true;
+    select.appendChild(opt);
+  });
+}
+
+function onFaultStationSelectChange(sid) {
+  selectStation(sid);
+}
+
+function injectCustomFault() {
+  const stationSelect = document.getElementById("fault-target-station");
+  const typeSelect = document.getElementById("fault-type-select");
+  const sid = stationSelect ? stationSelect.value : selectedStationId;
+  const atype = typeSelect ? typeSelect.value : "stoppage";
+  injectAnomaly(atype, sid);
+}
+
+function injectFocusedFault(atype) {
+  injectAnomaly(atype, selectedStationId);
 }
 
 async function loadLeadershipData() {

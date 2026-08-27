@@ -130,7 +130,28 @@ class RecommendationEngine:
                     "status": "ACTIVE"
                 })
 
-            # Rule 3: Sensor Blackout -> Dispatch Sensor Verification
+            # Rule 3: Vibration ISO 10816 Limit Breach -> Robot Servo & Bearing Overhaul
+            elif (state.get("vibration") is not None and state.get("vibration") > 4.5) or state.get("iso_vibration_alarm"):
+                vib_val = state.get("vibration") or 4.6
+                recommendations.append({
+                    "id": f"REC-{sid}-{uuid.uuid4().hex[:6].upper()}",
+                    "tick": tick,
+                    "timestamp": timestamp,
+                    "station_id": sid,
+                    "zone": meta.get("zone", "body"),
+                    "rule_id": "RULE-05-ISO-VIBRATION-ALARM",
+                    "title": f"ISO 10816 Vibration Critical Breach at {meta.get('name', sid)}",
+                    "recommended_action": f"Machine shaking surged to {vib_val:.2f} mm/s RMS (exceeding ISO 4.5 mm/s limit). Immediately inspect robot servo bearings & mount anchors.",
+                    "rationale": f"Vibration magnitude {vib_val:.2f} mm/s exceeds Class I/II industrial safety limits. Imminent bearing seizure risk.",
+                    "expected_impact": "Prevents catastrophic robot spindle seizure ($45,000 repair) and 35 mins unplanned downtime",
+                    "downtime_avoided_min": 35.0,
+                    "vehicles_protected": 6,
+                    "cost_savings_usd": round(35.0 * DOWNTIME_COST_PER_MIN, 0),
+                    "confidence": 0.95,
+                    "status": "ACTIVE"
+                })
+
+            # Rule 4: Sensor Blackout -> Dispatch Sensor Verification
             elif is_blackout:
                 recommendations.append({
                     "id": f"REC-{sid}-{uuid.uuid4().hex[:6].upper()}",
