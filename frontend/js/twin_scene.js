@@ -775,8 +775,11 @@ class TwinSceneEngine {
       }
 
       if (node) {
-        node.classList.remove("status-warning", "status-critical");
-        if (riskPct >= 80 || st.is_stopped) {
+        node.classList.remove("status-warning", "status-critical", "status-power-trip");
+        if (st.is_blackout) {
+          node.classList.add("status-power-trip");
+          node.classList.remove("in-cycle");
+        } else if (riskPct >= 80 || st.is_stopped) {
           node.classList.add("status-critical");
           node.classList.remove("in-cycle");
         } else if (riskPct >= 60) {

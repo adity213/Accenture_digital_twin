@@ -7,6 +7,7 @@ Vehicles Protected from Starvation, and Scrap Avoided.
 """
 from typing import Dict, List, Any
 import uuid
+from pipeline.sop import get_tiered_sop
 
 # Industry standard benchmark reference (PRD Section 1.1)
 DOWNTIME_COST_PER_MIN = 38333.33  # ($2.3M / 60 min)
@@ -14,12 +15,13 @@ DOWNTIME_COST_PER_MIN = 38333.33  # ($2.3M / 60 min)
 class RecommendationEngine:
     def __init__(self, stations_meta: Dict[str, Any]):
         self.stations_meta = stations_meta
+        self.station_anomaly_ticks: Dict[str, int] = {}
 
     def evaluate_recommendations(
         self,
         current_tick: int = 0,
         station_states: Dict[str, Any] = None,
-        propagation_map: Dict[str, List[Dict[str, Any]]] = None,
+        propagation_map: Dict[str, Any] = None,
         *args,
         **kwargs
     ) -> List[Dict[str, Any]]:
@@ -34,7 +36,7 @@ class RecommendationEngine:
         tick: int = 0,
         timestamp: str = "2026-03-01 06:00:00",
         station_states: Dict[str, Any] = None,
-        propagation_map: Dict[str, List[Dict[str, Any]]] = None,
+        propagation_map: Dict[str, Any] = None,
         *args,
         **kwargs
     ) -> List[Dict[str, Any]]:
@@ -61,15 +63,9 @@ class RecommendationEngine:
 
             # Safe cycle_time extraction
             ct = state.get("cycle_time_s")
+            target_ct = meta.get("target_cycle_time_s", 60.0) or 60.0
             if ct is None:
-                ct = meta.get("target_cycle_time_s", 60.0)
-            if ct is None:
-                ct = 60.0
-            else:
-                try:
-                    ct = float(ct)
-                except Exception:
-                    ct = 60.0
+                ct = target_ct
 
             buf = state.get("buffer_level")
             if buf is None:
@@ -82,13 +78,40 @@ class RecommendationEngine:
 
             spc = state.get("spc", {}) or {}
             is_blackout = bool(state.get("is_blackout", False))
-            impacted = (propagation_map or {}).get(sid, []) or []
+            is_stopped = bool(state.get("is_stopped", False))
+
+            # Unpack propagation structure robustly
+            prop_obj = (propagation_map or {}).get(sid)
+            if isinstance(prop_obj, dict):
+                impacted = prop_obj.get("downstream_impact_tree", [])
+                nearest_impact_sec = prop_obj.get("nearest_impact_sec", 900.0)
+            elif isinstance(prop_obj, list):
+                impacted = prop_obj
+                nearest_impact_sec = min([n.get("time_to_impact_sec", 900.0) for n in impacted]) if impacted else 900.0
+            else:
+                impacted = []
+                nearest_impact_sec = 900.0
+
+            stype = meta.get("station_type", "RoboticWeld")
+            conf_val = state.get("twin_confidence", 95.0)
+
+            # Track anomaly duration for progressive SOP escalation
+            if risk >= 0.60 or is_stopped or is_blackout or spc.get("iso_vibration_alarm"):
+                self.station_anomaly_ticks[sid] = self.station_anomaly_ticks.get(sid, 0) + 1
+            else:
+                self.station_anomaly_ticks[sid] = 0
+            elapsed_anomaly_ticks = self.station_anomaly_ticks.get(sid, 1)
 
             # Rule 1: Sudden Stoppage / Extreme Bottleneck -> Dynamic Parallel Reroute
-            if risk >= 0.80 or ct >= 120.0:
-                nearest_impact_sec = min([n.get("time_to_impact_sec", 2100.0) for n in impacted]) if impacted else 2100.0
+            if risk >= 0.80 or ct >= 120.0 or is_stopped:
                 dt_avoided = round(max(5.0, nearest_impact_sec / 60.0), 1)
                 cars_saved = len(impacted) * 4
+                sop = get_tiered_sop(
+                    station_type=stype,
+                    anomaly_type="sudden_stoppage",
+                    elapsed_ticks=elapsed_anomaly_ticks,
+                    sensor_confidence=conf_val
+                )
                 recommendations.append({
                     "id": f"REC-{sid}-{uuid.uuid4().hex[:6].upper()}",
                     "tick": tick,
@@ -97,21 +120,26 @@ class RecommendationEngine:
                     "zone": meta.get("zone", "body"),
                     "rule_id": "RULE-01-PARALLEL-REROUTE",
                     "title": f"Reroute Flow Around {sid} ({meta.get('name', sid)})",
-                    "recommended_action": f"Downtime imminent ({int(risk*100)}% risk). Divert 50% incoming BIW assemblies to parallel lane or bypass buffer.",
+                    "recommended_action": f"Downtime imminent ({int(risk*100)}% risk). Divert 50% incoming assemblies to parallel lane or bypass buffer.",
                     "rationale": f"Station {sid} cycle time surged to {ct:.1f}s. Downstream starvation will hit {len(impacted)} stations in under 15 mins.",
                     "expected_impact": f"Prevents {dt_avoided:.0f} mins line stoppage & protects {cars_saved} vehicles from starvation",
                     "downtime_avoided_min": dt_avoided,
                     "vehicles_protected": cars_saved,
                     "cost_savings_usd": round(dt_avoided * DOWNTIME_COST_PER_MIN, 0),
-                    "confidence": round(min(0.99, (state.get("twin_confidence") or 90) / 100.0), 2),
-                    "status": "ACTIVE"
+                    "confidence": round(min(0.99, conf_val / 100.0), 2),
+                    "status": "ACTIVE",
+                    "sop": sop
                 })
 
             # Rule 2: Gradual Drift -> Preventive Tool Calibration
-            elif risk >= 0.60 or spc.get("ewma_drift_flag"):
-                nearest_impact_sec = min([n.get("time_to_impact_sec", 900.0) for n in impacted]) if impacted else 900.0
+            elif risk >= 0.60 or spc.get("ewma_drift_flag") or (ct > target_ct * 1.15):
                 dt_avoided = round(max(5.0, nearest_impact_sec / 60.0), 1)
-                target_ct = meta.get("target_cycle_time_s", 60.0) or 60.0
+                sop = get_tiered_sop(
+                    station_type=stype,
+                    anomaly_type="gradual_drift",
+                    elapsed_ticks=elapsed_anomaly_ticks,
+                    sensor_confidence=conf_val
+                )
                 recommendations.append({
                     "id": f"REC-{sid}-{uuid.uuid4().hex[:6].upper()}",
                     "tick": tick,
@@ -126,13 +154,20 @@ class RecommendationEngine:
                     "downtime_avoided_min": dt_avoided,
                     "vehicles_protected": 2,
                     "cost_savings_usd": round(dt_avoided * DOWNTIME_COST_PER_MIN, 0),
-                    "confidence": round(min(0.98, (state.get("twin_confidence") or 90) / 100.0), 2),
-                    "status": "ACTIVE"
+                    "confidence": round(min(0.98, conf_val / 100.0), 2),
+                    "status": "ACTIVE",
+                    "sop": sop
                 })
 
             # Rule 3: Vibration ISO 10816 Limit Breach -> Robot Servo & Bearing Overhaul
             elif (state.get("vibration") is not None and state.get("vibration") > 4.5) or state.get("iso_vibration_alarm"):
                 vib_val = state.get("vibration") or 4.6
+                sop = get_tiered_sop(
+                    station_type=stype,
+                    anomaly_type="sudden_stoppage",
+                    elapsed_ticks=elapsed_anomaly_ticks,
+                    sensor_confidence=conf_val
+                )
                 recommendations.append({
                     "id": f"REC-{sid}-{uuid.uuid4().hex[:6].upper()}",
                     "tick": tick,
@@ -148,11 +183,18 @@ class RecommendationEngine:
                     "vehicles_protected": 6,
                     "cost_savings_usd": round(35.0 * DOWNTIME_COST_PER_MIN, 0),
                     "confidence": 0.95,
-                    "status": "ACTIVE"
+                    "status": "ACTIVE",
+                    "sop": sop
                 })
 
             # Rule 4: Sensor Blackout -> Dispatch Sensor Verification
             elif is_blackout:
+                sop = get_tiered_sop(
+                    station_type=stype,
+                    anomaly_type="sensor_blackout",
+                    elapsed_ticks=elapsed_anomaly_ticks,
+                    sensor_confidence=conf_val
+                )
                 recommendations.append({
                     "id": f"REC-{sid}-{uuid.uuid4().hex[:6].upper()}",
                     "tick": tick,
@@ -168,10 +210,17 @@ class RecommendationEngine:
                     "vehicles_protected": 0,
                     "cost_savings_usd": 0.0,
                     "confidence": 0.70,
-                    "status": "ACTIVE"
+                    "status": "ACTIVE",
+                    "sop": sop
                 })
 
         if not recommendations:
+            sop = get_tiered_sop(
+                station_type="_default",
+                anomaly_type="_default",
+                elapsed_ticks=1,
+                sensor_confidence=100.0
+            )
             recommendations.append({
                 "id": f"REC-NOMINAL-{uuid.uuid4().hex[:6].upper()}",
                 "tick": tick,
@@ -187,7 +236,8 @@ class RecommendationEngine:
                 "vehicles_protected": 0,
                 "cost_savings_usd": 0.0,
                 "confidence": 0.96,
-                "status": "ACTIVE"
+                "status": "ACTIVE",
+                "sop": sop
             })
 
         return recommendations

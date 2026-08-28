@@ -90,33 +90,36 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderVinTrailGrid();
   updateLineBalancing(55);
 });
-
 function switchView(viewName) {
   currentView = viewName;
   const dockFloor = document.getElementById("dock-btn-floor");
   const dockLead = document.getElementById("dock-btn-leadership");
+  const dockOperator = document.getElementById("dock-btn-operator");
   const dockWeekly = document.getElementById("dock-btn-weekly");
   const dockTopology = document.getElementById("dock-btn-topology");
   
   if (dockFloor) dockFloor.classList.toggle("active", viewName === "floor");
   if (dockLead) dockLead.classList.toggle("active", viewName === "leadership");
+  if (dockOperator) dockOperator.classList.toggle("active", viewName === "operator");
   if (dockWeekly) dockWeekly.classList.toggle("active", viewName === "weekly");
   if (dockTopology) dockTopology.classList.toggle("active", viewName === "topology");
 
   const viewFloor = document.getElementById("view-floor");
   const viewLead = document.getElementById("view-leadership");
+  const viewOperator = document.getElementById("view-operator");
   const viewWeekly = document.getElementById("view-weekly");
   const viewTopology = document.getElementById("view-topology");
 
   if (viewFloor) viewFloor.classList.toggle("active", viewName === "floor");
   if (viewLead) viewLead.classList.toggle("active", viewName === "leadership");
+  if (viewOperator) viewOperator.classList.toggle("active", viewName === "operator");
   if (viewWeekly) viewWeekly.classList.toggle("active", viewName === "weekly");
   if (viewTopology) viewTopology.classList.toggle("active", viewName === "topology");
 
   if (viewName === "leadership") {
     loadLeadershipData();
+    loadAssignments();
     renderVinTrailGrid();
-    // Start auto-refresh for heatmap while LEAD tab is active
     if (!window._leadershipRefreshTimer) {
       window._leadershipRefreshTimer = setInterval(() => {
         if (currentView === "leadership") {
@@ -133,11 +136,18 @@ function switchView(viewName) {
       window._leadershipRefreshTimer = null;
     }
   }
+
+  if (viewName === "operator") {
+    loadAssignments();
+    renderOperatorView();
+  }
+
   if (viewName === "weekly") {
     loadLeadershipData();
     const slider = document.getElementById("whatif-jph-slider");
     updateLineBalancing(slider ? slider.value : 55);
   }
+}
   if (viewName === "topology" && typeof initTopologyEditor === "function") initTopologyEditor();
 }
 
@@ -263,6 +273,10 @@ function handleTickUpdate(payload) {
     }
   }
 
+  if (currentView === "operator") {
+    renderOperatorView();
+  }
+
   updateCockpitDrawer(selectedStationId);
 }
 
@@ -378,22 +392,31 @@ function updateCockpitDrawer(sid) {
   propList.innerHTML = "";
 
   const propMap = latestTickData.propagation || {};
-  const impacted = propMap[sid] || [];
+  const propData = propMap[sid] || null;
+  const impactedList = propData ? (propData.downstream_impact_tree || []) : [];
+  const totalImpacted = propData ? (propData.total_downstream_impacted !== undefined ? propData.total_downstream_impacted : impactedList.length) : 0;
 
-  if (propCountEl) propCountEl.innerText = `${impacted.length} AT RISK`;
+  if (propCountEl) propCountEl.innerText = `${totalImpacted} AT RISK`;
 
-  if (impacted.length === 0) {
+  if (totalImpacted === 0 || impactedList.length === 0) {
     propList.innerHTML = `<div style="font-size: 0.76rem; color: var(--text-secondary); font-family: var(--font-mono); padding: 4px 0;">Nominal line flow — zero starvation ripple.</div>`;
   } else {
-    impacted.forEach(item => {
+    impactedList.slice(0, 8).forEach(item => {
       const row = document.createElement("div");
       row.className = "countdown-row";
+      const impactMin = typeof item.time_to_impact_min === 'number' ? item.time_to_impact_min.toFixed(1) : item.time_to_impact_min;
       row.innerHTML = `
-        <span style="font-weight: 700; color: var(--status-warning);">${item.station_id}</span>
-        <span style="font-weight: 800; color: var(--status-critical);">${item.time_to_impact_min}m countdown</span>
+        <span style="font-weight: 700; color: var(--status-warning);">${item.station_id} (${item.station_name || item.zone})</span>
+        <span style="font-weight: 800; color: var(--status-critical);">${impactMin}m countdown (Risk: ${(item.propagated_risk * 100).toFixed(0)}%)</span>
       `;
       propList.appendChild(row);
     });
+    if (impactedList.length > 8) {
+      const moreRow = document.createElement("div");
+      moreRow.style.cssText = "font-size: 0.72rem; color: var(--text-secondary); text-align: center; padding-top: 4px;";
+      moreRow.innerText = `+${impactedList.length - 8} additional downstream stations in ripple path`;
+      propList.appendChild(moreRow);
+    }
   }
 
   const recs = latestTickData.recommendations || [];
@@ -404,6 +427,33 @@ function updateCockpitDrawer(sid) {
     document.getElementById("rec-action").innerText = stRec.recommended_action || stRec.rationale;
     document.getElementById("rec-impact").innerText = `Impact: ${stRec.expected_impact || `${stRec.downtime_avoided_min || 0} min line starvation avoided`}`;
     document.getElementById("rec-conf-tag").innerText = `${Math.round((stRec.confidence || 0.9) * 100)}% CONFIDENCE`;
+
+    const sopStepsList = document.getElementById("sop-steps-list");
+    const sopBadge = document.getElementById("sop-badge");
+    if (sopStepsList && stRec.sop && Array.isArray(stRec.sop.steps)) {
+      const sop = stRec.sop;
+      const activeStepNum = sop.active_step_number || 1;
+      if (sopBadge) {
+        const activeStepObj = sop.steps.find(s => s.step === activeStepNum) || sop.steps[0];
+        sopBadge.innerText = `STEP ${activeStepNum}: ${(activeStepObj.role || 'OPERATOR').toUpperCase()}`;
+        sopBadge.style.color = activeStepNum > 1 ? "#ef4444" : "#38bdf8";
+        sopBadge.style.background = activeStepNum > 1 ? "rgba(239, 68, 68, 0.2)" : "rgba(56, 189, 248, 0.15)";
+      }
+      sopStepsList.innerHTML = "";
+      sop.steps.forEach(s => {
+        const isActive = s.step === activeStepNum;
+        const stepRow = document.createElement("div");
+        stepRow.style.cssText = `padding: 6px 8px; border-radius: 4px; border-left: 3px solid ${isActive ? '#38bdf8' : '#334155'}; background: ${isActive ? 'rgba(56, 189, 248, 0.12)' : 'rgba(15, 23, 42, 0.4)'}; margin-bottom: 2px;`;
+        const escTxt = s.escalate_after_ticks ? ` <span style="color: #94a3b8;">(Escalates after ${s.escalate_after_ticks} ticks)</span>` : "";
+        stepRow.innerHTML = `
+          <div style="font-weight: 800; color: ${isActive ? '#38bdf8' : '#94a3b8'}; margin-bottom: 2px;">
+            Step ${s.step} [${s.role}]${escTxt} ${isActive ? '⚡ ACTIVE' : ''}
+          </div>
+          <div style="color: ${isActive ? '#f8fafc' : '#94a3b8'}; line-height: 1.3;">${s.action}</div>
+        `;
+        sopStepsList.appendChild(stepRow);
+      });
+    }
   }
 }
 
@@ -888,3 +938,272 @@ function updateLineBalancing(jphVal) {
     }
   }
 }
+
+// ============================================================================
+// PHASE 6 & 7: OPERATOR AREA ASSIGNMENTS & CURRENT-VS-IDEAL TELEMETRY CARDS
+// ============================================================================
+
+let operatorAssignments = [];
+let activeOperatorWorkerId = "W01";
+
+async function loadAssignments() {
+  try {
+    const res = await fetch("/api/assignments");
+    const data = await res.json();
+    operatorAssignments = data.assignments || [];
+
+    // Populate multi-select options in Admin form if empty
+    const assignSelect = document.getElementById("assign-stations-select");
+    if (assignSelect && assignSelect.options.length === 0) {
+      Object.keys(stationsMeta).forEach(sid => {
+        const meta = stationsMeta[sid];
+        const opt = document.createElement("option");
+        opt.value = sid;
+        opt.innerText = `${sid}: ${meta.name} (${meta.zone})`;
+        assignSelect.appendChild(opt);
+      });
+    }
+
+    // Update assignment count tag
+    const tag = document.getElementById("assignment-count-tag");
+    if (tag) tag.innerText = `${operatorAssignments.length} WORKERS CONFIGURED`;
+
+    // Render Admin List
+    const adminList = document.getElementById("operator-assignments-list");
+    if (adminList) {
+      adminList.innerHTML = "";
+      if (operatorAssignments.length === 0) {
+        adminList.innerHTML = `<div style="font-size: 0.76rem; color: #94a3b8; padding: 8px;">No workers configured. Create an assignment using the form.</div>`;
+      } else {
+        operatorAssignments.forEach(w => {
+          const row = document.createElement("div");
+          row.style.cssText = "display: flex; justify-content: space-between; align-items: center; background: #ffffff; border: 1px solid var(--border-subtle); padding: 8px 12px; border-radius: var(--radius-sm);";
+          const stBadges = (w.assigned_station_ids || []).map(s => `<span style="font-size: 0.68rem; font-family: var(--font-mono); background: #f1f5f9; color: #0f172a; padding: 1px 4px; border-radius: 3px; margin-right: 2px;">${s}</span>`).join("");
+          row.innerHTML = `
+            <div>
+              <div style="font-weight: 800; font-size: 0.8rem; color: #0f172a;">${w.worker_name} <span style="font-family: var(--font-mono); font-size: 0.72rem; color: #0284c7;">(${w.worker_id})</span></div>
+              <div style="margin-top: 4px; display: flex; flex-wrap: wrap; gap: 2px;">${stBadges}</div>
+            </div>
+            <button class="fault-btn" style="color: #ef4444; border-color: #fca5a5; font-size: 0.68rem; height: 24px;" onclick="deleteOperatorAssignment('${w.worker_id}')">🗑️ REMOVE</button>
+          `;
+          adminList.appendChild(row);
+        });
+      }
+    }
+
+    // Populate Worker Dropdown in Operator Dock View
+    const workerSelect = document.getElementById("operator-worker-select");
+    if (workerSelect) {
+      workerSelect.innerHTML = "";
+      if (operatorAssignments.length === 0) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.innerText = "No workers configured (Showing All 40 Stations)";
+        workerSelect.appendChild(opt);
+      } else {
+        operatorAssignments.forEach(w => {
+          const opt = document.createElement("option");
+          opt.value = w.worker_id;
+          opt.innerText = `${w.worker_name} (${(w.assigned_station_ids || []).length} stations)`;
+          workerSelect.appendChild(opt);
+        });
+        if (!operatorAssignments.some(w => w.worker_id === activeOperatorWorkerId)) {
+          activeOperatorWorkerId = operatorAssignments[0].worker_id;
+        }
+        workerSelect.value = activeOperatorWorkerId;
+      }
+    }
+
+    renderOperatorView();
+  } catch (err) {
+    console.error("Failed to load operator assignments:", err);
+  }
+}
+
+async function submitOperatorAssignment() {
+  const wid = document.getElementById("assign-worker-id").value.trim();
+  const wname = document.getElementById("assign-worker-name").value.trim();
+  const select = document.getElementById("assign-stations-select");
+  const assigned = Array.from(select.selectedOptions).map(o => o.value);
+
+  if (!wid || !wname || assigned.length === 0) {
+    alert("Please provide Worker ID, Name, and select at least one assigned station.");
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/assignments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        worker_id: wid,
+        worker_name: wname,
+        assigned_station_ids: assigned
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      alert("Error saving assignment: " + (err.detail || res.statusText));
+      return;
+    }
+    clearAssignmentForm();
+    await loadAssignments();
+  } catch (err) {
+    alert("Network error saving assignment: " + err.message);
+  }
+}
+
+async function deleteOperatorAssignment(workerId) {
+  if (!confirm(`Delete operator assignment for ${workerId}?`)) return;
+  try {
+    await fetch(`/api/assignments/${workerId}`, { method: "DELETE" });
+    await loadAssignments();
+  } catch (err) {
+    console.error("Error deleting assignment:", err);
+  }
+}
+
+function clearAssignmentForm() {
+  document.getElementById("assign-worker-id").value = "";
+  document.getElementById("assign-worker-name").value = "";
+  const select = document.getElementById("assign-stations-select");
+  if (select) Array.from(select.options).forEach(o => o.selected = false);
+}
+
+function onOperatorWorkerChange(workerId) {
+  activeOperatorWorkerId = workerId;
+  renderOperatorView();
+}
+
+function renderOperatorView() {
+  const container = document.getElementById("operator-stations-container");
+  const summaryEl = document.getElementById("operator-coverage-summary");
+  if (!container) return;
+
+  const currentWorker = operatorAssignments.find(w => w.worker_id === activeOperatorWorkerId);
+  const targetStationIds = currentWorker ? currentWorker.assigned_station_ids : Object.keys(stationsMeta);
+
+  if (summaryEl) {
+    if (currentWorker) {
+      summaryEl.innerText = `Coverage: ${targetStationIds.length} Stations Allocated (${currentWorker.worker_name})`;
+    } else {
+      summaryEl.innerText = `Coverage: Showing all ${targetStationIds.length} stations (Unfiltered)`;
+    }
+  }
+
+  if (targetStationIds.length === 0) {
+    container.innerHTML = `
+      <div style="grid-column: 1 / -1; padding: 24px; background: #f8fafc; border: 1px dashed var(--border-subtle); border-radius: var(--radius-md); text-align: center;">
+        <div style="font-weight: 800; font-size: 0.9rem; color: #0f172a; margin-bottom: 6px;">No Operator Assignments Configured</div>
+        <div style="font-size: 0.78rem; color: var(--text-secondary);">Configure operator stations in the Leadership panel to enable filtered line views.</div>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = "";
+  const stationsData = (latestTickData && latestTickData.stations) ? latestTickData.stations : {};
+
+  targetStationIds.forEach(sid => {
+    const meta = stationsMeta[sid] || {};
+    const st = stationsData[sid] || {};
+
+    const ct = st.cycle_time_s || meta.target_cycle_time_s || 60.0;
+    const targetCt = meta.target_cycle_time_s || 60.0;
+    const buf = st.buffer_level !== undefined ? st.buffer_level : 4;
+    const cap = meta.buffer_capacity_units || 8;
+    const vib = st.vibration !== undefined && st.vibration !== null ? st.vibration : 1.10;
+    const temp = st.temperature !== undefined && st.temperature !== null ? st.temperature : 24.0;
+    const pwr = st.power_kw || meta.power_base_kw || 30.0;
+    const basePwr = meta.power_base_kw || 30.0;
+    const risk = st.composite_risk || 0.05;
+    const isBlackout = Boolean(st.is_blackout);
+    const isStopped = Boolean(st.is_stopped);
+
+    // Ideal reference baselines (Phase 7)
+    let idealTemp = 24.0;
+    if (meta.station_type === "ThermalOven") idealTemp = 190.0;
+    else if (meta.station_type === "ChemicalBath" || meta.station_type === "ElectroDeposition") idealTemp = 55.0;
+
+    let statusText = "NOMINAL";
+    let statusClass = "status-nominal";
+    if (isStopped) {
+      statusText = "STOPPED";
+      statusClass = "status-critical";
+    } else if (isBlackout) {
+      statusText = "POWER TRIP / DEGRADED";
+      statusClass = "status-warning";
+    } else if (risk >= 0.80) {
+      statusText = "CRITICAL RISK";
+      statusClass = "status-critical";
+    } else if (risk >= 0.60) {
+      statusText = "ELEVATED RISK";
+      statusClass = "status-warning";
+    }
+
+    const card = document.createElement("div");
+    card.style.cssText = `background: #ffffff; border: 1px solid ${risk >= 0.8 || isStopped ? 'var(--status-critical)' : 'var(--border-subtle)'}; border-radius: var(--radius-md); padding: 14px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 10px; cursor: pointer; transition: all 0.2s ease;`;
+    card.onclick = () => {
+      selectStation(sid);
+      switchView("floor");
+    };
+
+    card.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-family: var(--font-mono); font-weight: 800; font-size: 0.95rem; color: #0f172a;">${sid}</span>
+            <span class="node-tier-pill ${meta.sensor_tier === 'manual' ? 'manual' : ''}">${(meta.sensor_tier || 'rich').toUpperCase()}</span>
+          </div>
+          <div style="font-weight: 700; font-size: 0.82rem; color: #334155; margin-top: 2px;">${meta.name || sid}</div>
+          <div style="font-size: 0.70rem; color: #64748b; font-family: var(--font-mono);">${meta.zone} // ${meta.station_type}</div>
+        </div>
+        <div style="text-align: right;">
+          <span style="font-size: 0.68rem; font-weight: 800; font-family: var(--font-mono); padding: 3px 8px; border-radius: 4px; background: ${isStopped || risk >= 0.8 ? '#fee2e2' : (risk >= 0.6 ? '#fef3c7' : '#dcfce7')}; color: ${isStopped || risk >= 0.8 ? '#b91c1c' : (risk >= 0.6 ? '#b45309' : '#15803d')};">
+            ${statusText}
+          </span>
+          <div style="font-size: 0.74rem; font-family: var(--font-mono); font-weight: 800; margin-top: 4px; color: ${risk >= 0.8 ? 'var(--status-critical)' : 'inherit'};">
+            Risk: ${(risk * 100).toFixed(0)}%
+          </div>
+        </div>
+      </div>
+
+      <!-- CURRENT VS IDEAL PARAMETERS TABLE (PHASE 7) -->
+      <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 8px 10px; font-size: 0.72rem; font-family: var(--font-mono);">
+        <div style="display: grid; grid-template-columns: 100px 1fr 1fr; font-weight: 800; color: #64748b; margin-bottom: 4px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px;">
+          <span>PARAMETER</span>
+          <span>CURRENT</span>
+          <span>IDEAL (TARGET)</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 100px 1fr 1fr; padding: 2px 0; color: ${ct > targetCt * 1.15 ? '#b91c1c' : '#0f172a'}; font-weight: ${ct > targetCt * 1.15 ? '700' : 'normal'};">
+          <span>Job Time:</span>
+          <span>${ct.toFixed(1)}s</span>
+          <span style="color: #64748b;">${targetCt.toFixed(1)}s (Takt)</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 100px 1fr 1fr; padding: 2px 0; color: ${vib > 4.5 ? '#b91c1c' : (vib > 2.8 ? '#b45309' : '#0f172a')}; font-weight: ${vib > 2.8 ? '700' : 'normal'};">
+          <span>Vibration:</span>
+          <span>${vib.toFixed(2)} mm/s</span>
+          <span style="color: #64748b;">0.80 mm/s (≤4.5)</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 100px 1fr 1fr; padding: 2px 0; color: #0f172a;">
+          <span>Temperature:</span>
+          <span>${temp.toFixed(1)}°C</span>
+          <span style="color: #64748b;">${idealTemp.toFixed(1)}°C</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 100px 1fr 1fr; padding: 2px 0; color: #0f172a;">
+          <span>Power Draw:</span>
+          <span>${pwr.toFixed(1)} kW</span>
+          <span style="color: #64748b;">${basePwr.toFixed(1)} kW</span>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: #64748b; font-family: var(--font-mono); padding-top: 2px;">
+        <span>Buffer: ${buf}/${cap} units</span>
+        <span style="color: var(--brand-blue); font-weight: 700;">Click to focus cell ➔</span>
+      </div>
+    `;
+
+    container.appendChild(card);
+  });
+}
+

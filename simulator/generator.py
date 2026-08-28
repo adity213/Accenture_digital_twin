@@ -48,7 +48,7 @@ class LineSimulator:
         self.target_jph: float = 55.0
         self.vehicle_counter = 1000
         self.active_vehicles: Dict[str, Dict[str, Any]] = {}
-        self.completed_vehicles: deque = deque(maxlen=500)
+        self.completed_vehicles: deque = deque(maxlen=50)
         
         for sid, s in self.stations.items():
             cap = s["buffer_capacity_units"]
@@ -284,8 +284,6 @@ class LineSimulator:
                     v_rec["completion_tick"] = self.current_tick
                     v_rec["status"] = "COMPLETED"
                     self.completed_vehicles.append(v_rec)
-                    if len(self.completed_vehicles) > 50:
-                        self.completed_vehicles.pop(0)
                     updated_genealogy_records.append(v_rec)
 
             self.station_processing[sid] = None

@@ -32,3 +32,9 @@ class StationTelemetrySchema(BaseModel):
     temperature: Optional[float] = None
     power_kw: Optional[float] = None
     is_blackout: Optional[bool] = False
+
+class AssignmentRequest(BaseModel):
+    worker_id: str
+    worker_name: str
+    assigned_station_ids: List[str]
+

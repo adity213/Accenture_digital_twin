@@ -22,6 +22,7 @@ sys.path.insert(0, base_dir)
 from simulator.topology import build_line_topology
 from simulator.generator import LineSimulator
 from storage.db import TwinStore
+from storage.assignments import AssignmentStore
 from pipeline.spc import SPCEngine
 from pipeline.virtual_sensor import VirtualSensorEngine
 from pipeline.confidence import ConfidenceEngine
@@ -29,7 +30,9 @@ from pipeline.risk_model import RiskScoringModel
 from pipeline.propagation import GraphPropagationEngine
 from pipeline.recommender import RecommendationEngine
 from api.ws import ConnectionManager
-from api.schemas import SimulatorControlRequest, OverrideRequest, TopologyUpdateRequest
+from api.schemas import SimulatorControlRequest, OverrideRequest, TopologyUpdateRequest, AssignmentRequest
+
+assignment_store = AssignmentStore()
 
 app = FastAPI(title="DigitalTwin.ai REST API", version="1.0.0")
 
@@ -485,6 +488,98 @@ def get_leadership_summary():
     else:
         waste_mitigated = 0.0
 
+    # -------------------------------------------------------------
+    # Financial Intelligence & ROI Engine (Phase 5)
+    # -------------------------------------------------------------
+    PLANT_FOOTPRINT_SQFT = 250_000
+    PLANT_CAPEX_TOTAL_USD = 450_000_000.0
+    COST_PER_SQFT_USD = round(PLANT_CAPEX_TOTAL_USD / PLANT_FOOTPRINT_SQFT, 2)  # $1,800.00 / sqft
+    
+    VEHICLE_CURB_WEIGHT_TONS = 1.65  # midsize crossover vehicle benchmark
+    UNIT_ASSEMBLY_BASE_COST_USD = 2850.0  # direct conversion cost per vehicle
+    COST_PER_TON_USD = round(UNIT_ASSEMBLY_BASE_COST_USD / VEHICLE_CURB_WEIGHT_TONS, 2)  # $1,727.27 / ton
+    
+    STATION_CAPEX_BY_TYPE = {
+        "ThermalOven": 2000000.0, "ChemicalBath": 2000000.0, "ElectroDeposition": 2000000.0,
+        "RoboticSpray": 1500000.0, "RoboticUrethane": 1500000.0, "RoboticWeld": 1200000.0,
+        "RespotWeld": 1200000.0, "MainFraming": 1200000.0, "LaserBrazing": 950000.0,
+        "AutomatedMarriage": 850000.0, "AutomatedTorque": 850000.0, "MechanicalTorque": 850000.0,
+        "VisionQC": 650000.0, "QualityScan": 650000.0, "DynamicTest": 650000.0,
+        "SafetyCalibration": 550000.0, "ElectronicFlash": 450000.0, "FinalInspection": 450000.0,
+        "SubAssembly": 350000.0, "ModuleMarriage": 350000.0, "Fitting": 250000.0,
+        "FluidFill": 250000.0, "TransferBuffer": 250000.0, "ManualTrim": 150000.0,
+        "ManualWiring": 150000.0, "ManualFitting": 150000.0, "ManualSealing": 150000.0,
+        "ManualFinishing": 150000.0
+    }
+    
+    # Calculate per-station ROI & Attributed Savings
+    active_recs = db.get_active_recommendations()
+    station_avoided_min = defaultdict(float)
+    for rec in active_recs:
+        s_id = rec.get("station_id")
+        if s_id:
+            station_avoided_min[s_id] += float(rec.get("downtime_avoided_min") or 0.0)
+            
+    for rec in latest_payload.get("recommendations", []):
+        s_id = rec.get("station_id")
+        if s_id:
+            station_avoided_min[s_id] += float(rec.get("downtime_avoided_min") or 0.0)
+
+    station_roi_list = []
+    sim_hours = max(0.1, simulator.current_tick / 60.0)
+
+    for sid, meta in stations_meta.items():
+        stype = meta.get("station_type", "ManualTrim")
+        capex = STATION_CAPEX_BY_TYPE.get(stype, 350000.0)
+        
+        mins_avoided = station_avoided_min[sid]
+        attributed_savings_usd = round(mins_avoided * (2300000.0 / 60.0), 2)
+        
+        if attributed_savings_usd > 0:
+            # Plain executive ROI: (savings - capex) / capex * 100%
+            roi_pct = round(((attributed_savings_usd - capex) / capex) * 100.0, 1)
+            # Payback period: capex / (savings / elapsed shift days)
+            daily_savings_rate = max(100.0, attributed_savings_usd / max(0.1, sim_hours / 8.0))
+            payback_days = round(capex / daily_savings_rate, 1)
+            payback_desc = f"{payback_days} shift-days to break even at active savings rate"
+        else:
+            roi_pct = -100.0
+            payback_days = None
+            payback_desc = "Nominal line flow (zero stoppage interventions required)"
+
+        station_roi_list.append({
+            "station_id": sid,
+            "station_name": meta.get("name", sid),
+            "zone": meta.get("zone", "Body"),
+            "station_type": stype,
+            "capex_usd": capex,
+            "downtime_avoided_min": round(mins_avoided, 1),
+            "attributed_savings_usd": attributed_savings_usd,
+            "roi_pct": roi_pct,
+            "payback_period_days": payback_days,
+            "payback_period_summary": payback_desc
+        })
+        
+    line_target_jph = getattr(simulator, "target_jph", 55.0)
+    actual_jph = latest_payload.get("kpis", {}).get("jobs_per_hour", 55.4)
+    
+    financials_payload = {
+        "cost_per_sqft_usd": COST_PER_SQFT_USD,
+        "plant_footprint_sqft": PLANT_FOOTPRINT_SQFT,
+        "plant_capex_total_usd": PLANT_CAPEX_TOTAL_USD,
+        "cost_per_ton_usd": COST_PER_TON_USD,
+        "vehicle_curb_weight_tons": VEHICLE_CURB_WEIGHT_TONS,
+        "unit_assembly_base_cost_usd": UNIT_ASSEMBLY_BASE_COST_USD,
+        "jph_targets": {
+            "line_jph_target": line_target_jph,
+            "plant_jph_target": line_target_jph,
+            "line_jph_actual": actual_jph,
+            "plant_jph_actual": actual_jph,
+            "plant_configuration_note": "Single active flexible high-speed assembly line feeding total plant roll-off"
+        },
+        "station_roi": station_roi_list
+    }
+
     return {
         "summary": {
             "downtime_avoided_hours": latest_payload.get("kpis", {}).get("total_downtime_avoided_hours", 0.0),
@@ -492,6 +587,7 @@ def get_leadership_summary():
             "quality_yield_pct": yield_pct,
             "energy_waste_mitigated_pct": waste_mitigated
         },
+        "financials": financials_payload,
         "heatmap": heatmap,
         "top_root_causes": top_causes
     }
@@ -645,6 +741,46 @@ def get_vehicle_genealogy(vin: str):
         "defect_count": 0,
         "station_trace": []
     }
+
+# -------------------------------------------------------------
+# Operator Area Assignment Endpoints (Phase 6)
+# -------------------------------------------------------------
+@app.get("/api/assignments")
+def get_operator_assignments():
+    return {
+        "status": "success",
+        "assignments": assignment_store.list_assignments()
+    }
+
+@app.post("/api/assignments")
+def create_or_update_assignment(req: AssignmentRequest):
+    invalid_ids = [sid for sid in req.assigned_station_ids if sid not in stations_meta]
+    if invalid_ids:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid station IDs: {invalid_ids}. Valid stations are: {list(stations_meta.keys())}"
+        )
+    
+    saved = assignment_store.set_assignment(
+        worker_id=req.worker_id,
+        worker_name=req.worker_name,
+        assigned_station_ids=req.assigned_station_ids
+    )
+    return {
+        "status": "success",
+        "assignment": saved
+    }
+
+@app.delete("/api/assignments/{worker_id}")
+def delete_assignment(worker_id: str):
+    success = assignment_store.delete_assignment(worker_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Worker assignment '{worker_id}' not found")
+    return {
+        "status": "success",
+        "deleted_worker_id": worker_id
+    }
+
 
 @app.post("/api/simulator/control")
 async def control_simulator(req: SimulatorControlRequest):

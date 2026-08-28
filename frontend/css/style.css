@@ -1152,6 +1152,18 @@ body {
   background: #fffbeb;
 }
 
+.station-schematic-node.status-power-trip {
+  border-color: #eab308;
+  border-style: dashed;
+  background: #fefce8;
+  animation: pulse-power-trip 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse-power-trip {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.4), 0 4px 12px rgba(234, 179, 8, 0.2); }
+  50% { box-shadow: 0 0 0 5px rgba(234, 179, 8, 0.65), 0 8px 20px rgba(234, 179, 8, 0.35); }
+}
+
 .station-schematic-node.status-critical {
   border-color: var(--status-critical);
   background: #fef2f2;

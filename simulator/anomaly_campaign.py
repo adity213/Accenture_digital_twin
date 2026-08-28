@@ -137,6 +137,9 @@ def generate_balanced_campaign(
                 )
 
     campaign.sort(key=lambda e: e["start_tick"])
+    return campaign
+
+
 def generate_scenario_campaign(
     topology: Dict[str, Any],
     rng: random.Random,

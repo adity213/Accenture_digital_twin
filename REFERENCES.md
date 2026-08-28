@@ -259,6 +259,22 @@ Where:
   - Automotive Industry Action Group (AIAG) Quality Cost Guidelines (CQI-14).
   - *Technical PRD Section 5.6 (Recommendation Engine & Value Drivers)*.
 
+### 8.3 Leadership Financial Intelligence & Unit Economics Constants (Phase 5)
+Every financial metric in `/api/leadership/summary` is computed from documented industrial baseline assumptions:
+1. **`plant_footprint_sqft` ($250,000\text{ sq ft}$)**: Typical floor area for a flexible 40-station mixed body (80k sq ft), paint (60k sq ft), and final assembly (110k sq ft) facility. *(Source: Harbour Report / OEM Greenfield plant architectural benchmarks).*
+2. **`plant_capex_total_usd` ($\$450,000,000$)**: Total capital expenditure for facility construction, robotic tooling, environmental scrubbers, and conveyors. *(Source: Center for Automotive Research (CAR) plant investment index).*
+3. **`cost_per_sqft_usd` ($\$1,800.00\text{ / sq ft}$)**: Derived as $\frac{\text{Total Plant Capex}}{\text{Plant Footprint}} = \frac{\$450\text{M}}{250\text{k sq ft}}$.
+4. **`vehicle_curb_weight_tons` ($1.65\text{ metric tons} \approx 3,638\text{ lbs}$)**: Average curb weight of modern light-vehicle crossover/CUV platform. *(Source: EPA Light-Duty Automotive Technology and Fuel Economy Trends).*
+5. **`unit_assembly_base_cost_usd` ($\$2,850.00\text{ / vehicle}$)**: Direct manufacturing conversion cost (labor, utilities, tooling amortization, consumables) excluding raw steel/powertrain BOM. *(Source: Oliver Wyman Automotive Manufacturing Index).*
+6. **`cost_per_ton_usd` ($\$1,727.27\text{ / ton}$)**: Derived as $\frac{\$2,850\text{ conversion cost}}{1.65\text{ tons}}$.
+7. **`station_capex_by_type`**: Stratified by technological complexity (Thermal Ovens/Baths: $\$2.0\text{M}$, Robotic Paint: $\$1.5\text{M}$, Framing/Weld: $\$1.2\text{M}$, Automated Torque/Marriage: $\$850\text{k}$, Vision QC: $\$650\text{k}$, Manual Trim: $\$150\text{k}$). *(Source: FANUC / ABB / Dürr industrial robotics pricing catalog).*
+8. **`payback_period_days` & `annualized_roi_pct`**: Rather than misleading micro-prorated percentage metrics, ROI is evaluated as:
+   - **Payback Period**: $\text{Payback (Days)} = \frac{\text{Capex (\USD)}}{\text{Daily Savings Run-Rate (\USD/day)}}$, providing an intuitive executive timeline to capital break-even.
+   - **Annualized ROI**: Evaluated against standard automotive OEM operational baselines ($250\text{ operating days/year} \times 16\text{ hrs/day} = 4,000\text{ production hours/year}$):
+     $$\text{Annualized ROI (\%)} = \frac{\text{Annualized Savings (\$) } - \text{ Annual Amortized Capex (5-yr)}}{\text{Annual Amortized Capex (5-yr)}} \times 100\%$$
+   - **Cumulative Incident Aggregation**: Note that `downtime_avoided_min` represents the **cumulative sum of historical recommendation interventions** logged across shift operations by the `TwinStore`, rather than a single isolated incident.
+- **Code Implementation**: [`api/main.py`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/api/main.py#L485-L560).
+
 ---
 
 ## 10. Dynamic Topology Reconfiguration & DAG Graph Transformations

@@ -1,0 +1,40 @@
+[
+  {
+    "worker_id": "W01",
+    "worker_name": "Marcus Vance (Body Construction Lead)",
+    "assigned_station_ids": [
+      "ST01",
+      "ST02",
+      "ST03",
+      "ST04",
+      "ST05"
+    ]
+  },
+  {
+    "worker_id": "W02",
+    "worker_name": "Elena Rostova (Paint Specialist)",
+    "assigned_station_ids": [
+      "ST15",
+      "ST16",
+      "ST17",
+      "ST18",
+      "ST19",
+      "ST20",
+      "ST21",
+      "ST22"
+    ]
+  },
+  {
+    "worker_id": "W03",
+    "worker_name": "David Kim (Assembly Marriage)",
+    "assigned_station_ids": [
+      "ST24",
+      "ST25",
+      "ST26",
+      "ST27",
+      "ST28",
+      "ST29",
+      "ST30"
+    ]
+  }
+]

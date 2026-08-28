@@ -166,6 +166,7 @@ def run_one_seed(seed: int, num_ticks: int, horizon: int) -> List[Dict[str, Any]
                 "is_stopped": is_stopped,
                 "ct_ratio": ct_ratio,
                 "defect_flag": defect_flag,
+                "vehicle_id": ev.get("processing_vin") or ev.get("vehicle_id"),
             })
 
         prev_tick_risk = this_tick_risk
@@ -190,6 +191,7 @@ def run_one_seed(seed: int, num_ticks: int, horizon: int) -> List[Dict[str, Any]
                 "zone": row["zone"],
                 "station_type": row["station_type"],
                 "sensor_tier": row["sensor_tier"],
+                "vehicle_id": row["vehicle_id"],
                 "tick": row["tick"],
                 **dict(zip(FEATURE_NAMES, row["features"])),
                 "bottleneck_label": bottleneck_label,
