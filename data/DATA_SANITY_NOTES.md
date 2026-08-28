@@ -1,54 +1,50 @@
-# 📊 DigitalTwin.ai — Data Sanctity & Model Confidence Notes
+# DigitalTwin.ai: Data Sanity and Model Evaluation Notes
 
 **Date:** 2026-08-28  
 **Audit Script:** `scripts/audit_defect_rate_concentration.py`  
 **Dataset:** `data/training_dataset.csv` (8 seeds, 32,000 ticks, 1,280,000 observations)  
-**Trained Artifact:** `data/risk_model.joblib`
+**Trained Model:** `data/risk_model.joblib`
 
 ---
 
-## 1. Executive Summary & Core Finding
+## 1. Defect Label Concentration
 
-**Question:** Is the elevated `defect_label` rate (28.7%–55.7%) at inspection stations (`QualityScan`, `VisionQC`, `FinalInspection`) explained by (a) real physics — latent defects correctly surfacing there — or (b) a labeling bug?
+**Question:** Why do inspection stations (ST12 QualityScan, ST22 VisionQC, ST40 FinalInspection) show higher positive defect rates (28.7% to 55.7%) than upstream machining stations? Is this a bug in data generation?
 
-**Finding:** **(a) Real Physical Defect Accumulation across Line Topology.**  
-The concentration of positive defect labels at inspection stations is physically authentic and represents the cumulative detection of upstream latent defects (weld porosity, surface scratches, undertorque) that propagate down the DAG until trapped at end-of-zone inspection gates.
+**Answer:** No. Upstream machining and welding cells introduce flaws (porosity, scratches, undertorque) that do not stop the carrier immediately. These flaws travel downstream with the vehicle until they hit an inspection gate designed to catch them. Dwell time at inspection stations is identical to other stations (~2.0 ticks per car), confirming this pattern reflects line defect accumulation rather than a simulation timing bug.
 
 ---
 
-## 2. Model Performance Asymmetry: Bottleneck vs. Defect Prediction
+## 2. Bottleneck vs. Defect Model Performance
 
-| Model Task | ROC-AUC | PR-AUC | Precision | Recall | Target Base Rate | Operational Maturity |
+| Task | ROC-AUC | PR-AUC | Precision | Recall | Target Positive Rate | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Bottleneck Risk Model** | **0.932** | **0.826** | **97.3%** | **83.2%** | $0.85\%$ | **Production Ready**: High discriminative power across all zones and sensor tiers. |
-| **Defect Precursor Model** | **0.601** | **0.289** | **43.4%** | **23.2%** | $13.81\%$ | **Experimental / Advisory Only**: Catches ~1 in 4 defect-precursor events. |
+| **Bottleneck Risk** | **0.932** | **0.826** | **97.3%** | **83.2%** | 0.85% | Production Ready. Reliable across all zones and sensor tiers. |
+| **Defect Precursor** | **0.601** | **0.289** | **43.4%** | **23.2%** | 13.81% | Advisory Only. Catches roughly 1 in 4 defect precursor events. |
 
 > [!WARNING]
-> **Defect Model Confidence Flag:**
-> The Defect Prediction Model currently operates with a lower recall (23.2%) and PR-AUC (0.289). It is explicitly designated as an **advisory / lower-confidence signal** in all leadership dashboards and SOP escalation flows. Quality yield forecasts must treat defect risk as an early indicator rather than a deterministic ground truth.
+> **Defect Model Status:**
+> The defect model catches only 23.2% of defect precursors. It is labeled as an **advisory signal** in the leadership screens and SOP recommendations. The bottleneck model should be trusted for line pacing and stoppage avoidance; defect predictions are rough indicators.
 
 ---
 
-## 3. Generalization & Distribution Shift Clarifications
+## 3. Distribution Shifts and Test Set Variations
 
-### A. Synthetic OOD Precision Fluctuations (Prevalence Shift)
-Across the 6 scenario-based OOD validation benchmarks (`docs/SCENARIO_VALIDATION_REPORT.md`), observed Precision varied from **4.9%** (Compound Faults) to **98.4%** (Spatial OOD):
-- **Mechanism**: This precision spread is driven by **prevalence shift** (the varying proportion of positive anomaly ticks in each synthetic evaluation regime), not erratic ranking capability.
-- In high-density regimes (Spatial OOD on `ST31–ST40` where positive rate is higher), precision is naturally elevated ($98.4\%$).
-- In sparse compound anomaly regimes, precision reflects the lower positive baseline. ROC-AUC ($0.920–0.939$) and Recall ($84.4\%–86.8\%$) remain invariant across all regimes.
+### A. Precision Spreads Across OOD Scenarios
+Across the 6 scenario benchmarks in `docs/SCENARIO_VALIDATION_REPORT.md`, Precision ranges from 4.9% (Compound Faults) to 98.4% (Spatial OOD):
+- This variation comes from **prevalence shift** (the different proportion of positive cases across synthetic test sets), not erratic model ranking.
+- In dense anomaly scenarios, precision is high. In sparse scenarios, precision naturally drops. Across all regimes, ROC-AUC remains steady between 0.920 and 0.939, and Recall stays between 84.4% and 86.8%.
 
-### B. Sensor Degradation Shift & Uncertainty Principle
-Under extreme 40% telemetry dropouts, model ROC-AUC gracefully degraded to **0.701** (Recall: 52.2%):
-- **Core Design Rule**: The `ConfidenceEngine` dynamically tracks data trust. When `sensor_confidence < 65%`, the Digital Twin explicitly flags predictions as **DEGRADED VISIBILITY**, downgrades risk certainty in the SCADA HMI, and triggers Step 1 SOP physical gauge verification before automated actions are recommended.
+### B. Missing Telemetry and Confidence Downgrade
+When 40% of sensor telemetry is dropped, model ROC-AUC falls to 0.701 (Recall: 52.2%):
+- When `sensor_confidence < 65%`, the system displays a **DEGRADED VISIBILITY** status in the interface and forces Step 1 of the SOP to require a manual physical check rather than trusting automated predictions.
 
 ---
 
-## 4. Methodological Note on Evaluation Interpretation
+## 4. Evaluation Semantics
 
 > [!IMPORTANT]
-> **Station-Tick vs. Vehicle-Inspection Independence:**
-> In the training dataset, each row represents a single **station-tick** ($1\text{Hz}$ sample). Because vehicles dwell for $2\text{ ticks}$ per station, adjacent ticks during the same vehicle visit share the vehicle's underlying quality state.
+> **Station-Tick vs. Vehicle Independence:**
+> Each dataset row is a single station-tick (1Hz sample). Because cars spend ~2 ticks inside each station, consecutive ticks during the same visit share quality state.
 > 
-> When presenting model evaluation metrics to stakeholders and competition judges:
-> - Reported Precision, Recall, PR-AUC, and ROC-AUC are evaluated **per station-tick**.
-> - Headline recall represents the model's ability to predict an event occurring within the forward $15\text{-tick}$ ($15\text{s}$) operational window at that specific station.
+> All reported Precision, Recall, and AUC figures are computed **per station-tick**. Recall measures whether the model detects a disruption occurring within the forward 15-tick window at that station.

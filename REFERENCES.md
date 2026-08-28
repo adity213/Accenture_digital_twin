@@ -1,23 +1,16 @@
-# 📚 DigitalTwin.ai — Industrial Metrics & Standards Reference Sheet
-**Accenture Innovation Challenge 2026 · Problem Track 4**  
-*Team Twin Flow:* Aditya Singh · Divyansh Singh Mertia · Harshada Rajhans (IIT Kanpur)
+# DigitalTwin.ai: Industrial Standards and Metrics Registry
 
----
+This document records the parameters, operating limits, physical constants, and equations used in DigitalTwin.ai, mapped to their engineering standards, manufacturing benchmarks, and source code locations.
 
-## 📌 Executive Summary
-This document serves as the authoritative, mathematical, and empirical reference registry for all parameters, operating thresholds, physical constants, algorithms, and business impact equations utilized within **DigitalTwin.ai**. Every metric is mapped to its underlying industrial standard, academic literature source, OEM manufacturing benchmark, and codebase implementation.
-
----
-
-## 📑 Quick Navigation
-1. [Line Operations & Takt Time Physics](#1-line-operations--takt-time-physics)
-2. [Thermal & Thermodynamic Standards](#2-thermal--thermodynamic-standards)
-3. [Vibration & Mechanical Health Standards (ISO 10816 / ISO 20816)](#3-vibration--mechanical-health-standards)
-4. [Electrical Power & Energy Consumption](#4-electrical-power--energy-consumption)
-5. [Statistical Process Control (SPC) & Quality Engineering](#5-statistical-process-control-spc--quality-engineering)
-6. [Virtual Sensing & Confidence Scoring](#6-virtual-sensing--confidence-scoring)
-7. [Predictive Risk Machine Learning & Graph Propagation](#7-predictive-risk-machine-learning--graph-propagation)
-8. [Business Economics & Downtime Financial Modeling](#8-business-economics--downtime-financial-modeling)
+## Navigation
+1. [Line Operations and Takt Physics](#1-line-operations--takt-time-physics)
+2. [Thermal and Process Standards](#2-thermal--thermodynamic-standards)
+3. [Vibration and Mechanical Health Standards (ISO 10816 / ISO 20816)](#3-vibration--mechanical-health-standards)
+4. [Electrical Power and Energy](#4-electrical-power--energy-consumption)
+5. [Statistical Process Control (SPC)](#5-statistical-process-control-spc--quality-engineering)
+6. [Virtual Sensing and Confidence Scoring](#6-virtual-sensing--confidence-scoring)
+7. [Predictive Risk and Graph Propagation](#7-predictive-risk-machine-learning--graph-propagation)
+8. [Plant Economics and Financial Modeling](#8-business-economics--downtime-financial-modeling)
 9. [Summary Traceability Matrix](#9-summary-traceability-matrix)
 
 ---
