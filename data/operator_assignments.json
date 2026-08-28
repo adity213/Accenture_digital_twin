@@ -1,7 +1,7 @@
 [
   {
     "worker_id": "W01",
-    "worker_name": "Marcus Vance (Body Construction Lead)",
+    "worker_name": "Worker A",
     "assigned_station_ids": [
       "ST01",
       "ST02",
@@ -12,7 +12,7 @@
   },
   {
     "worker_id": "W02",
-    "worker_name": "Elena Rostova (Paint Specialist)",
+    "worker_name": "Worker B",
     "assigned_station_ids": [
       "ST15",
       "ST16",

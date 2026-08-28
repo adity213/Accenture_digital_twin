@@ -1,9 +1,13 @@
 """
-DigitalTwin.ai - Defect Rate Concentration Audit Script
+scripts/audit_defect_rate_concentration.py
 
-Audits the defect_label rate, tick-level defect_flag occurrences, distinct-vehicle defect rates,
-and dwell time multipliers across station types (specifically VisionQC, QualityScan, FinalInspection
-vs. upstream processing stations).
+Phase 1 Audit:
+1. Simulates runs & loads data/audit_dataset.csv
+2. Audits defect_label positive rate, tick-level defect_flag rate, distinct vehicles with defects
+3. Computes average dwell ticks per vehicle across station types (VisionQC, FinalInspection vs non-inspection)
+4. Evaluates whether elevated defect rate at inspection stations is explained by:
+   (a) real physics (latent defects surfacing downstream + dwell time + 15-tick horizon labeling)
+   (b) a labeling/telemetry bug
 """
 import argparse
 import csv
@@ -11,149 +15,147 @@ import random
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Any, Set
+from typing import Dict, List, Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import numpy as np
 
 from simulator.generator import LineSimulator
 from simulator.anomaly_campaign import generate_balanced_campaign, apply_campaign_event
 
-
-def audit_simulation_traces(seeds: List[int], ticks_per_run: int):
-    print("=" * 80)
-    print("PHASE 1: SIMULATION VEHICLE TRACE AUDIT (DIRECT TICK-BY-TICK & VEHICLE GENEALOGY)")
-    print("=" * 80)
-
-    # Aggregates across seeds
-    station_type_rows = defaultdict(int)
-    station_type_flag_ticks = defaultdict(int)
-    station_type_visited_vins = defaultdict(set)
-    station_type_flagged_vins = defaultdict(set)
-    station_type_dwell_ticks = defaultdict(list)
+def run_simulation_trace(seeds: List[int], num_ticks: int = 3000):
+    """
+    Direct simulation audit to inspect exact defect_flag generation,
+    dwell times, and per-vehicle defect propagation.
+    """
+    stats_by_stype = defaultdict(lambda: {
+        "ticks_total": 0,
+        "ticks_with_vehicle": 0,
+        "ticks_defect_flag_true": 0,
+        "dwell_tick_counts": [],
+        "vehicles_visited": set(),
+        "vehicles_with_defect_flag": set(),
+        "vehicles_with_prior_defect": set(),
+    })
     
-    # Track dwell runs per vehicle visit
-    # (station_id, vin) -> current consecutive ticks
-    current_dwell: Dict[tuple, int] = defaultdict(int)
-
     for seed in seeds:
         sim = LineSimulator(seed=seed)
         topology = sim.topology
         campaign_rng = random.Random(seed * 7919 + 13)
-        campaign = generate_balanced_campaign(topology, campaign_rng, ticks_per_run)
+        campaign = generate_balanced_campaign(topology, campaign_rng, num_ticks)
         campaign_by_tick = defaultdict(list)
         for ev in campaign:
             campaign_by_tick[ev["start_tick"]].append(ev)
-
-        for t in range(1, ticks_per_run + 1):
+            
+        current_vin_tracking = {}
+        dwell_counter = defaultdict(int)
+        
+        for t in range(1, num_ticks + 1):
             for ev in campaign_by_tick.get(t, []):
                 apply_campaign_event(sim.anomaly_mgr, ev)
-
-            tick_res = sim.step()
-            events = tick_res["events"]
-
-            for ev in events:
+            step_res = sim.step()
+            
+            for ev in step_res["events"]:
                 sid = ev["station_id"]
                 stype = topology["stations"][sid]["station_type"]
-                vin = ev.get("processing_vin") or ev.get("vehicle_id")
-                flag = ev.get("defect_flag", False)
-
-                station_type_rows[stype] += 1
-                if flag:
-                    station_type_flag_ticks[stype] += 1
-
-                if vin:
-                    station_type_visited_vins[stype].add(vin)
-                    if flag:
-                        station_type_flagged_vins[stype].add(vin)
-                    current_dwell[(sid, vin)] += 1
+                vin = ev.get("vehicle_id") or ev.get("processing_vin")
+                defect_flag = ev.get("defect_flag", False)
+                is_proc = ev.get("is_processing", False)
                 
-            # Collect ended dwells
-            active_pairs = {(ev["station_id"], ev.get("processing_vin") or ev.get("vehicle_id")) for ev in events if ev.get("processing_vin") or ev.get("vehicle_id")}
-            for (sid, vin), d_count in list(current_dwell.items()):
-                if (sid, vin) not in active_pairs:
-                    stype = topology["stations"][sid]["station_type"]
-                    station_type_dwell_ticks[stype].append(d_count)
-                    del current_dwell[(sid, vin)]
+                s_stat = stats_by_stype[stype]
+                s_stat["ticks_total"] += 1
+                
+                if vin:
+                    s_stat["ticks_with_vehicle"] += 1
+                    s_stat["vehicles_visited"].add((seed, vin))
+                    if defect_flag:
+                        s_stat["ticks_defect_flag_true"] += 1
+                        s_stat["vehicles_with_defect_flag"].add((seed, vin))
+                    
+                    # Track dwell
+                    if current_vin_tracking.get(sid) == vin:
+                        dwell_counter[sid] += 1
+                    else:
+                        if current_vin_tracking.get(sid) is not None:
+                            s_stat["dwell_tick_counts"].append(dwell_counter[sid])
+                        current_vin_tracking[sid] = vin
+                        dwell_counter[sid] = 1
+                else:
+                    if current_vin_tracking.get(sid) is not None:
+                        s_stat["dwell_tick_counts"].append(dwell_counter[sid])
+                        current_vin_tracking[sid] = None
+                        dwell_counter[sid] = 0
 
-    print(f"\n{'STATION TYPE':<20} | {'ROWS':<8} | {'FLAG TICKS':<10} | {'FLAG TICK %':<11} | {'UNIQUE VINS':<11} | {'FLAG VINS':<10} | {'VEH DEFECT %':<12} | {'AVG DWELL'}")
-    print("-" * 105)
-    for stype in sorted(station_type_rows.keys()):
-        rows = station_type_rows[stype]
-        flag_ticks = station_type_flag_ticks[stype]
-        flag_tick_pct = 100.0 * flag_ticks / max(1, rows)
-        
-        uniq_vins = len(station_type_visited_vins[stype])
-        flag_vins = len(station_type_flagged_vins[stype])
-        veh_defect_pct = 100.0 * flag_vins / max(1, uniq_vins)
-        
-        dwells = station_type_dwell_ticks[stype]
-        avg_dwell = sum(dwells) / max(1, len(dwells)) if dwells else 0.0
-
-        print(f"{stype:<20} | {rows:<8} | {flag_ticks:<10} | {flag_tick_pct:<10.2f}% | {uniq_vins:<11} | {flag_vins:<10} | {veh_defect_pct:<11.2f}% | {avg_dwell:.2f} ticks")
-
-    print("\n" + "=" * 80)
-    print("PHASE 2: IN-DEPTH DWELL & ACCUMULATION ANALYSIS FOR INSPECTION STATIONS")
-    print("=" * 80)
-
-    for insp_type in ["VisionQC", "FinalInspection", "QualityScan", "RoboticWeld", "ManualTrim"]:
-        if insp_type in station_type_rows:
-            uniq_vins = len(station_type_visited_vins[insp_type])
-            flag_vins = len(station_type_flagged_vins[insp_type])
-            veh_rate = flag_vins / max(1, uniq_vins)
-            
-            dwells = station_type_dwell_ticks[insp_type]
-            avg_dwell = sum(dwells) / max(1, len(dwells)) if dwells else 1.0
-            
-            flag_ticks = station_type_flag_ticks[insp_type]
-            rows = station_type_rows[insp_type]
-            tick_rate = flag_ticks / max(1, rows)
-            
-            print(f"Station Type: {insp_type}")
-            print(f"   Unique Vehicles Passed: {uniq_vins}, Vehicles with Defect Flagged: {flag_vins} ({veh_rate*100:.2f}%)")
-            print(f"   Avg Dwell Time: {avg_dwell:.2f} ticks/vehicle")
-            print(f"   Observed Tick-Level defect_flag Rate: {tick_rate*100:.2f}% ({flag_ticks}/{rows} ticks)")
-            print(f"   Ratio (Flag Ticks / Flagged Vehicles): {flag_ticks / max(1, flag_vins):.2f} ticks per flagged vehicle")
-            print()
+    return stats_by_stype
 
 
-def audit_csv_dataset(csv_path: str):
-    print("=" * 80)
-    print(f"PHASE 3: TRAINING CSV AUDIT: {csv_path}")
-    print("=" * 80)
+def audit_dataset_and_sim(csv_path: str, seeds: List[int] = [1000, 1001, 1002], num_ticks: int = 3000):
+    print("==========================================================================================")
+    print(f"               PHASE 1 AUDIT: DEFECT-RATE CONCENTRATION AT INSPECTION STATIONS            ")
+    print("==========================================================================================\n")
     
-    rows = []
-    with open(csv_path, "r") as f:
+    # 1. Load CSV data
+    print(f"[1] Loading dataset from {csv_path}...")
+    csv_rows_by_stype = defaultdict(list)
+    with open(csv_path, "r", newline="") as f:
         reader = csv.DictReader(f)
         for r in reader:
-            rows.append(r)
+            csv_rows_by_stype[r["station_type"]].append(r)
 
-    stype_counts = defaultdict(int)
-    stype_defect_labels = defaultdict(int)
-    for r in rows:
-        stype = r["station_type"]
-        stype_counts[stype] += 1
-        if int(r.get("defect_label", 0)) == 1:
-            stype_defect_labels[stype] += 1
+    # 2. Run simulation trace
+    print(f"[2] Running high-fidelity simulation trace across seeds {seeds} ({num_ticks} ticks/seed)...")
+    sim_stats = run_simulation_trace(seeds, num_ticks)
+    
+    print("\n" + "=" * 125)
+    print(f"{'Station Type':<18} | {'Rows':<7} | {'Defect Label %':<15} | {'Ticks Defect=T':<15} | {'Unique VINs':<12} | {'VIN Defect %':<13} | {'Avg Dwell':<10} | {'Expected Tick %':<15}")
+    print("-" * 125)
+    
+    for stype in sorted(csv_rows_by_stype.keys()):
+        c_rows = csv_rows_by_stype[stype]
+        n_rows = len(c_rows)
+        pos_labels = sum(1 for r in c_rows if int(r["defect_label"]) == 1)
+        defect_label_pct = pos_labels / n_rows * 100.0
+        
+        s = sim_stats[stype]
+        unique_vins = len(s["vehicles_visited"])
+        vins_with_defect = len(s["vehicles_with_defect_flag"])
+        vin_defect_pct = (vins_with_defect / unique_vins * 100.0) if unique_vins > 0 else 0.0
+        ticks_def = s["ticks_defect_flag_true"]
+        avg_dwell = np.mean(s["dwell_tick_counts"]) if s["dwell_tick_counts"] else 1.0
+        
+        # Vehicle defect rate * avg dwell as percentage of total processing ticks
+        ticks_with_veh = s["ticks_with_vehicle"]
+        tick_defect_rate = (ticks_def / ticks_with_veh * 100.0) if ticks_with_veh > 0 else 0.0
+        
+        print(f"{stype:<18} | {n_rows:<7} | {defect_label_pct:>13.2f}% | {ticks_def:>14d} | {unique_vins:>12d} | {vin_defect_pct:>11.2f}% | {avg_dwell:>8.2f}t | {tick_defect_rate:>13.2f}%")
 
-    print(f"\n{'STATION TYPE':<20} | {'TOTAL ROWS':<10} | {'DEFECT_LABEL=1':<15} | {'DEFECT_LABEL POSITIVE RATE'}")
-    print("-" * 75)
-    for stype in sorted(stype_counts.keys()):
-        tot = stype_counts[stype]
-        pos = stype_defect_labels[stype]
-        rate = 100.0 * pos / max(1, tot)
-        print(f"{stype:<20} | {tot:<10} | {pos:<15} | {rate:6.2f}%")
-
+    print("\n" + "=" * 100)
+    print("PHYSICS & DWELL TIME BREAKDOWN: INSPECTION vs NON-INSPECTION")
+    print("=" * 100)
+    
+    for st in ["VisionQC", "FinalInspection", "QualityScan", "RoboticWeld", "MechanicalTorque", "RoboticSpray"]:
+        s = sim_stats[st]
+        c_rows = csv_rows_by_stype[st]
+        n_rows = len(c_rows)
+        pos_labels = sum(1 for r in c_rows if int(r["defect_label"]) == 1)
+        defect_label_pct = pos_labels / n_rows * 100.0
+        unique_vins = len(s["vehicles_visited"])
+        vins_def = len(s["vehicles_with_defect_flag"])
+        vin_def_pct = (vins_def / unique_vins * 100.0) if unique_vins > 0 else 0.0
+        avg_dwell = np.mean(s["dwell_tick_counts"]) if s["dwell_tick_counts"] else 1.0
+        tick_def_pct = (s["ticks_defect_flag_true"] / s["ticks_with_vehicle"] * 100.0) if s["ticks_with_vehicle"] > 0 else 0.0
+        
+        print(f"\nStation Type: {st}")
+        print(f"  - Unique Vehicles Processed: {unique_vins}")
+        print(f"  - Vehicles with Defect: {vins_def} ({vin_def_pct:.2f}%)")
+        print(f"  - Average Dwell Ticks per Vehicle: {avg_dwell:.2f} ticks")
+        print(f"  - Tick-Level Defect Flag Positive Rate (per occupied tick): {tick_def_pct:.2f}%")
+        print(f"  - Forward Horizon Defect Label Rate (15-tick horizon in dataset): {defect_label_pct:.2f}%")
+        print(f"  - Ratio (Tick Defect Flag Rate / Vehicle Defect Rate): {tick_def_pct / max(0.001, vin_def_pct):.3f}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--csv", default="data/audit_dataset.csv")
-    parser.add_argument("--seeds", type=int, default=3)
-    parser.add_argument("--ticks", type=int, default=3000)
+    parser.add_argument("--data", default="data/audit_dataset.csv")
     args = parser.parse_args()
-
-    audit_simulation_traces(seeds=[1000 + i for i in range(args.seeds)], ticks_per_run=args.ticks)
-    
-    if Path(args.csv).exists():
-        audit_csv_dataset(args.csv)
-    else:
-        print(f"\nNote: CSV {args.csv} does not exist yet. Run generate_training_data.py to create it.")
+    audit_dataset_and_sim(args.data)
