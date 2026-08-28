@@ -36,5 +36,24 @@
       "ST29",
       "ST30"
     ]
+  },
+  {
+    "worker_id": "w04",
+    "worker_name": "Harshada",
+    "assigned_station_ids": [
+      "ST04",
+      "ST05",
+      "ST06",
+      "ST07",
+      "ST08",
+      "ST09",
+      "ST10",
+      "ST11",
+      "ST12",
+      "ST13",
+      "ST14",
+      "ST15",
+      "ST16"
+    ]
   }
 ]

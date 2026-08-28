@@ -5,33 +5,34 @@
 ---
 
 ## 🚀 System Architecture Overview
-DigitalTwin.ai is an end-to-end predictive digital twin for automotive assembly lines. It solves the critical challenge of high-speed automotive plants (unplanned line stoppages costing upwards of **$2.3M/hour**) by transitioning plant operations from reactive alarms to **predictive risk forecasting, virtual sensing, graph-propagated starvation modeling, and dynamic DAG topology reconfiguration**.
+DigitalTwin.ai is an end-to-end predictive digital twin for automotive assembly lines. It solves the critical challenge of high-speed automotive plants (unplanned line stoppages costing upwards of **$2.3M/hour**) by transitioning plant operations from reactive alarms to **predictive risk forecasting, virtual sensing, graph-propagated starvation modeling, operator area assignment, and dynamic DAG topology reconfiguration**.
 
 ```mermaid
 graph TD
     A[Synthetic Physics Simulator: 40-Station Industrial DAG] -->|1Hz High-Frequency Telemetry| B[SQLite & In-Memory Ring Buffer]
     B --> C[Statistical Process Control EWMA & ISO 10816 Engine]
     B --> D[Virtual Sensor Imputation Engine: 80/20 Tier Split]
-    C --> E[LightGBM / GBDT Predictive Bottleneck Risk Model]
+    C --> E[GBDT Predictive Bottleneck Risk Model]
     D --> E
     E --> F[NetworkX Graph Propagation Engine: Starvation Countdowns]
-    F --> G[Prescriptive Recommendation Engine: Cost & Downtime Avoided]
+    F --> G[Prescriptive Recommendation Engine: Tiered SOP Escalation]
     G --> H[FastAPI REST & High-Performance WebSocket Streaming Gateway]
-    H --> I[Web SCADA HMI Interface: 4-View Unified Platform]
+    H --> I[Web SCADA HMI Interface: 5-View Unified Platform]
     I --> I1[1. FLOOR: Living Line Conveyor Highway & Vehicle Tracking]
-    I --> I2[2. LAYOUT: Dynamic DAG Drag-Drop Editor with Ctrl+Z/Y Engine]
-    I --> I3[3. LEAD: Executive Thermal Heatmap & VIN Genealogy Tracer]
+    I --> I2[2. LEAD: Senior Executive Financials, Heatmap & VIN Genealogy]
+    I --> I3[3. OPERATOR: Filtered Worker Area Assignment & Ideal Telemetry]
     I --> I4[4. TREND: 7-Day OEE Trajectory & Line Balancing What-If]
+    I --> I5[5. LAYOUT: Dynamic DAG Drag-Drop Editor with Ctrl+Z/Y Engine]
 ```
 
 ---
 
 ## 📊 Core Parameters & Operating Threshold Registry
-> 📘 **Full Industrial Standards & Mathematics Registry**: See [`REFERENCES.md`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/REFERENCES.md) for full mathematical formulations, ISO citations, and code implementation mappings.
+> 📘 **Full Industrial Standards & Mathematics Registry**: See [`REFERENCES.md`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/REFERENCES.md), [`docs/PHYSICS_GROUNDING_AUDIT.md`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/docs/PHYSICS_GROUNDING_AUDIT.md), and [`data/DATA_SANITY_NOTES.md`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/data/DATA_SANITY_NOTES.md).
 
 | Simplified Metric | Technical Name | Normal Operating Range | Warning Threshold (Amber) | Critical Threshold (Red) | Industrial Derivation & Physical Rationale |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **Processing Time** | `cycle_time_s` | $50 - 65\text{ s}$ | $> 1.15 \times \text{Target}$ ($z > 2.0$) | $> 1.30 \times \text{Target}$ ($z > 3.0$) | Calibrated to plant takt time ($55-60\text{ JPH}$). Natural variation is $\pm 3\sigma$ ($\sigma \approx 4\%$). Progressive drift indicates tip wear/servo motor friction; sudden spike signals mechanical stoppage. |
+| **Job Time** | `cycle_time_s` | $50 - 65\text{ s}$ | $> 1.15 \times \text{Target}$ ($z > 2.0$) | $> 1.30 \times \text{Target}$ ($z > 3.0$) | Calibrated to plant takt time ($55-60\text{ JPH}$). Natural variation is $\pm 3\sigma$ ($\sigma \approx 4\%$). Progressive drift indicates tip wear/servo motor friction; sudden spike signals mechanical stoppage. |
 | **Waiting Line (Queue)** | `buffer_level` | $4 - 8\text{ units}$ ($40-70\%$) | $< 25\%$ or $> 80\%$ | $< 10\%$ (Starvation) or $100\%$ (Blockage) | Buffer capacity is $5-15\text{ cars}$. $<25\%$ fill gives downstream machines $<5\text{ mins}$ before running dry. $>80\%$ fill blocks upstream discharge. |
 | **Machine Shaking** | `vibration` (RMS) | $0.4 - 1.2\text{ mm/s}$ | $2.8 - 4.5\text{ mm/s}$ (Zone C) | **$> 4.5\text{ mm/s}$** (Zone D Alarm) | Derived from **ISO 10816-3 / ISO 20816-1 Industrial Vibration Severity Standard**. $>4.5\text{ mm/s}$ signals imminent bearing/spindle seizure. |
 | **Motor & Process Heat** | `temperature` | $24^\circ\text{C}$ (Ambient)<br>$55^\circ\text{C}$ (Pretreatment)<br>$190^\circ\text{C}$ (Oven) | $> 65^\circ\text{C}$ (Bath)<br>$> 205^\circ\text{C}$ (Oven) | $> 75^\circ\text{C}$ (Bath)<br>$> 220^\circ\text{C}$ (Oven) | **PPG/Axalta E-Coat Curing** ($180-200^\circ\text{C}$ crosslinking) & **Henkel Bath Guide** ($50-60^\circ\text{C}$). Overheating accelerates insulation breakdown & paint defects. |
@@ -55,88 +56,40 @@ graph TD
 * **Gradual Tool Drift**: Progressive $15\text{ s}$ cycle time degradation and $1.5\text{ mm/s}$ vibration rise signaling mechanical wear.
 * **Sudden Stoppage (85-min Breakdown)**: $0\text{ JPH}$ physical line halt triggering immediate buffer drain and downstream starvation cascade.
 * **Latent Defect Genealogy**: Upstream micro-fault (e.g. weld misfire at `ST02`) propagating undetected until trapped by downstream CMM scan or EOL buy-off (`ST40`).
-* **Sensor Blackout & Network Dropout**: PLC network failure where telemetry drops to `None`, triggering the Virtual Sensor Imputation Engine and degrading confidence scores.
+* **Sensor Blackout & Power Trip**: PLC network failure where telemetry drops to `None`, triggering the Virtual Sensor Imputation Engine, displaying amber `.status-power-trip` indicators, and degrading confidence scores.
 * **Idle Energy Waste Surge**: Machine power draw surging $+60\%$ while idle or starved due to cooling fan/hydraulic pump runaway.
 
 ### 3. Machine Learning & Predictive Analytics Pipeline
 * **Histogram-Based GBDT Risk Scoring Engine**:
-  * Trained on multi-seed balanced anomaly campaigns across 19 physical, temporal, and categorical features.
-  * **Empirical Performance on Held-Out Test Set (Seed 1005)**:
-    * **ROC-AUC: 0.940**
-    * **PR-AUC: 0.848**
-    * **Precision: 98.1%**
-    * **Recall: 84.6%**
-  * Subgroup fairness parity verified across Body (86.9% recall), Paint (81.8% recall), Assembly (84.9% recall), and Sensor Tiers (83.6%–84.9%).
+  * Trained on 1.28M observations across 8 distinct simulation seeds (`data/training_dataset.csv`).
+  * **Empirical Performance on Held-Out Test Set**:
+    * **Bottleneck ROC-AUC: 0.932**
+    * **Bottleneck PR-AUC: 0.826**
+    * **Bottleneck Precision: 97.3%**
+    * **Bottleneck Recall: 83.2%**
+  * **Subgroup Fairness Parity**: Verified across Body (80.4% recall), Paint (85.3% recall), Assembly (83.6% recall), and Sensor Tiers (82.9%–85.0%).
+* **Out-of-Distribution (OOD) Stress-Testing Suite**:
+  * Evaluated across 6 physical distribution shifts (`docs/SCENARIO_VALIDATION_REPORT.md`):
+    * Spatial OOD (Cross-Station ST01-30 $\to$ ST31-40): $\text{ROC-AUC} = 0.922$ ($\Delta = -0.010$)
+    * Symptom OOD (Compound Faults): $\text{ROC-AUC} = 0.920$ ($\Delta = -0.012$)
+    * Speed Stress (+20% Takt): $\text{ROC-AUC} = 0.932$ ($\Delta = +0.000$)
+    * Severity Stress (Extreme Wear): $\text{ROC-AUC} = 0.939$ ($\Delta = +0.007$)
+    * Sensor Degradation (40% dropouts): $\text{ROC-AUC} = 0.701$ (Graceful degradation triggering degraded confidence fallback).
+* **NetworkX Starvation Wavefront Propagation**:
+  * Models geometric ripple damping $\gamma = 0.85^{\text{path\_len}}$ and dynamic buffer absorption time across the DAG.
+* **Tiered SOP Escalation Engine (`pipeline/sop.py`)**:
+  * Automatically coordinates 3-tier action ladders (**Operator Step 1** $\to$ **Line Lead Step 2** $\to$ **Maintenance Step 3**).
 
-* **Scenario-Based & Out-of-Distribution (OOD) Validation Benchmark**:
-  > 📘 **Full Technical Report**: See [`docs/SCENARIO_VALIDATION_REPORT.md`](file:///c:/Users/Divyansh/OneDrive/Desktop/Accenture/docs/SCENARIO_VALIDATION_REPORT.md) and REST endpoint `GET /api/model/scenario-validation`.
-  
-  To address the simulator memorization trap, the model was stress-tested across 5 distinct operational distribution shifts rather than only random in-distribution splits:
+### 4. Senior Leadership Financial Intelligence & Unit Economics
+* **Plant Capital Density**: `$1,800.00 / sq ft` ($450M total Capex across $250,000\text{ sq ft}$ facility).
+* **Unit Conversion Cost**: `$1,727.27 / ton` ($2,850 direct conversion cost per vehicle @ $1.65\text{t}$ curb weight).
+* **Station-Level Capex & Payback Schedule**:
+  * Real-time plain executive ROI ($\frac{\text{Savings} - \text{Capex}}{\text{Capex}} \times 100\%$) and Payback Period in shift-days.
 
-  | Operating Regime | Distribution Shift Evaluated | Samples | ROC-AUC | PR-AUC | Precision | Recall | F1 | FAR | Generalization Finding |
-  | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-  | **1. Baseline I.I.D.** | *Within-distribution (70/30 slice)* | 24,000 | **0.940** | **0.843** | 29.0% | **84.0%** | 0.432 | 1.46% | Nominal baseline performance |
-  | **2. Spatial OOD** | *Cross-Station: Train ST01-30 $\rightarrow$ Test ST31-40* | 20,000 | **0.925** | **0.837** | **98.0%** | **83.1%** | **0.899** | **0.08%** | Negligible gap ($\Delta=-0.015$); physical features transfer zero-shot |
-  | **3. Symptom OOD** | *Cross-Anomaly: Train Single $\rightarrow$ Test Compound* | 80,000 | **0.927** | **0.832** | 12.6% | **84.4%** | 0.220 | 3.28% | Maps blind spots; high recall maintained but compound interaction elevates FAR |
-  | **4. Speed Stress** | *Takt Acceleration (+20% line velocity)* | 80,000 | **0.945** | **0.839** | 27.2% | **84.5%** | 0.412 | 2.61% | Pacing invariant; no false bottlenecks on line speedup |
-  | **5. Severity Stress** | *Non-linear Extreme Physical Wear* | 80,000 | **0.948** | **0.867** | 32.0% | **87.0%** | 0.468 | 2.80% | Highest recall; monotonic detection envelope on catastrophic wear |
-  | **6. Sensor Dropout** | *Adverse Network (40% Telemetry Dropouts)* | 80,000 | **0.797** | **0.524** | 42.7% | **51.3%** | 0.466 | 0.81% | Graceful degradation; triggers low Confidence Score rather than hysterical alarms |
-
-* **Explainability & Root Cause Driver Attributions**:
-  * `GET /api/risk/{station_id}/drivers` identifies top 3 risk drivers relative to nominal baselines with automated remediation suggestions.
-* **Statistical Process Control (SPC)**:
-  * Station-type calibrated empirical sigmas with EWMA ($\lambda=0.3$) and $|z| > 3.0$ standard deviation alarms.
-  * ISO 10816-3 vibration severity limits ($>4.5\text{ mm/s}$ critical alert).
-* **Virtual Sensor Imputation**:
-  * Multi-method hybrid estimator (neighbor correlation + diurnal progress wave + flow regression) with $2.1\text{ s}$ MAE and 0 physical bounds violations.
-* **NetworkX Ripple Graph Propagation**:
-  * Calculates dynamic downstream starvation countdowns across the DAG:
-    $$\text{time\_to\_impact} = \frac{\text{buffer\_level}}{\text{outflow\_rate} - \text{inflow\_rate}} \times 60\text{ s}$$
-
-### 4. High-Throughput SQL Engine & Full-Line Vehicle Genealogy
-* **Optimized SQLite Engine**:
-  * SQLite `WAL` mode for non-blocking concurrent read-write access.
-  * 256MB memory-mapped I/O (`mmap`), 64MB RAM cache, and composite B-Tree indexes.
-  * Vectorized `executemany` batch persistence ($10\times-50\times$ faster).
-* **Vehicle Genealogy Tracking**:
-  * Tracks every VIN from introduction at `ST01` across FIFO queues to terminal buy-off (`ST40`).
-  * Real-time latent defect propagation and downstream inspection delay modeling.
-
-### 5. Exact Rail-Conforming Conveyor Engine & Strict FIFO Fleet Dynamics
-* **100% Rail-Conforming Cubic Bézier Trajectory**:
-  * Vehicles trace the exact mathematical geometry of the SVG conveyor rails ($B(t) = (1-t)^3 P_0 + 3(1-t)^2 t P_1 + 3(1-t) t^2 P_2 + t^3 P_3$).
-  * Handles straight transfers, parallel S-curve forks (`ST02` $\rightarrow$ `ST03`/`ST04`, `ST06` $\rightarrow$ `ST07`/`ST08`), merges (`ST07`/`ST08` $\rightarrow$ `ST09`), and U-turn zone loops (`ST14` $\rightarrow$ `ST15`, `ST22` $\rightarrow$ `ST23`, `ST32` $\rightarrow$ `ST33`).
-* **Station Cradle Locking & Sequential FIFO Dwell**:
-  * Machines enforce a strict capacity constraint of **1 vehicle inside the machine cradle** during active machining.
-  * Backlogged vehicles queue neatly along the incoming conveyor track ($\text{Slot } k \text{ spacing } = 0.85 - 0.16 \cdot k$).
-  * When a stoppage is resolved, queued cars process **sequentially one-by-one in FIFO order**, taking their full calibrated cycle time ($2.5\text{s}$) to authentically depict the **cascading ripple delay** of line disruptions.
-* **1:1 Live Simulator Fleet Synchronization & Stable Colors**:
-  * Every vehicle on screen is bound 1:1 by unique VIN (`activeVinMap[veh.vin]`) to the backend `simulator.active_vehicles`.
-  * Stable Automotive Color Palette:
-    * 🟢 **Factory Blue (`#0284c7`)**: Normal in-spec production.
-    * 🟠 **Quality Amber (`#f59e0b`)**: Defect flagged by automated vision/torque sensors.
-    * 🔴 **Stoppage Red (`#ef4444`)**: Halted at a station with an active stoppage.
-* **Real-Time Genealogy Synchronization**:
-  * Clicking **`[Trace VIN in Genealogy]`** on an active vehicle at Station $N$ displays its exact partial traversal path ($N/40\text{ Stations Traversed • IN\_PROGRESS}$), matching the live station location with 100% accuracy.
-* **Capped Memory-Efficient Storage**:
-  * Retains active in-flight vehicles and a rolling ring buffer of the last 50 completed vehicles with automated history pruning, preventing database bloat.
-
-### 6. Interactive Dynamic DAG Layout Editor (LAYOUT View)
-* **Drag-and-Drop Station Positioning**: Real-time card positioning with coordinate persistence.
-* **Dual-Mode Port Wiring**:
-  * *Drag-to-Connect*: Drag bezier conveyor lines from `[OUT]` to `[IN]` ports with live dashed preview.
-  * *Click-to-Connect*: Click `[OUT]` port (activates gold pulse mode), then click destination `[IN]` port.
-* **Conveyor Link Disconnection & Modal**: Click any conveyor curve to disconnect or manage connections in the Connections Modal.
-* **Add Custom Machines**: Add new stations with custom Zone, Station Type, Takt Time, Buffer Capacity, Sensor Tier, and Base Power Draw.
-* **Full Undo (`Ctrl+Z`) & Redo (`Ctrl+Y`) State Engine**: 50-step snapshot stack supporting undo/redo for all drag, connect, disconnect, add, delete, and auto-arrange actions.
-* **Auto-Arrange & Factory Baseline Reset**: `📐 AUTO-ARRANGE` aligns stations into clean zone lanes; `RESET DEFAULT` calls `POST /api/topology/reset` to restore the 40-station baseline.
-* **Live Twin Reboot (`⚡ APPLY LAYOUT`)**: Sends layout to `POST /api/topology/apply`, dynamically re-instantiating the simulation loop, SPC engine, GBDT risk model, and starvation graph.
-
-### 7. Multi-Persona SCADA Dashboard
-* **FLOOR View**: Living Line continuous conveyor highway, live vehicle tracking silhouettes, right instrument cockpit drawer, and fault injector.
-* **LAYOUT View**: Full-screen DAG drag-drop canvas and topology tools.
-* **LEAD View**: Executive thermal heatmap, Pareto root causes, cumulative downtime avoided counter ($3.4M+), and VIN defect genealogy tracer.
-* **TREND View**: 7-day OEE trajectory and what-if line balancing bottleneck simulator.
+### 5. Operator Area Assignment Management (`storage/assignments.py`)
+* Dedicated **Operator Dock View** allowing workers to filter the 40-station grid to their assigned operational coverage zone.
+* Dynamic multi-select admin panel in the Leadership view backed by persistent storage (`data/operator_assignments.json`).
+* Station cards render compact **Current vs. Ideal Parameter Tables** (Job Time, Vibration, Temperature, Power).
 
 ---
 
@@ -149,10 +102,13 @@ graph TD
 * `GET /api/risk/{station_id}/drivers` — Returns top 3 risk drivers, baseline comparisons, and remediation hints.
 * `GET /api/vehicles/recent` — Returns recently completed and in-progress vehicles.
 * `GET /api/vehicles/{vin}/genealogy` — Returns full station trace and defect history for a given vehicle.
-* `GET /api/recommendations` — Returns AI prescriptive actions, root cause explanations, and financial impact.
-* `GET /api/leadership/summary` — Returns plant OEE, downtime avoided ($), and thermal deviation heatmaps.
+* `GET /api/recommendations` — Returns AI prescriptive actions, tiered SOP steps, and financial impact.
+* `GET /api/leadership/summary` — Returns executive financials, unit economics, payback schedule, and heatmaps.
+* `GET /api/assignments` — List configured operator-to-station area assignments.
+* `POST /api/assignments` — Create/update operator area assignment.
+* `DELETE /api/assignments/{worker_id}` — Remove operator assignment.
 * `GET /api/model/scenario-validation` — Returns OOD generalization benchmark results across 6 operational stress regimes.
-* `POST /api/simulator/control` — Control simulator state (`{"action": "run"|"pause"|"step"|"set_speed"|"inject_anomaly"|"clear_faults"}`).
+* `POST /api/simulator/control` — Control simulator state (`run`, `pause`, `step`, `set_speed`, `inject_anomaly`, `clear_faults`).
 * `POST /api/topology/apply` — Apply modified DAG layout and re-initialize digital twin models.
 * `POST /api/topology/reset` — Reset plant layout to factory 40-station baseline.
 
@@ -167,7 +123,7 @@ graph TD
 # 1. Navigate to repository root
 cd "c:/Android Projects/accenture/digitaltwin-ai"
 
-# 2. Start FastAPI Server & WebSocket Gateway with Auto-Reload
+# 2. Start FastAPI Server & WebSocket Gateway
 python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
