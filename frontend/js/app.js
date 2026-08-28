@@ -628,6 +628,30 @@ async function loadLeadershipData() {
   try {
     const res = await fetch("/api/leadership/summary");
     const data = await res.json();
+    
+    // 1. Render Senior Leadership Financial Intelligence KPIs
+    if (data.financials) {
+      const f = data.financials;
+      const sqftEl = document.getElementById("lead-cost-sqft");
+      if (sqftEl) sqftEl.innerText = `$${(f.cost_per_sqft_usd || 1800).toLocaleString('en-US', { minimumFractionDigits: 2 })} / sq ft`;
+
+      const tonEl = document.getElementById("lead-cost-ton");
+      if (tonEl) tonEl.innerText = `$${(f.cost_per_ton_usd || 1727.27).toLocaleString('en-US', { minimumFractionDigits: 2 })} / ton`;
+
+      const savVal = data.summary?.cost_saved_usd || 0;
+      const savEl = document.getElementById("lead-savings-usd");
+      if (savEl) savEl.innerText = `$${(savVal / 1000000.0).toFixed(2)} M`;
+
+      const jphEl = document.getElementById("lead-jph-comp");
+      if (jphEl && f.jph_targets) {
+        const act = f.jph_targets.line_jph_actual || 55.4;
+        const tgt = f.jph_targets.line_jph_target || 55.0;
+        jphEl.innerText = `${act.toFixed(1)} / ${tgt.toFixed(1)} JPH`;
+      }
+
+      renderStationRoiTable(f.station_roi || []);
+    }
+
     renderThermalHeatmap(data.heatmap || []);
     renderParetoCauses(data.top_root_causes || []);
   } catch (err) {
@@ -635,6 +659,45 @@ async function loadLeadershipData() {
     renderThermalHeatmap([]);
     renderParetoCauses([]);
   }
+}
+
+function renderStationRoiTable(stationRois) {
+  const tbody = document.getElementById("lead-station-roi-tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  if (stationRois.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="padding: 12px; text-align: center; color: #94a3b8;">No station financial telemetry logged yet.</td></tr>`;
+    return;
+  }
+
+  // Sort: active savings stations first, then by station ID
+  const sorted = [...stationRois].sort((a, b) => (b.attributed_savings_usd || 0) - (a.attributed_savings_usd || 0));
+
+  sorted.forEach(s => {
+    const tr = document.createElement("tr");
+    const hasSavings = (s.attributed_savings_usd || 0) > 0;
+    tr.style.cssText = `border-bottom: 1px solid #f1f5f9; background: ${hasSavings ? '#f0fdf4' : 'transparent'}; transition: background 0.2s ease;`;
+
+    const roiBadge = hasSavings 
+      ? `<span style="font-weight: 800; color: #15803d; background: #dcfce7; padding: 2px 6px; border-radius: 4px;">+${s.roi_pct}%</span>`
+      : `<span style="color: #94a3b8;">Nominal</span>`;
+
+    const paybackBadge = hasSavings
+      ? `<span style="color: #0284c7; font-weight: 700;">${s.payback_period_days} shift-days</span>`
+      : `<span style="color: #94a3b8;">Zero downtime</span>`;
+
+    tr.innerHTML = `
+      <td style="padding: 8px 10px; font-weight: 700; color: #0f172a;">${s.station_id} <span style="font-weight: 400; color: #64748b;">(${s.station_name})</span></td>
+      <td style="padding: 8px 10px; color: #475569;">${s.station_type}</td>
+      <td style="padding: 8px 10px; color: #0f172a;">$${(s.capex_usd || 0).toLocaleString()}</td>
+      <td style="padding: 8px 10px; font-weight: ${hasSavings ? '700' : '400'}; color: ${hasSavings ? '#b91c1c' : '#64748b'};">${s.downtime_avoided_min || 0} min</td>
+      <td style="padding: 8px 10px; font-weight: 700; color: ${hasSavings ? '#15803d' : '#64748b'};">$${(s.attributed_savings_usd || 0).toLocaleString()}</td>
+      <td style="padding: 8px 10px;">${paybackBadge}</td>
+      <td style="padding: 8px 10px;">${roiBadge}</td>
+    `;
+    tbody.appendChild(tr);
+  });
 }
 
 function renderThermalHeatmap(heatmapData) {

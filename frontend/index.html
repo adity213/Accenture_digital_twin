@@ -324,6 +324,68 @@
       <!-- VIEW 2: LEADERSHIP ANALYTICS -->
       <div id="view-leadership" class="view-panel">
         <div class="leadership-screen">
+
+          <!-- SENIOR LEADERSHIP EXECUTIVE FINANCIALS & UNIT ECONOMICS (PHASE 5) -->
+          <div class="scada-lead-panel" style="grid-column: span 2;">
+            <div class="lead-panel-title" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>💼 SENIOR LEADERSHIP // PLANT FINANCIAL INTELLIGENCE & UNIT ECONOMICS</span>
+              <span class="plant-tag" id="lead-status-tag">40 STATIONS // $450M CAPEX BASE</span>
+            </div>
+            <div class="lead-panel-sub">Real-time capital productivity, conversion cost efficiency, payback timelines, and JPH throughput</div>
+
+            <!-- Top Executive Metric KPI Cards -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 14px;">
+              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
+                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Plant Capital Density</div>
+                <div id="lead-cost-sqft" style="font-size: 1.15rem; font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 4px;">$1,800.00 / sq ft</div>
+                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">250,000 sq ft Footprint ($450M Capex)</div>
+              </div>
+
+              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
+                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Unit Conversion Cost</div>
+                <div id="lead-cost-ton" style="font-size: 1.15rem; font-weight: 800; color: #0284c7; font-family: var(--font-mono); margin-top: 4px;">$1,727.27 / ton</div>
+                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">$2,850 / vehicle (1.65t Curb Weight)</div>
+              </div>
+
+              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
+                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Downtime Savings</div>
+                <div id="lead-savings-usd" style="font-size: 1.15rem; font-weight: 800; color: #15803d; font-family: var(--font-mono); margin-top: 4px;">$0.00 M</div>
+                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">$38,333.33 / min avoided downtime</div>
+              </div>
+
+              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
+                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Line Cadence Target</div>
+                <div id="lead-jph-comp" style="font-size: 1.15rem; font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 4px;">55.4 / 55.0 JPH</div>
+                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">100.7% Line vs Plant Target</div>
+              </div>
+            </div>
+
+            <!-- Per-Station Capex, ROI & Payback Period Table -->
+            <div style="margin-top: 18px;">
+              <div style="font-weight: 800; font-size: 0.82rem; color: #0f172a; margin-bottom: 8px;">
+                📊 Station-Level Capital ROI & Payback Schedule
+              </div>
+              <div style="max-height: 240px; overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left; font-family: var(--font-mono);">
+                  <thead>
+                    <tr style="background: #f1f5f9; color: #475569; position: sticky; top: 0; z-index: 1;">
+                      <th style="padding: 8px 10px;">Station</th>
+                      <th style="padding: 8px 10px;">Category</th>
+                      <th style="padding: 8px 10px;">Station Capex</th>
+                      <th style="padding: 8px 10px;">Downtime Avoided</th>
+                      <th style="padding: 8px 10px;">Attributed Savings</th>
+                      <th style="padding: 8px 10px;">Payback Period</th>
+                      <th style="padding: 8px 10px;">Plain ROI</th>
+                    </tr>
+                  </thead>
+                  <tbody id="lead-station-roi-tbody">
+                    <!-- Populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
           <div class="scada-lead-panel">
             <div class="lead-panel-title">Thermal Deviation Heatmap</div>
             <div class="lead-panel-sub">Station × Shift Ticks: Cycle time standard deviation burn</div>
@@ -645,8 +707,8 @@
 
   </div>
 
-  <script src="js/twin_scene.js?v=4.6"></script>
-  <script src="js/topology_editor.js?v=4.6"></script>
-  <script src="js/app.js?v=4.6"></script>
+  <script src="js/twin_scene.js?v=4.7"></script>
+  <script src="js/topology_editor.js?v=4.7"></script>
+  <script src="js/app.js?v=4.7"></script>
 </body>
 </html>
