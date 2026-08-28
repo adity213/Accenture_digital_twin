@@ -147,8 +147,10 @@ function switchView(viewName) {
     const slider = document.getElementById("whatif-jph-slider");
     updateLineBalancing(slider ? slider.value : 55);
   }
-}
-  if (viewName === "topology" && typeof initTopologyEditor === "function") initTopologyEditor();
+
+  if (viewName === "topology" && typeof initTopologyEditor === "function") {
+    initTopologyEditor();
+  }
 }
 
 function resetSchematicView() {
