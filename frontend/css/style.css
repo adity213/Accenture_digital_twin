@@ -837,8 +837,8 @@ body {
 
 .living-line-stage {
   position: relative;
-  width: 2320px;
-  height: 1120px;
+  width: 2900px;
+  height: 1280px;
   transform: none !important;
 }
 
@@ -846,7 +846,7 @@ body {
 .zone-rail-lane {
   position: absolute;
   left: 14px;
-  width: 2280px;
+  width: 2860px;
   border-radius: var(--radius-sm);
   border: 1px solid #e2e8f0;
   pointer-events: none;
@@ -854,21 +854,21 @@ body {
 
 .zone-lane-1 {
   top: 10px;
-  height: 360px;
+  height: 430px;
   border-left: 4px solid #0284c7;
   background: #f0f9ff;
 }
 
 .zone-lane-2 {
-  top: 390px;
-  height: 190px;
+  top: 450px;
+  height: 210px;
   border-left: 4px solid #6366f1;
   background: #f5f7ff;
 }
 
 .zone-lane-3 {
-  top: 600px;
-  height: 500px;
+  top: 670px;
+  height: 580px;
   border-left: 4px solid #10b981;
   background: #f0fdf4;
 }
@@ -896,8 +896,8 @@ body {
   position: absolute;
   top: 0;
   left: 0;
-  width: 2320px;
-  height: 1120px;
+  width: 2900px;
+  height: 1280px;
   pointer-events: none;
   z-index: 4;
 }
@@ -921,24 +921,196 @@ body {
 .rail-chevrons {
   fill: none;
   stroke: #0284c7;
-  stroke-width: 3px;
-  stroke-dasharray: 6 12;
+  stroke-width: 3.5px;
+  stroke-dasharray: 8 10;
   stroke-linecap: round;
-  animation: chevron-drift 1.2s linear infinite;
+  opacity: 0.85;
 }
 
-@keyframes chevron-drift {
+.rail-chevrons.flow-forward {
+  animation: chevron-forward 1.0s linear infinite;
+}
+
+.rail-chevrons.flow-reverse {
+  animation: chevron-reverse 1.0s linear infinite;
+}
+
+@keyframes chevron-forward {
+  from { stroke-dashoffset: 0; }
   to { stroke-dashoffset: -36; }
 }
 
-.car-body-silhouette {
+@keyframes chevron-reverse {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 36; }
+}
+
+/* ==================== DYNAMIC AUTOMOTIVE VEHICLE CARRIER & VIN HUD ==================== */
+.vehicle-carrier-node {
   position: absolute;
-  width: 32px;
-  height: 18px;
+  width: 54px;
+  height: 30px;
   transform: translate(-50%, -50%);
-  z-index: 15;
+  z-index: 22;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.28));
+}
+
+.vehicle-carrier-node:hover {
+  transform: translate(-50%, -50%) scale(1.24);
+  z-index: 36;
+}
+
+.vehicle-carrier-node.halted {
+  animation: vehicle-halt-pulse 1.3s infinite ease-in-out;
+}
+
+.vehicle-carrier-node.halted svg {
+  filter: drop-shadow(0 0 6px #ef4444);
+}
+
+@keyframes vehicle-halt-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.8)); }
+  50% { transform: translate(-50%, -50%) scale(1.08); filter: drop-shadow(0 0 14px rgba(239, 68, 68, 1)); }
+}
+
+.vehicle-carrier-badge {
+  position: absolute;
+  top: -9px;
+  right: -8px;
+  font-size: 0.58rem;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #0284c7;
+  color: #ffffff;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
   pointer-events: none;
-  transition: all 0.4s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.vehicle-carrier-node.halted .vehicle-carrier-badge {
+  background: #ef4444;
+  animation: blink-badge 1s infinite alternate;
+}
+
+@keyframes blink-badge {
+  from { opacity: 0.9; }
+  to { opacity: 1; }
+}
+
+/* Floating Glassmorphism VIN Overlay */
+.vehicle-hover-hud {
+  position: absolute;
+  z-index: 120;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #ffffff;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.5), 0 0 0 1px rgba(2, 132, 199, 0.35);
+  pointer-events: auto;
+  width: 250px;
+  transform: translate(-50%, -125%);
+  font-family: var(--font-brand);
+  animation: hud-pop 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.vehicle-hover-hud::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 12px;
+  height: 12px;
+  background: rgba(15, 23, 42, 0.95);
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+@keyframes hud-pop {
+  from { opacity: 0; transform: translate(-50%, -115%) scale(0.92); }
+  to { opacity: 1; transform: translate(-50%, -125%) scale(1); }
+}
+
+.hud-vin-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+}
+
+.hud-vin-text {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #38bdf8;
+  letter-spacing: 0.05em;
+}
+
+.hud-status-tag {
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.hud-status-tag.halted {
+  background: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.hud-detail-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.70rem;
+  color: #94a3b8;
+  margin-top: 3px;
+}
+
+.hud-detail-row strong {
+  color: #e2e8f0;
+}
+
+.hud-action-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 5px 8px;
+  background: #0284c7;
+  border: none;
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 0.70rem;
+  font-weight: 700;
+  font-family: var(--font-brand);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.hud-action-btn:hover {
+  background: #0369a1;
+}
+
+.car-body-silhouette {
+  display: none;
 }
 
 /* ==================== SPACIOUS CRISP STATION FOOTPRINTS ==================== */
@@ -984,6 +1156,65 @@ body {
   border-color: var(--status-critical);
   background: #fef2f2;
   animation: pulse-stoppage-red 1.4s infinite ease-in-out;
+}
+
+/* Active In-Cycle Machining Pulse */
+.station-schematic-node.in-cycle {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.45), 0 6px 18px rgba(2, 132, 199, 0.22);
+  animation: station-machining-pulse 1.8s infinite ease-in-out;
+}
+
+@keyframes station-machining-pulse {
+  0%, 100% { border-color: #0284c7; box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.35), 0 4px 12px rgba(2, 132, 199, 0.15); }
+  50% { border-color: #38bdf8; box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.55), 0 8px 24px rgba(2, 132, 199, 0.35); }
+}
+
+.station-schematic-node.in-cycle .station-glyph-wrap svg {
+  filter: drop-shadow(0 0 5px rgba(2, 132, 199, 0.7));
+}
+
+/* Station In-Cycle Machining Progress Bar */
+.station-dwell-bar-wrap {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: rgba(226, 232, 240, 0.8);
+  border-bottom-left-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.station-dwell-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #0284c7, #38bdf8);
+  transition: width 0.35s ease-out;
+}
+
+.station-schematic-node.status-critical .station-dwell-bar-fill {
+  background: #ef4444;
+}
+
+/* Queued Vehicle Carrier badge styling */
+.vehicle-carrier-node.queued {
+  opacity: 0.92;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.2));
+}
+
+.vehicle-carrier-node.queued .vehicle-carrier-badge {
+  background: #64748b;
+}
+
+.vehicle-carrier-node.in-station {
+  z-index: 25;
+  filter: drop-shadow(0 0 8px rgba(2, 132, 199, 0.6));
+}
+
+.vehicle-carrier-node.in-station .vehicle-carrier-badge {
+  background: #0284c7;
 }
 
 @keyframes pulse-stoppage-red {
@@ -1365,6 +1596,201 @@ body {
 .thm-sid {
   width: 44px;
   font-family: var(--font-mono);
+}
+
+/* Starvation Countdown */
+.countdown-gauge-box {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.countdown-timer-title {
+  font-family: var(--font-brand);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #92400e;
+  display: flex;
+  justify-content: space-between;
+}
+
+.countdown-items-wrap {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+.countdown-row {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  padding: 2px 0;
+  border-bottom: 1px dashed #fcd34d;
+  color: #b91c1c;
+}
+
+/* AI Action Recommendation */
+.ai-recommendation-panel {
+  background: #0f172a;
+  color: #ffffff;
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  box-shadow: var(--shadow-card);
+}
+
+.ai-rec-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ai-rec-conf {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+}
+
+.ai-rec-title {
+  font-family: var(--font-brand);
+  font-size: 0.98rem;
+  font-weight: 800;
+  margin-top: 5px;
+}
+
+.ai-rec-body {
+  font-size: 0.78rem;
+  color: #cbd5e1;
+  line-height: 1.4;
+  margin-top: 5px;
+}
+
+.ai-rec-impact {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #34d399;
+  margin-top: 8px;
+  border-top: 1px solid #334155;
+  padding-top: 6px;
+}
+
+/* ==================== BOTTOM KPI STRIP ==================== */
+.kpi-instrument-strip {
+  height: 62px;
+  background: #ffffff;
+  border-top: 1px solid var(--border-subtle);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  padding: 8px 24px;
+  z-index: 40;
+  box-shadow: 0 -2px 10px rgba(15, 23, 42, 0.04);
+}
+
+.kpi-gauge-tile {
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 4px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.kpi-gauge-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.kpi-gauge-lbl {
+  font-family: var(--font-brand);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.kpi-gauge-val {
+  font-family: var(--font-brand);
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.kpi-gauge-sub {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--status-nominal);
+}
+
+/* ==================== LEADERSHIP & WEEKLY ==================== */
+.view-panel { display: none; }
+.view-panel.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+.leadership-screen {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  padding: 16px 24px;
+  overflow: hidden;
+}
+
+.scada-lead-panel {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.lead-panel-title {
+  font-family: var(--font-brand);
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.lead-panel-sub {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.thermal-heatmap-grid {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.thm-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.thm-sid {
+  width: 44px;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--text-secondary);
@@ -1377,13 +1803,55 @@ body {
   background: #e2e8f0;
 }
 
-.vin-trace-schematic {
+.countdown-timer-title {
+  font-family: var(--font-brand);
+  font-size: 0.76rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: #92400e;
   display: flex;
   justify-content: space-between;
+}
+
+.vin-trace-schematic {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+}
+
+.vin-trail-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.vin-tick-node {
+  padding: 4px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 3px;
+  border: 1px solid var(--border-subtle);
+  background: #ffffff;
+  color: var(--text-secondary);
+}
+
+.vin-tick-node.passed {
+  border-color: #86efac;
+  background: #dcfce7;
+  color: #166534;
+}
+
+.vin-tick-node.failed {
+  border-color: #fca5a5;
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .countdown-items-wrap {
@@ -1733,83 +2201,4 @@ body {
 .whatif-tag.nominal {
   background: #dcfce7;
   color: #15803d;
-}
-
-/* ==========================================================================
-   TOPOLOGY EDITOR STYLES
-   ========================================================================== */
-.editor-node {
-  position: absolute;
-  width: 140px;
-  height: 100px;
-  background: #0a0d16;
-  border: 1px solid #0057ff;
-  color: white;
-  padding: 10px;
-  border-radius: 4px;
-  cursor: grab;
-  user-select: none;
-  z-index: 10;
-  font-family: var(--font-mono);
-}
-
-.editor-node:active {
-  cursor: grabbing;
-  border-color: #6366f1;
-}
-
-.ed-node-title {
-  font-weight: 700;
-  color: #0057ff;
-  font-size: 0.9rem;
-}
-
-.ed-node-desc {
-  font-size: 0.7rem;
-  color: #94a3b8;
-  margin-top: 5px;
-  height: 30px;
-  overflow: hidden;
-}
-
-.ed-port {
-  position: absolute;
-  width: 24px;
-  height: 24px;
-  background: #1c2333;
-  border: 1px solid #0057ff;
-  border-radius: 50%;
-  text-align: center;
-  line-height: 22px;
-  font-size: 0.5rem;
-  font-weight: 800;
-  cursor: crosshair;
-}
-
-.ed-port:hover {
-  background: #0057ff;
-}
-
-.ed-port-in {
-  top: 38px;
-  left: -12px;
-}
-
-.ed-port-out {
-  top: 38px;
-  right: -12px;
-}
-
-.ed-node-del {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  background: #ef4444;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
-  font-size: 0.6rem;
 }

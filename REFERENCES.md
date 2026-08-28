@@ -291,6 +291,22 @@ Maintains discrete snapshot memory for all layout manipulations:
   - Redo: $\mathcal{S}_{\text{current}} \leftarrow \text{Pop}(\text{RedoStack})$, $\text{UndoStack} \leftarrow \text{UndoStack} \cup \{\mathcal{S}_{\text{current}}\}$.
 - **Code Implementation**: [`frontend/js/topology_editor.js`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/frontend/js/topology_editor.js#L20-L100).
 
+### 10.4 Rail-Conforming Conveyor Geometry & Strict FIFO Fleet Dynamics
+Automotive plant conveyor tracking is evaluated through cubic parametric Bernstein Bézier polynomials and discrete-event queue mechanics:
+1. **Parametric Conveyor Trajectory**:
+   $$\mathbf{B}(t) = (1-t)^3 \mathbf{P}_0 + 3(1-t)^2 t \mathbf{P}_1 + 3(1-t) t^2 \mathbf{P}_2 + t^3 \mathbf{P}_3, \quad t \in [0, 1]$$
+   - $\mathbf{P}_0 = (x_1, y_1)$: Exit port of upstream station cradle ($x_{\text{node}} + W_{\text{node}}, y_{\text{node}} + \frac{H_{\text{node}}}{2}$).
+   - $\mathbf{P}_1 = (\text{midX}, y_1), \mathbf{P}_2 = (\text{midX}, y_2)$: S-curve cubic control points.
+   - $\mathbf{P}_3 = (x_2, y_2)$: Entrance port of downstream station cradle.
+2. **Machine Cradle Lock (Capacity = 1)**:
+   $$\text{Occupancy}(S_i) \in \{0, 1\}$$
+   A station machine cradle admits exactly one vehicle in active machining dwell state at a time.
+3. **Strict FIFO Conveyor Queue Spacing**:
+   For vehicle $v_j$ in queue position $k \in \{0, 1, 2, \dots\}$ awaiting entry to station $S_i$:
+   $$\text{progress}_{\max}(k) = \max\left(0.20, 0.85 - 0.16 \cdot k\right)$$
+   Ensures non-overlapping physical queue formation along conveyor infeed rails during stoppages and sequential FIFO admittance upon line resumption.
+- **Code Implementation**: [`frontend/js/twin_scene.js`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/frontend/js/twin_scene.js#L250-L450), [`simulator/generator.py`](file:///c:/Android%20Projects/accenture/digitaltwin-ai/simulator/generator.py#L240-L280).
+
 ---
 
 ## 11. Summary Traceability Matrix

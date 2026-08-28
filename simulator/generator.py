@@ -44,6 +44,8 @@ class LineSimulator:
         self.buffers: Dict[str, int] = {}
         self.station_buffers: Dict[str, deque] = {}
         self.station_processing: Dict[str, Optional[str]] = {}
+        self.station_dwell_ticks: Dict[str, int] = {}
+        self.target_jph: float = 55.0
         self.vehicle_counter = 1000
         self.active_vehicles: Dict[str, Dict[str, Any]] = {}
         self.completed_vehicles: deque = deque(maxlen=500)
@@ -53,6 +55,7 @@ class LineSimulator:
             self.buffers[sid] = max(1, int(cap * 0.5))
             self.station_buffers[sid] = deque(maxlen=cap)
             self.station_processing[sid] = None
+            self.station_dwell_ticks[sid] = 0
 
     def get_simulated_time(self) -> str:
         sim_dt = self.start_time + timedelta(minutes=self.current_tick)
@@ -66,9 +69,9 @@ class LineSimulator:
         ground_truth: List[Dict[str, Any]] = []
         updated_genealogy_records: List[Dict[str, Any]] = []
         
-        # 1. Vehicle Introduction at ST01 (Inflow rate scales with production speed)
-        inflow_prob = min(0.98, 0.85 * self.speed_factor)
-        if self.rng.random() < inflow_prob:
+        # 1. Vehicle Ingress at ST01 (Paced cleanly: max 12 active vehicles on the line to prevent overpiling)
+        spawn_prob = min(0.6, max(0.15, self.target_jph / 90.0))
+        if self.rng.random() < spawn_prob and len(self.active_vehicles) < 12 and len(self.station_buffers["ST01"]) == 0:
             self.vehicle_counter += 1
             vin = f"VIN-2026-{self.vehicle_counter:05d}"
             veh_info = {
@@ -81,10 +84,10 @@ class LineSimulator:
                 "defect_flags": []
             }
             self.active_vehicles[vin] = veh_info
-            if len(self.station_buffers["ST01"]) < self.stations["ST01"]["buffer_capacity_units"]:
-                self.station_buffers["ST01"].append(vin)
+            self.station_buffers["ST01"].append(vin)
 
         # 2. Process Station Telemetry & Physical States
+        dispatched_this_tick: Dict[str, str] = {}
         for sid, s in self.stations.items():
             nominal_target_ct = s["target_cycle_time_s"]
             effective_target_ct = nominal_target_ct / self.speed_factor
@@ -141,11 +144,9 @@ class LineSimulator:
                 defect_flag = True
                 defect_type = latent_type or "weld_porosity"
 
-            # Assign vehicle to station if slot is empty and buffer has queue
-            if self.station_processing[sid] is None and len(self.station_buffers[sid]) > 0:
-                self.station_processing[sid] = self.station_buffers[sid].popleft()
-
             current_vin = self.station_processing[sid]
+            if current_vin and not is_stopped:
+                self.station_dwell_ticks[sid] += 1
 
             # Attach defect to current vehicle genealogy
             if defect_flag and current_vin and current_vin in self.active_vehicles:
@@ -199,8 +200,11 @@ class LineSimulator:
                 power_kw = None
                 energy_kwh = None
 
-            # Buffer count represents items in buffer plus current processing
+            # Buffer count represents items in buffer queue plus current processing
             self.buffers[sid] = len(self.station_buffers[sid]) + (1 if current_vin else 0)
+            queued_list = list(self.station_buffers[sid])
+            required_dwell = max(1, math.ceil(actual_ct / 55.0))
+            dwell_prog = round(min(1.0, self.station_dwell_ticks[sid] / max(1, required_dwell)), 2) if current_vin else 0.0
 
             # Telemetry Event Record
             if is_blackout:
@@ -218,6 +222,10 @@ class LineSimulator:
                     "defect_flag": False,
                     "defect_type": None,
                     "vehicle_id": None,
+                    "processing_vin": None,
+                    "queued_vins": queued_list,
+                    "is_processing": False,
+                    "dwell_progress": 0.0,
                     "sensor_tier": tier,
                     "is_blackout": True,
                     "is_stopped": False
@@ -237,41 +245,57 @@ class LineSimulator:
                     "defect_flag": defect_flag,
                     "defect_type": defect_type,
                     "vehicle_id": current_vin,
+                    "processing_vin": current_vin,
+                    "queued_vins": queued_list,
+                    "is_processing": bool(current_vin and not is_stopped),
+                    "dwell_progress": dwell_prog,
                     "sensor_tier": tier,
                     "is_blackout": False,
                     "is_stopped": is_stopped
                 }
             tick_telemetry.append(event)
 
-            # Vehicle Flow & Transition (if completed this cycle and station not stopped)
-            if current_vin and not is_stopped and self.rng.random() < 0.88:
-                if current_vin in self.active_vehicles:
-                    self.active_vehicles[current_vin]["visit_history"].append({
-                        "station_id": sid,
-                        "tick": self.current_tick,
-                        "cycle_time_s": round(actual_ct, 2),
-                        "defect_flag": defect_flag
-                    })
-                    updated_genealogy_records.append(dict(self.active_vehicles[current_vin]))
+            # Check if current station finished its dwell cycle
+            if current_vin and not is_stopped and self.station_dwell_ticks[sid] >= required_dwell:
+                dispatched_this_tick[sid] = current_vin
 
-                downstreams = s["downstream_ids"]
-                if downstreams:
-                    # Pick downstream with smallest queue buffer (load balancing)
-                    target_down = min(downstreams, key=lambda d: len(self.station_buffers.get(d, [])))
-                    if len(self.station_buffers[target_down]) < self.stations[target_down]["buffer_capacity_units"]:
-                        self.station_buffers[target_down].append(current_vin)
-                        if current_vin in self.active_vehicles:
-                            self.active_vehicles[current_vin]["current_station"] = target_down
-                else:
-                    # Terminal Station (ST40 Buy-Off) Completed!
-                    if current_vin in self.active_vehicles:
-                        v_rec = self.active_vehicles.pop(current_vin)
-                        v_rec["completion_tick"] = self.current_tick
-                        v_rec["status"] = "COMPLETED"
-                        self.completed_vehicles.append(v_rec)
-                        updated_genealogy_records.append(v_rec)
+        # Phase 2: Dispatch completed vehicles downstream (cleanly isolated from pickup)
+        for sid, vin in dispatched_this_tick.items():
+            s = self.stations[sid]
+            downstreams = s["downstream_ids"]
+            
+            if downstreams:
+                # Pick downstream with smallest queue buffer (load balancing)
+                target_down = min(downstreams, key=lambda d: len(self.station_buffers.get(d, [])))
+                if len(self.station_buffers[target_down]) < self.stations[target_down]["buffer_capacity_units"]:
+                    self.station_buffers[target_down].append(vin)
+                    if vin in self.active_vehicles:
+                        self.active_vehicles[vin]["current_station"] = target_down
+                        self.active_vehicles[vin]["visit_history"].append({
+                            "station_id": target_down,
+                            "tick": self.current_tick,
+                            "defect_flag": False
+                        })
+                        updated_genealogy_records.append(dict(self.active_vehicles[vin]))
+            else:
+                # Terminal Station (ST40 Buy-Off) Completed!
+                if vin in self.active_vehicles:
+                    v_rec = self.active_vehicles.pop(vin)
+                    v_rec["completion_tick"] = self.current_tick
+                    v_rec["status"] = "COMPLETED"
+                    self.completed_vehicles.append(v_rec)
+                    if len(self.completed_vehicles) > 50:
+                        self.completed_vehicles.pop(0)
+                    updated_genealogy_records.append(v_rec)
 
-                self.station_processing[sid] = None
+            self.station_processing[sid] = None
+            self.station_dwell_ticks[sid] = 0
+
+        # Phase 3: Admit next queued vehicle into empty cradles
+        for sid in self.stations.keys():
+            if self.station_processing[sid] is None and len(self.station_buffers[sid]) > 0:
+                self.station_processing[sid] = self.station_buffers[sid].popleft()
+                self.station_dwell_ticks[sid] = 0
 
         return {
             "tick": self.current_tick,

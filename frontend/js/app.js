@@ -2,6 +2,17 @@
  * DigitalTwin.ai — TwinSphere SCADA Controller with Zero-Overlap High-Clearance Coordinates
  */
 
+// Auto-route API calls to localhost:8000 if opened directly from filesystem
+const originalFetch = window.fetch;
+window.fetch = async function(...args) {
+  if (typeof args[0] === 'string' && args[0].startsWith('/api/')) {
+    if (window.location.protocol === 'file:') {
+      args[0] = 'http://localhost:8000' + args[0];
+    }
+  }
+  return originalFetch.apply(this, args);
+};
+
 let stationsMeta = {};
 let edgesList = [];
 let latestTickData = null;
@@ -13,54 +24,54 @@ let sceneEngine = null;
 
 function getBaselineFactoryCoordinates() {
   return {
-    // === ZONE 1: BODY CONSTRUCTION (ST01 - ST14) [Top: 10px, Height: 360px] ===
-    "ST01": { x: 100,  y: 130, isParallel: false },
-    "ST02": { x: 260,  y: 130, isParallel: false },
-    "ST03": { x: 420,  y: 40,  isParallel: true, branch: "FORK: UPPER LH" },
-    "ST04": { x: 420,  y: 220, isParallel: true, branch: "FORK: LOWER RH" },
-    "ST05": { x: 580,  y: 130, isParallel: false, branch: "MERGE" },
-    "ST06": { x: 740,  y: 130, isParallel: false },
-    "ST07": { x: 900,  y: 40,  isParallel: true, branch: "FORK: RESPOT A" },
-    "ST08": { x: 900,  y: 220, isParallel: true, branch: "FORK: RESPOT B" },
-    "ST09": { x: 1060, y: 130, isParallel: false, branch: "MERGE" },
-    "ST10": { x: 1220, y: 130, isParallel: false },
-    "ST11": { x: 1380, y: 130, isParallel: false },
-    "ST12": { x: 1540, y: 130, isParallel: false },
-    "ST13": { x: 1700, y: 130, isParallel: false },
-    "ST14": { x: 1860, y: 130, isParallel: false },
+    // === ZONE 1: BODY CONSTRUCTION (ST01 - ST14) [Top: 10px, Height: 430px, Forward Flow] ===
+    "ST01": { x: 80,   y: 170, isParallel: false },
+    "ST02": { x: 310,  y: 170, isParallel: false },
+    "ST03": { x: 540,  y: 35,  isParallel: true, branch: "FORK: UPPER LH" },
+    "ST04": { x: 540,  y: 305, isParallel: true, branch: "FORK: LOWER RH" },
+    "ST05": { x: 770,  y: 170, isParallel: false, branch: "MERGE" },
+    "ST06": { x: 1000, y: 170, isParallel: false },
+    "ST07": { x: 1230, y: 35,  isParallel: true, branch: "FORK: RESPOT A" },
+    "ST08": { x: 1230, y: 305, isParallel: true, branch: "FORK: RESPOT B" },
+    "ST09": { x: 1460, y: 170, isParallel: false, branch: "MERGE" },
+    "ST10": { x: 1690, y: 170, isParallel: false },
+    "ST11": { x: 1920, y: 170, isParallel: false },
+    "ST12": { x: 2150, y: 170, isParallel: false },
+    "ST13": { x: 2380, y: 170, isParallel: false },
+    "ST14": { x: 2610, y: 170, isParallel: false },
 
-    // === ZONE 2: PAINT SHOP (ST15 - ST22) [Top: 390px, Height: 190px, Reverse Flow] ===
-    "ST15": { x: 1860, y: 420, isParallel: false },
-    "ST16": { x: 1610, y: 420, isParallel: false },
-    "ST17": { x: 1360, y: 420, isParallel: false },
-    "ST18": { x: 1110, y: 420, isParallel: false },
-    "ST19": { x: 860,  y: 420, isParallel: false },
-    "ST20": { x: 610,  y: 420, isParallel: false },
-    "ST21": { x: 360,  y: 420, isParallel: false },
-    "ST22": { x: 110,  y: 420, isParallel: false },
+    // === ZONE 2: PAINT SHOP (ST15 - ST22) [Top: 450px, Height: 210px, Reverse Flow Right-to-Left] ===
+    "ST15": { x: 2610, y: 480, isParallel: false },
+    "ST16": { x: 2248, y: 480, isParallel: false },
+    "ST17": { x: 1886, y: 480, isParallel: false },
+    "ST18": { x: 1524, y: 480, isParallel: false },
+    "ST19": { x: 1162, y: 480, isParallel: false },
+    "ST20": { x: 800,  y: 480, isParallel: false },
+    "ST21": { x: 438,  y: 480, isParallel: false },
+    "ST22": { x: 80,   y: 480, isParallel: false },
 
-    // === ZONE 3: FINAL ASSEMBLY (ST23 - ST40) [Top: 600px, Height: 500px] ===
-    // Row 3A (Forward Flow)
-    "ST23": { x: 110,  y: 710, isParallel: false },
-    "ST24": { x: 270,  y: 710, isParallel: false },
-    "ST25": { x: 430,  y: 630, isParallel: true, branch: "FORK: COCKPIT" },
-    "ST26": { x: 430,  y: 790, isParallel: true, branch: "FORK: SUSPENSION" },
-    "ST27": { x: 590,  y: 710, isParallel: false, branch: "MERGE" },
-    "ST28": { x: 750,  y: 710, isParallel: false },
-    "ST29": { x: 910,  y: 710, isParallel: false },
-    "ST30": { x: 1070, y: 710, isParallel: false },
-    "ST31": { x: 1230, y: 710, isParallel: false },
-    "ST32": { x: 1390, y: 710, isParallel: false },
+    // === ZONE 3: FINAL ASSEMBLY (ST23 - ST40) [Top: 670px, Height: 580px] ===
+    // Row 3A (Forward Flow Left-to-Right)
+    "ST23": { x: 80,   y: 810, isParallel: false },
+    "ST24": { x: 310,  y: 810, isParallel: false },
+    "ST25": { x: 540,  y: 685, isParallel: true, branch: "FORK: COCKPIT" },
+    "ST26": { x: 540,  y: 935, isParallel: true, branch: "FORK: SUSPENSION" },
+    "ST27": { x: 770,  y: 810, isParallel: false, branch: "MERGE" },
+    "ST28": { x: 1000, y: 810, isParallel: false },
+    "ST29": { x: 1230, y: 810, isParallel: false },
+    "ST30": { x: 1460, y: 810, isParallel: false },
+    "ST31": { x: 1690, y: 810, isParallel: false },
+    "ST32": { x: 1920, y: 810, isParallel: false },
 
-    // Row 3B (Reverse Flow)
-    "ST33": { x: 1390, y: 940, isParallel: false },
-    "ST34": { x: 1210, y: 940, isParallel: false },
-    "ST35": { x: 1030, y: 940, isParallel: false },
-    "ST36": { x: 850,  y: 940, isParallel: false },
-    "ST37": { x: 670,  y: 940, isParallel: false },
-    "ST38": { x: 490,  y: 940, isParallel: false },
-    "ST39": { x: 310,  y: 940, isParallel: false },
-    "ST40": { x: 130,  y: 940, isParallel: false }
+    // Row 3B (Reverse Flow Right-to-Left)
+    "ST33": { x: 1920, y: 1100, isParallel: false },
+    "ST34": { x: 1657, y: 1100, isParallel: false },
+    "ST35": { x: 1394, y: 1100, isParallel: false },
+    "ST36": { x: 1131, y: 1100, isParallel: false },
+    "ST37": { x: 868,  y: 1100, isParallel: false },
+    "ST38": { x: 605,  y: 1100, isParallel: false },
+    "ST39": { x: 342,  y: 1100, isParallel: false },
+    "ST40": { x: 80,   y: 1100, isParallel: false }
   };
 }
 
@@ -105,6 +116,22 @@ function switchView(viewName) {
   if (viewName === "leadership") {
     loadLeadershipData();
     renderVinTrailGrid();
+    // Start auto-refresh for heatmap while LEAD tab is active
+    if (!window._leadershipRefreshTimer) {
+      window._leadershipRefreshTimer = setInterval(() => {
+        if (currentView === "leadership") {
+          loadLeadershipData();
+        } else {
+          clearInterval(window._leadershipRefreshTimer);
+          window._leadershipRefreshTimer = null;
+        }
+      }, 3000);
+    }
+  } else {
+    if (window._leadershipRefreshTimer) {
+      clearInterval(window._leadershipRefreshTimer);
+      window._leadershipRefreshTimer = null;
+    }
   }
   if (viewName === "weekly") {
     loadLeadershipData();
@@ -126,7 +153,7 @@ async function loadStationsTopology() {
     stationsMeta = data.stations || {};
     edgesList = data.edges || [];
     if (sceneEngine) {
-      sceneEngine.renderScene(stationsMeta, edgesList);
+      sceneEngine.renderScene(stationsMeta, edgesList, data.active_vehicles || []);
     }
     populateFaultStationDropdown();
   } catch (err) {
@@ -136,7 +163,10 @@ async function loadStationsTopology() {
 
 function initStreaming() {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const wsUrl = `${protocol}//${window.location.host}/api/ws/stream`;
+  let wsUrl = `${protocol}//${window.location.host}/api/ws/stream`;
+  if (window.location.protocol === 'file:') {
+    wsUrl = `ws://localhost:8000/api/ws/stream`;
+  }
 
   try {
     ws = new WebSocket(wsUrl);
@@ -219,21 +249,32 @@ function handleTickUpdate(payload) {
 
   if (payload.stations) {
     let onlineCount = 0;
+    const totalStations = Object.keys(payload.stations).length || 40;
     Object.keys(payload.stations).forEach((sid) => {
       const st = payload.stations[sid];
-      if (!st.is_blackout) onlineCount++;
+      if (!st.is_blackout && !st.is_stopped) onlineCount++;
     });
 
     const onlineEl = document.getElementById("kpi-machines-online");
-    if (onlineEl) onlineEl.innerText = onlineCount;
+    if (onlineEl) onlineEl.innerText = `${onlineCount}/${totalStations}`;
 
     if (sceneEngine) {
-      sceneEngine.updateTelemetry(payload.stations);
+      sceneEngine.updateTelemetry(payload.stations, payload.vehicles);
     }
   }
 
   updateCockpitDrawer(selectedStationId);
 }
+
+window.traceVinFromVehicle = function(vin) {
+  if (!vin) return;
+  switchView('leadership');
+  const input = document.getElementById("genealogy-input");
+  if (input) input.value = vin;
+  setTimeout(() => {
+    traceGenealogy();
+  }, 120);
+};
 
 function selectStation(sid) {
   selectedStationId = sid;
@@ -405,6 +446,21 @@ function initSchematicInteractivity() {
 }
 
 async function controlSim(action) {
+  const btnRun = document.getElementById("btn-run");
+  const btnHold = document.getElementById("btn-hold");
+  const btnStep = document.getElementById("btn-step");
+
+  if (action === "run" || action === "play") {
+    if (btnRun) btnRun.classList.add("active-play");
+    if (btnHold) btnHold.classList.remove("active-play");
+  } else if (action === "pause" || action === "hold") {
+    if (btnRun) btnRun.classList.remove("active-play");
+    if (btnHold) btnHold.classList.add("active-play");
+  } else if (action === "step") {
+    if (btnRun) btnRun.classList.remove("active-play");
+    if (btnHold) btnHold.classList.add("active-play");
+  }
+
   try {
     const res = await fetch("/api/simulator/control", {
       method: "POST",
@@ -412,6 +468,12 @@ async function controlSim(action) {
       body: JSON.stringify({ action })
     });
     const data = await res.json();
+    if (data.payload) {
+      handleTickUpdate(data.payload);
+      if (currentView === "leadership" || currentView === "weekly") {
+        loadLeadershipData();
+      }
+    }
     console.log("Sim control:", data);
   } catch (err) {
     console.error("Control error:", err);
@@ -425,7 +487,7 @@ async function setSpeed(mult, btn) {
     await fetch("/api/simulator/control", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "speed", speed_multiplier: mult })
+      body: JSON.stringify({ action: "set_speed", speed_multiplier: mult })
     });
   } catch (err) {
     console.error("Speed error:", err);
@@ -448,6 +510,9 @@ async function injectAnomaly(anomalyType, stationId) {
       handleTickUpdate(data.payload);
     }
     selectStation(stationId);
+    if (currentView === "leadership" || currentView === "weekly") {
+      loadLeadershipData();
+    }
     console.log("Injected anomaly successfully:", data);
   } catch (err) {
     console.error("Injection error:", err);
@@ -466,6 +531,9 @@ async function clearAllAnomalies() {
       handleTickUpdate(data.payload);
     }
     selectStation(selectedStationId);
+    if (currentView === "leadership" || currentView === "weekly") {
+      loadLeadershipData();
+    }
     console.log("Cleared all anomalies:", data);
   } catch (err) {
     console.error("Error clearing anomalies:", err);
@@ -509,7 +577,7 @@ async function loadLeadershipData() {
     const res = await fetch("/api/leadership/summary");
     const data = await res.json();
     renderThermalHeatmap(data.heatmap || []);
-    renderParetoCauses(data.root_causes || []);
+    renderParetoCauses(data.top_root_causes || []);
   } catch (err) {
     console.warn("Leadership load error:", err);
     renderThermalHeatmap([]);
@@ -640,14 +708,45 @@ function renderVinTrailGrid() {
 
 async function traceGenealogy() {
   const input = document.getElementById("genealogy-input");
-  const vin = input ? input.value.trim() : "VIN-2026-01004";
+  let vin = input ? input.value.trim() : "";
   const resultEl = document.getElementById("genealogy-result");
   if (!resultEl) return;
+
+  if (!vin) {
+    try {
+      const vRes = await fetch("/api/vehicles/recent?limit=1");
+      const vData = await vRes.json();
+      if (vData.recent_completed && vData.recent_completed.length > 0) {
+        vin = vData.recent_completed[vData.recent_completed.length - 1].vehicle_id;
+      } else if (vData.active_in_line && vData.active_in_line.length > 0) {
+        vin = vData.active_in_line[vData.active_in_line.length - 1].vehicle_id;
+      }
+      if (input && vin) input.value = vin;
+    } catch (e) {}
+  }
+  if (!vin) vin = "VIN-2026-01001";
 
   try {
     const res = await fetch(`/api/vehicles/${vin}/genealogy`);
     const data = await res.json();
     
+    if (data.status === "NOT_FOUND") {
+      try {
+        const vRes = await fetch("/api/vehicles/recent?limit=1");
+        const vData = await vRes.json();
+        let fallbackVin = null;
+        if (vData.recent_completed && vData.recent_completed.length > 0) {
+          fallbackVin = vData.recent_completed[vData.recent_completed.length - 1].vehicle_id;
+        } else if (vData.active_in_line && vData.active_in_line.length > 0) {
+          fallbackVin = vData.active_in_line[vData.active_in_line.length - 1].vehicle_id;
+        }
+        if (fallbackVin && fallbackVin !== vin) {
+          if (input) input.value = fallbackVin;
+          return traceGenealogy();
+        }
+      } catch (e) {}
+    }
+
     // Reset all nodes
     renderVinTrailGrid();
     
@@ -676,14 +775,15 @@ async function traceGenealogy() {
       }
     }
 
-    const defectCount = data.defect_count !== undefined ? data.defect_count : (data.defect_flags ? data.defect_flags.length : 0);
+    const visitedCount = visitedSids.size || data.total_stations_visited || (trace ? trace.length : 0);
+    const defectCount = defectSids.size || (data.defect_count !== undefined ? data.defect_count : (data.defect_flags ? data.defect_flags.length : 0));
     const isPassed = defectCount === 0;
 
     resultEl.innerHTML = `
       <span style="color: ${isPassed ? 'var(--status-nominal)' : 'var(--status-critical)'}; font-weight: 800;">${data.vin || vin}:</span> 
-      ${data.total_stations_visited || trace.length}/40 Stations Traversed • 
+      ${visitedCount}/40 Stations Traversed • 
       Defects Flagged: <strong style="color: ${isPassed ? 'var(--status-nominal)' : 'var(--status-critical)'};">${defectCount}</strong> • 
-      Quality Status: <strong style="color: ${isPassed ? 'var(--status-nominal)' : 'var(--status-critical)'}; text-transform: uppercase;">${data.status || 'PASSED FINAL BUY-OFF'}</strong>
+      Quality Status: <strong style="color: ${isPassed ? 'var(--status-nominal)' : 'var(--status-critical)'}; text-transform: uppercase;">${data.status || (isPassed ? 'PASSED FINAL BUY-OFF' : 'FLAGGED_REWORK')}</strong>
     `;
   } catch (err) {
     resultEl.innerHTML = `<span style="color: var(--status-critical);">Failed to trace ${vin}: ${err.message}</span>`;
@@ -698,6 +798,16 @@ function updateLineBalancing(jphVal) {
   const taktLbl = document.getElementById("slider-takt-val");
   if (jphLbl) jphLbl.innerText = `Target Output: ${jph} JPH`;
   if (taktLbl) taktLbl.innerText = `Required Takt: ${taktSec.toFixed(1)}s`;
+
+  // Send JPH update to backend simulator
+  if (window._jphDebounceTimer) clearTimeout(window._jphDebounceTimer);
+  window._jphDebounceTimer = setTimeout(() => {
+    fetch("/api/simulator/control", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_jph", jph: jph })
+    }).catch(e => console.warn("Failed to sync JPH to simulator:", e));
+  }, 250);
 
   // Calculate bottlenecks from stationsMeta
   const sids = Object.keys(stationsMeta).length > 0 

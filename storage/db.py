@@ -75,7 +75,8 @@ class TwinStore:
                     defect_type TEXT,
                     vehicle_id TEXT,
                     sensor_tier TEXT,
-                    is_blackout INTEGER
+                    is_blackout INTEGER,
+                    is_stopped INTEGER
                 )
             ''')
             
@@ -160,14 +161,14 @@ class TwinStore:
                     ev.get("buffer_level"), ev.get("buffer_capacity"), ev.get("vibration"), ev.get("temperature"),
                     ev.get("power_kw"), ev.get("energy_kwh"), 1 if ev.get("defect_flag") else 0,
                     ev.get("defect_type"), ev.get("vehicle_id"), ev.get("sensor_tier"),
-                    1 if ev.get("is_blackout") else 0
+                    1 if ev.get("is_blackout") else 0, 1 if ev.get("is_stopped") else 0
                 )
                 for ev in tick_events
             ]
             cursor.executemany('''
                 INSERT INTO telemetry 
-                (tick, timestamp, station_id, cycle_time_s, buffer_level, buffer_capacity, vibration, temperature, power_kw, energy_kwh, defect_flag, defect_type, vehicle_id, sensor_tier, is_blackout)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (tick, timestamp, station_id, cycle_time_s, buffer_level, buffer_capacity, vibration, temperature, power_kw, energy_kwh, defect_flag, defect_type, vehicle_id, sensor_tier, is_blackout, is_stopped)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', telemetry_records)
             
             if ground_truth:
@@ -252,7 +253,7 @@ class TwinStore:
             cursor.execute('''
                 SELECT * FROM telemetry 
                 WHERE station_id = ? 
-                ORDER BY tick DESC LIMIT ?
+                ORDER BY id DESC LIMIT ?
             ''', (station_id, limit))
             rows = cursor.fetchall()
             return [dict(r) for r in reversed(rows)]
@@ -262,7 +263,7 @@ class TwinStore:
             cursor = conn.cursor()
             cursor.execute('''
                 SELECT * FROM telemetry 
-                ORDER BY tick DESC LIMIT ?
+                ORDER BY id DESC LIMIT ?
             ''', (window_minutes * 40,))
             rows = cursor.fetchall()
             return [dict(r) for r in rows]
@@ -307,9 +308,23 @@ class TwinStore:
             cursor = conn.cursor()
             cursor.execute('''
                 SELECT * FROM ground_truth_anomalies 
-                ORDER BY tick DESC LIMIT ?
+                ORDER BY id DESC LIMIT ?
             ''', (limit,))
             return [dict(r) for r in cursor.fetchall()]
+
+    def get_max_tick(self) -> int:
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT MAX(tick) FROM telemetry")
+            row = cursor.fetchone()
+            return row[0] if row and row[0] is not None else 0
+
+    def get_vehicle_genealogy_record(self, vin: str) -> Optional[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM vehicle_genealogy WHERE vehicle_id = ?", (vin,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
 
     def get_vehicle_genealogy(self, vin: str) -> List[Dict[str, Any]]:
         with self.get_connection() as conn:

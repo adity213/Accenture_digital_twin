@@ -10,6 +10,7 @@ class SimControlRequest(BaseModel):
     anomaly_type: Optional[str] = None
     station_id: Optional[str] = None
     duration_ticks: Optional[int] = 60
+    jph: Optional[float] = None
 
 # Alias for backward compatibility
 SimulatorControlRequest = SimControlRequest

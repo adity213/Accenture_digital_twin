@@ -1,15 +1,31 @@
 /**
- * DigitalTwin.ai — TwinSphere SCADA Connected Conveyor Engine v3.0
+ * DigitalTwin.ai — TwinSphere SCADA Connected Conveyor Engine v4.5
+ * Strict FIFO Conveyor Queue & Sequential Machine Dwell Engine
+ * - Station Cradle Lock: Exactly ONE vehicle can dock & cycle in a machine at a time
+ * - Strict FIFO Queueing: Backlogged vehicles queue neatly along the incoming conveyor track (Slot #1, Slot #2)
+ * - Cascading Delay Depiction: After a stoppage is cleared, queued cars process sequentially ONE-BY-ONE
+ * - 100% Rail-Conforming: All queued and transit vehicles stay perfectly centered on the SVG conveyor curves
+ * - 1:1 Live Backend Fleet Sync: Stable colors, real-time VIN telemetry & accurate genealogy
  */
 
 class TwinSceneEngine {
   constructor(canvasContainerId, svgLayerId) {
     this.container = document.getElementById(canvasContainerId);
     this.svgLayer = document.getElementById(svgLayerId);
+    this.vehicleLayer = document.getElementById("vehicle-fleet-layer") || this.container;
     this.stations = {};
     this.edges = [];
+    this.edgePaths = {};
     this.selectedId = "ST06";
-    this.carBodies = [];
+    this.stationsPayload = {};
+    this.fleet = [];
+    this.activeHudVin = null;
+    this.isHudPinned = false;
+    this.hudElement = null;
+    this.hudCloseTimer = null;
+    this.animFrameId = null;
+    this.initHoverHud();
+    this.startMotionLoop();
   }
 
   static getMachineGlyph(type, sid, statusColor = "#15803d", isManual = false) {
@@ -132,172 +148,156 @@ class TwinSceneEngine {
     }
   }
 
+  initHoverHud() {
+    let hud = document.getElementById("vehicle-hover-hud");
+    const parent = document.getElementById("living-line-stage") || this.container;
+    if (!hud && parent) {
+      hud = document.createElement("div");
+      hud.id = "vehicle-hover-hud";
+      hud.className = "vehicle-hover-hud";
+      hud.style.display = "none";
+      parent.appendChild(hud);
+    }
+    if (hud) {
+      hud.onclick = (e) => e.stopPropagation();
+      hud.onmouseenter = () => {
+        if (this.hudCloseTimer) {
+          clearTimeout(this.hudCloseTimer);
+          this.hudCloseTimer = null;
+        }
+      };
+      hud.onmouseleave = () => {
+        if (!this.isHudPinned) {
+          this.scheduleHideHud(200);
+        }
+      };
+    }
+    this.hudElement = hud;
+
+    // Dismiss HUD when clicking anywhere outside
+    document.addEventListener("pointerdown", (e) => {
+      if (this.hudElement && this.hudElement.style.display !== "none") {
+        if (!e.target.closest(".vehicle-carrier-node") && !e.target.closest(".vehicle-hover-hud")) {
+          this.hideVehicleHud(true);
+        }
+      }
+    });
+  }
+
   calculateFloorCoordinates(stations, edges) {
     if (typeof window.stationCoords === "undefined") {
       window.stationCoords = {};
     }
 
-    // Industrial calibrated floor baseline for standard ST01 - ST40
     const baseline = (typeof getBaselineFactoryCoordinates === "function") 
       ? getBaselineFactoryCoordinates() 
       : {
-        "ST01": { x: 100,  y: 130, isParallel: false },
-        "ST02": { x: 260,  y: 130, isParallel: false },
-        "ST03": { x: 420,  y: 40,  isParallel: true, branch: "FORK: UPPER LH" },
-        "ST04": { x: 420,  y: 220, isParallel: true, branch: "FORK: LOWER RH" },
-        "ST05": { x: 580,  y: 130, isParallel: false, branch: "MERGE" },
-        "ST06": { x: 740,  y: 130, isParallel: false },
-        "ST07": { x: 900,  y: 40,  isParallel: true, branch: "FORK: RESPOT A" },
-        "ST08": { x: 900,  y: 220, isParallel: true, branch: "FORK: RESPOT B" },
-        "ST09": { x: 1060, y: 130, isParallel: false, branch: "MERGE" },
-        "ST10": { x: 1220, y: 130, isParallel: false },
-        "ST11": { x: 1380, y: 130, isParallel: false },
-        "ST12": { x: 1540, y: 130, isParallel: false },
-        "ST13": { x: 1700, y: 130, isParallel: false },
-        "ST14": { x: 1860, y: 130, isParallel: false },
+        "ST01": { x: 80,   y: 170, isParallel: false },
+        "ST02": { x: 310,  y: 170, isParallel: false },
+        "ST03": { x: 540,  y: 35,  isParallel: true, branch: "FORK: UPPER LH" },
+        "ST04": { x: 540,  y: 305, isParallel: true, branch: "FORK: LOWER RH" },
+        "ST05": { x: 770,  y: 170, isParallel: false, branch: "MERGE" },
+        "ST06": { x: 1000, y: 170, isParallel: false },
+        "ST07": { x: 1230, y: 35,  isParallel: true, branch: "FORK: RESPOT A" },
+        "ST08": { x: 1230, y: 305, isParallel: true, branch: "FORK: RESPOT B" },
+        "ST09": { x: 1460, y: 170, isParallel: false, branch: "MERGE" },
+        "ST10": { x: 1690, y: 170, isParallel: false },
+        "ST11": { x: 1920, y: 170, isParallel: false },
+        "ST12": { x: 2150, y: 170, isParallel: false },
+        "ST13": { x: 2380, y: 170, isParallel: false },
+        "ST14": { x: 2610, y: 170, isParallel: false },
 
-        "ST15": { x: 1860, y: 420, isParallel: false },
-        "ST16": { x: 1610, y: 420, isParallel: false },
-        "ST17": { x: 1360, y: 420, isParallel: false },
-        "ST18": { x: 1110, y: 420, isParallel: false },
-        "ST19": { x: 860,  y: 420, isParallel: false },
-        "ST20": { x: 610,  y: 420, isParallel: false },
-        "ST21": { x: 360,  y: 420, isParallel: false },
-        "ST22": { x: 110,  y: 420, isParallel: false },
+        "ST15": { x: 2610, y: 480, isParallel: false },
+        "ST16": { x: 2248, y: 480, isParallel: false },
+        "ST17": { x: 1886, y: 480, isParallel: false },
+        "ST18": { x: 1524, y: 480, isParallel: false },
+        "ST19": { x: 1162, y: 480, isParallel: false },
+        "ST20": { x: 800,  y: 480, isParallel: false },
+        "ST21": { x: 438,  y: 480, isParallel: false },
+        "ST22": { x: 80,   y: 480, isParallel: false },
 
-        "ST23": { x: 110,  y: 710, isParallel: false },
-        "ST24": { x: 270,  y: 710, isParallel: false },
-        "ST25": { x: 430,  y: 630, isParallel: true, branch: "FORK: COCKPIT" },
-        "ST26": { x: 430,  y: 790, isParallel: true, branch: "FORK: SUSPENSION" },
-        "ST27": { x: 590,  y: 710, isParallel: false, branch: "MERGE" },
-        "ST28": { x: 750,  y: 710, isParallel: false },
-        "ST29": { x: 910,  y: 710, isParallel: false },
-        "ST30": { x: 1070, y: 710, isParallel: false },
-        "ST31": { x: 1230, y: 710, isParallel: false },
-        "ST32": { x: 1390, y: 710, isParallel: false },
+        "ST23": { x: 80,   y: 810, isParallel: false },
+        "ST24": { x: 310,  y: 810, isParallel: false },
+        "ST25": { x: 540,  y: 685, isParallel: true, branch: "FORK: COCKPIT" },
+        "ST26": { x: 540,  y: 935, isParallel: true, branch: "FORK: SUSPENSION" },
+        "ST27": { x: 770,  y: 810, isParallel: false, branch: "MERGE" },
+        "ST28": { x: 1000, y: 810, isParallel: false },
+        "ST29": { x: 1230, y: 810, isParallel: false },
+        "ST30": { x: 1460, y: 810, isParallel: false },
+        "ST31": { x: 1690, y: 810, isParallel: false },
+        "ST32": { x: 1920, y: 810, isParallel: false },
 
-        "ST33": { x: 1390, y: 940, isParallel: false },
-        "ST34": { x: 1210, y: 940, isParallel: false },
-        "ST35": { x: 1030, y: 940, isParallel: false },
-        "ST36": { x: 850,  y: 940, isParallel: false },
-        "ST37": { x: 670,  y: 940, isParallel: false },
-        "ST38": { x: 490,  y: 940, isParallel: false },
-        "ST39": { x: 310,  y: 940, isParallel: false },
-        "ST40": { x: 130,  y: 940, isParallel: false }
+        "ST33": { x: 1920, y: 1100, isParallel: false },
+        "ST34": { x: 1657, y: 1100, isParallel: false },
+        "ST35": { x: 1394, y: 1100, isParallel: false },
+        "ST36": { x: 1131, y: 1100, isParallel: false },
+        "ST37": { x: 868,  y: 1100, isParallel: false },
+        "ST38": { x: 605,  y: 1100, isParallel: false },
+        "ST39": { x: 342,  y: 1100, isParallel: false },
+        "ST40": { x: 80,   y: 1100, isParallel: false }
       };
 
-    // Ensure baseline keys exist in window.stationCoords
     Object.keys(baseline).forEach(sid => {
       if (!window.stationCoords[sid]) {
         window.stationCoords[sid] = Object.assign({}, baseline[sid]);
       }
     });
 
-    // Smart Calibrated Layout Placement for Custom / Added Stations
+    // Dynamically support any new custom stations added
     Object.keys(stations).forEach(sid => {
       if (baseline[sid] && window.stationCoords[sid]) return;
-
       const meta = stations[sid] || {};
       const zone = (meta.zone || "Body").toLowerCase();
       let pos = window.stationCoords[sid];
 
-      // Define Zone Y bounds
-      let expectedMinY = 20, expectedMaxY = 360, defaultY = 130;
-      let flowDirection = "ltr"; // left-to-right
+      let defaultY = 170;
+      let flowDirection = "ltr";
 
       if (zone.includes("paint")) {
-        expectedMinY = 380;
-        expectedMaxY = 570;
-        defaultY = 420;
-        flowDirection = "rtl"; // right-to-left
+        defaultY = 480;
+        flowDirection = "rtl";
       } else if (zone.includes("assembly")) {
-        expectedMinY = 590;
-        expectedMaxY = 1100;
-        defaultY = 710;
+        defaultY = 810;
         flowDirection = "ltr";
       }
 
-      // Check if position needs recalibration to fit proper floor zone bay
-      const isOutOfBounds = !pos || pos.y < expectedMinY || pos.y > expectedMaxY;
-
-      if (isOutOfBounds) {
-        // Find upstream link in DAG
+      if (!pos) {
         const upstreamEdge = edges.find(e => e[1] === sid);
         const upstreamSid = upstreamEdge ? upstreamEdge[0] : null;
         const upstreamPos = upstreamSid ? window.stationCoords[upstreamSid] : null;
 
-        let newX = 110;
+        let newX = 80;
         let newY = defaultY;
 
-        if (upstreamPos && upstreamPos.y >= expectedMinY && upstreamPos.y <= expectedMaxY) {
-          if (flowDirection === "ltr") {
-            newX = upstreamPos.x + 160;
-            newY = upstreamPos.y;
-          } else {
-            // Paint (Reverse Flow)
-            if (upstreamPos.x >= 270) {
-              newX = upstreamPos.x - 160;
-              newY = upstreamPos.y;
-            } else {
-              // Near left edge of Paint shop, place on lower parallel spur
-              newX = upstreamPos.x + 150;
-              newY = upstreamPos.y + 70;
-            }
-          }
-        } else {
-          // Place after other stations in this zone
-          const existingInZone = Object.keys(stations).filter(s => s !== sid && (stations[s].zone || "").toLowerCase().includes(zone));
-          if (existingInZone.length > 0) {
-            const lastSid = existingInZone[existingInZone.length - 1];
-            const lastPos = window.stationCoords[lastSid];
-            if (lastPos) {
-              newX = flowDirection === "ltr" ? lastPos.x + 160 : Math.max(110, lastPos.x - 160);
-              newY = lastPos.y;
-            }
-          }
+        if (upstreamPos) {
+          newX = flowDirection === "ltr" ? upstreamPos.x + 230 : Math.max(80, upstreamPos.x - 230);
+          newY = upstreamPos.y;
         }
-
-        window.stationCoords[sid] = { x: newX, y: newY, branch: pos?.branch || "" };
+        window.stationCoords[sid] = { x: newX, y: newY, branch: "" };
       }
     });
-
-    // Zero-Overlap Collision Resolver
-    const allSids = Object.keys(stations);
-    for (let i = 0; i < allSids.length; i++) {
-      for (let j = i + 1; j < allSids.length; j++) {
-        const s1 = allSids[i];
-        const s2 = allSids[j];
-        const p1 = window.stationCoords[s1];
-        const p2 = window.stationCoords[s2];
-        if (p1 && p2) {
-          const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-          if (dist < 110) {
-            p2.x += 160;
-            if (p2.x > 2100) {
-              p2.x = 110;
-              p2.y += 70;
-            }
-          }
-        }
-      }
-    }
   }
 
-  renderScene(stationsMeta, edges) {
+  renderScene(stationsMeta, edges, activeVehicles = []) {
     this.stations = stationsMeta;
     this.edges = edges;
     if (!this.container || !this.svgLayer) return;
 
-    // Recalibrate coordinates for all active stations
+    this.vehicleLayer = document.getElementById("vehicle-fleet-layer") || this.container;
     this.calculateFloorCoordinates(this.stations, this.edges);
 
     this.container.innerHTML = "";
     this.svgLayer.innerHTML = "";
+    this.edgePaths = {};
+
+    if (this.vehicleLayer && this.vehicleLayer !== this.container) {
+      this.vehicleLayer.innerHTML = "";
+    }
 
     const NODE_W = 144;
     const NODE_H = 124;
 
-    // Smart Continuous Port-to-Port Conveyor Rail Bezier Calculations
+    // Continuous Port-to-Port Conveyor Rail Bezier SVG
     this.edges.forEach(([u, v]) => {
       const p1 = window.stationCoords[u];
       const p2 = window.stationCoords[v];
@@ -305,49 +305,44 @@ class TwinSceneEngine {
 
       let x1, y1, x2, y2, cx1, cy1, cx2, cy2;
       const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
+      let isReverseFlow = false;
 
       if (dx > 40) {
-        // Forward Flow: Left-to-Right
+        // Forward Flow: Left-to-Right (Straight, Forks ST02->ST03, Merges ST07/ST08->ST09)
         x1 = p1.x + NODE_W;
         y1 = p1.y + NODE_H * 0.5;
         x2 = p2.x;
         y2 = p2.y + NODE_H * 0.5;
         const midX = x1 + (x2 - x1) * 0.5;
-        cx1 = midX;
-        cy1 = y1;
-        cx2 = midX;
-        cy2 = y2;
+        cx1 = midX; cy1 = y1;
+        cx2 = midX; cy2 = y2;
       } else if (dx < -40) {
-        // Reverse Flow: Right-to-Left (Zone 2 Paint & Zone 3B Assembly)
+        // Reverse Flow: Right-to-Left (Zone 2 Paint Shop, Row 4 Buy-off)
+        isReverseFlow = true;
         x1 = p1.x;
         y1 = p1.y + NODE_H * 0.5;
         x2 = p2.x + NODE_W;
         y2 = p2.y + NODE_H * 0.5;
         const midX = x1 + (x2 - x1) * 0.5;
-        cx1 = midX;
-        cy1 = y1;
-        cx2 = midX;
-        cy2 = y2;
+        cx1 = midX; cy1 = y1;
+        cx2 = midX; cy2 = y2;
       } else {
         // Vertical Turnaround Transfers (ST14->ST15, ST22->ST23, ST32->ST33)
         if (p1.x > 900) {
-          // Right-side U-Turn Loop (Zone 1->2 and Zone 3A->3B)
           x1 = p1.x + NODE_W;
           y1 = p1.y + NODE_H * 0.5;
           x2 = p2.x + NODE_W;
           y2 = p2.y + NODE_H * 0.5;
-          cx1 = Math.min(2220, Math.max(x1, x2) + 75);
+          cx1 = Math.min(2850, Math.max(x1, x2) + 95);
           cy1 = y1;
           cx2 = cx1;
           cy2 = y2;
         } else {
-          // Left-side U-Turn Loop (Zone 2->3)
           x1 = p1.x;
           y1 = p1.y + NODE_H * 0.5;
           x2 = p2.x;
           y2 = p2.y + NODE_H * 0.5;
-          cx1 = Math.max(35, Math.min(x1, x2) - 65);
+          cx1 = Math.max(20, Math.min(x1, x2) - 75);
           cy1 = y1;
           cx2 = cx1;
           cy2 = y2;
@@ -368,11 +363,19 @@ class TwinSceneEngine {
 
       const pathChev = document.createElementNS("http://www.w3.org/2000/svg", "path");
       pathChev.setAttribute("d", pathD);
-      pathChev.setAttribute("class", "rail-chevrons");
+      pathChev.setAttribute("class", `rail-chevrons ${isReverseFlow ? 'flow-reverse' : 'flow-forward'}`);
       this.svgLayer.appendChild(pathChev);
+
+      // Store exact mathematical trajectory definition for flawless vehicle tracking
+      this.edgePaths[`${u}->${v}`] = {
+        x1, y1,
+        cx1, cy1,
+        cx2, cy2,
+        x2, y2
+      };
     });
 
-    // Render Station Nodes
+    // Render Station Nodes with Cycle Progress Bar
     Object.keys(this.stations).forEach((sid) => {
       const meta = this.stations[sid];
       const pos = window.stationCoords[sid] || { x: 50, y: 80 };
@@ -408,54 +411,355 @@ class TwinSceneEngine {
           <span class="node-val-ct" id="s-ct-${sid}">${(meta.target_cycle_time_s || meta.target_cycle_time || 55.0).toFixed(1)}s</span>
           <span class="node-val-risk" id="s-risk-${sid}">5%</span>
         </div>
+        <div class="station-dwell-bar-wrap">
+          <div class="station-dwell-bar-fill" id="s-bar-${sid}"></div>
+        </div>
       `;
 
       this.container.appendChild(node);
     });
 
-    this.initLivingLineVehicles();
+    this.initHoverHud();
+    this.seedCleanFleet(activeVehicles);
   }
 
-  initLivingLineVehicles() {
-    const sids = Object.keys(this.stations);
-    this.carBodies = [];
-    if (sids.length === 0) return;
+  seedCleanFleet(activeVehicles) {
+    this.fleet = [];
+    if (!this.edges || this.edges.length === 0) return;
 
-    const numVehicles = Math.min(8, sids.length);
-    const step = Math.max(1, Math.floor(sids.length / numVehicles));
+    if (Array.isArray(activeVehicles) && activeVehicles.length > 0) {
+      activeVehicles.forEach((vData, i) => {
+        const curSid = vData.current_station || "ST01";
+        const nextEdges = this.edges.filter(e => e[0] === curSid);
+        const toSid = nextEdges.length > 0 ? nextEdges[0][1] : curSid;
 
-    for (let i = 0; i < numVehicles; i++) {
-      const sid = sids[Math.min(i * step, sids.length - 1)];
-      this.carBodies.push({ id: `car-${i + 1}`, currentSid: sid });
+        const veh = {
+          vin: vData.vin,
+          fromStation: curSid,
+          toStation: toSid,
+          progress: 0.15 + (i * 0.12) % 0.7,
+          state: "TRANSIT",
+          dwellTimer: 0.0,
+          dwellTarget: 2.5,
+          speed: 0.0055,
+          defect_count: vData.defect_count || 0,
+          visit_history_len: vData.visit_history_len || 1,
+          queueSlot: 0,
+          element: null
+        };
+        this.fleet.push(veh);
+      });
     }
 
-    this.carBodies.forEach((c) => {
-      const el = document.createElement("div");
-      el.id = `vehicle-${c.id}`;
-      el.className = "car-body-silhouette";
-      el.innerHTML = `
-        <svg viewBox="0 0 32 18" width="32" height="18">
-          <rect x="2" y="2" width="28" height="14" rx="4" fill="#0057ff" stroke="#0046d6" stroke-width="1.5"/>
-          <rect x="8" y="4" width="16" height="10" rx="2" fill="#ffffff"/>
-        </svg>
-      `;
-      this.container.appendChild(el);
-      this.updateVehiclePosition(c);
+    this.createFleetDOM();
+  }
+
+  createFleetDOM() {
+    const parent = document.getElementById("vehicle-fleet-layer") || this.container;
+    if (!parent) return;
+
+    this.fleet.forEach((veh) => {
+      if (!veh.element) {
+        const el = document.createElement("div");
+        el.id = `veh-carrier-${veh.vin}`;
+        el.className = "vehicle-carrier-node";
+        
+        el.innerHTML = `
+          <span class="vehicle-carrier-badge">${veh.vin.replace("VIN-2026-", "#")}</span>
+          <svg class="veh-body-svg" viewBox="0 0 54 28" width="54" height="28">
+            <rect x="2" y="21" width="50" height="4.5" rx="1.5" fill="#1e293b" stroke="#0f172a" stroke-width="1"/>
+            <circle cx="10" cy="23.5" r="2" fill="#94a3b8"/>
+            <circle cx="44" cy="23.5" r="2" fill="#94a3b8"/>
+            <path class="veh-chassis-path" d="M 6,19 L 8,13 L 17,10 L 25,5 L 39,5 L 47,11 L 50,14 L 50,19 Z" 
+                  fill="#0284c7" stroke="#0369a1" stroke-width="1.6"/>
+            <polygon points="18,10 25,6 38,6 45,11 38,11 25,11" fill="#ffffff" opacity="0.85"/>
+            <rect x="48" y="14" width="2" height="3" fill="#38bdf8" rx="0.5"/>
+            <rect x="5" y="14" width="2" height="3" fill="#f87171" rx="0.5"/>
+          </svg>
+        `;
+
+        // Click to Open & Lock HUD
+        el.onclick = (e) => {
+          e.stopPropagation();
+          this.showVehicleHud(veh, el, true);
+        };
+
+        // Hover preview
+        el.onmouseenter = () => {
+          if (this.hudCloseTimer) {
+            clearTimeout(this.hudCloseTimer);
+            this.hudCloseTimer = null;
+          }
+          if (!this.isHudPinned) {
+            this.showVehicleHud(veh, el, false);
+          }
+        };
+
+        el.onmouseleave = () => {
+          if (!this.isHudPinned) {
+            this.scheduleHideHud(220);
+          }
+        };
+
+        parent.appendChild(el);
+        veh.element = el;
+      }
     });
   }
 
-  updateVehiclePosition(car) {
-    const el = document.getElementById(`vehicle-${car.id}`);
-    const pos = window.stationCoords[car.currentSid];
-    if (!el || !pos) return;
+  /**
+   * 100% Rail-Conforming Trajectory Calculation
+   * Evaluates the EXACT cubic bezier curve of the SVG rail track between fromSid and toSid.
+   * Smoothly connects station center -> exit port -> SVG curve -> entrance port -> station center.
+   */
+  getConveyorTrackPosition(fromSid, toSid, t) {
+    const p1 = window.stationCoords[fromSid] || { x: 80, y: 170 };
+    const p2 = window.stationCoords[toSid] || p1;
+    const edgeKey = `${fromSid}->${toSid}`;
+    const edgeData = this.edgePaths ? this.edgePaths[edgeKey] : null;
 
-    el.style.left = `${pos.x + 72}px`;
-    el.style.top = `${pos.y + 62}px`;
+    const c1 = { x: p1.x + 72, y: p1.y + 60 };
+    const c2 = { x: p2.x + 72, y: p2.y + 60 };
+
+    if (!edgeData) {
+      return {
+        x: c1.x + (c2.x - c1.x) * t,
+        y: c1.y + (c2.y - c1.y) * t
+      };
+    }
+
+    // Origin Station Exit Port
+    const port1 = { x: edgeData.x1, y: edgeData.y1 };
+    // Destination Station Entrance Port
+    const port2 = { x: edgeData.x2, y: edgeData.y2 };
+
+    if (t <= 0.12) {
+      // Smooth linear roll from center of station into exit port
+      const subT = t / 0.12;
+      return {
+        x: c1.x + (port1.x - c1.x) * subT,
+        y: c1.y + (port1.y - c1.y) * subT
+      };
+    } else if (t >= 0.88) {
+      // Smooth linear roll from entrance port into center of destination station
+      const subT = (t - 0.88) / 0.12;
+      return {
+        x: port2.x + (c2.x - port2.x) * subT,
+        y: port2.y + (c2.y - port2.y) * subT
+      };
+    } else {
+      // In transit along the exact SVG conveyor track curve (S-Curves, Merges, Forks, U-Turns)
+      const normT = (t - 0.12) / 0.76;
+
+      const mt = 1 - normT;
+      const mt2 = mt * mt;
+      const mt3 = mt2 * mt;
+      const t2 = normT * normT;
+      const t3 = t2 * normT;
+
+      const x = mt3 * edgeData.x1 + 3 * mt2 * normT * edgeData.cx1 + 3 * mt * t2 * edgeData.cx2 + t3 * edgeData.x2;
+      const y = mt3 * edgeData.y1 + 3 * mt2 * normT * edgeData.cy1 + 3 * mt * t2 * edgeData.cy2 + t3 * edgeData.y2;
+      return { x, y };
+    }
   }
 
-  updateTelemetry(stationsPayload) {
-    if (!stationsPayload) return;
+  startMotionLoop() {
+    if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
 
+    const tick = () => {
+      this.stepFleetMotion();
+      this.animFrameId = requestAnimationFrame(tick);
+    };
+    this.animFrameId = requestAnimationFrame(tick);
+  }
+
+  stepFleetMotion() {
+    if (!this.fleet || this.fleet.length === 0) return;
+
+    // Build Station Occupancy & Queue Map for strict FIFO sequential processing
+    const stationOccupants = {}; // sid -> vin currently inside machine cradle in DOCK state
+    const stationQueues = {};    // sid -> array of vehicles headed into sid, sorted by highest progress
+
+    // 1. Register currently docked vehicles
+    this.fleet.forEach(veh => {
+      if (veh.state === "DOCK") {
+        stationOccupants[veh.toStation] = veh.vin;
+      }
+    });
+
+    // 2. Group incoming transit vehicles by destination station and sort by progress
+    this.fleet.forEach(veh => {
+      if (veh.state === "TRANSIT") {
+        const dest = veh.toStation;
+        if (!stationQueues[dest]) stationQueues[dest] = [];
+        stationQueues[dest].push(veh);
+      }
+    });
+
+    // Sort queue by progress descending (the vehicle closest to the station is first in FIFO line)
+    Object.keys(stationQueues).forEach(dest => {
+      stationQueues[dest].sort((a, b) => b.progress - a.progress);
+      stationQueues[dest].forEach((veh, idx) => {
+        veh.queueSlot = idx; // 0 = next to enter, 1 = behind #0, 2 = behind #1
+      });
+    });
+
+    // 3. Step motion with strict FIFO spacing and sequential cradle entry
+    this.fleet.forEach((veh) => {
+      const fromSid = veh.fromStation;
+      const toSid = veh.toStation;
+
+      const fromState = this.stationsPayload[fromSid] || {};
+      const toState = this.stationsPayload[toSid] || {};
+
+      const isDestStopped = Boolean(toState.is_stopped);
+      const isOriginStopped = Boolean(fromState.is_stopped);
+
+      let isHalted = false;
+      let pos = { x: 100, y: 100 };
+
+      const pTo = window.stationCoords[toSid] || { x: 100, y: 170 };
+
+      if (veh.state === "DOCK") {
+        // Vehicle is physically inside the station machine cradle
+        pos = { x: pTo.x + 72, y: pTo.y + 60 };
+        isHalted = isDestStopped;
+
+        if (!isHalted) {
+          veh.dwellTimer += 0.016;
+          
+          // Animate machine progress bar for the active vehicle
+          const barEl = document.getElementById(`s-bar-${toSid}`);
+          if (barEl) {
+            const pct = Math.min(100, Math.round((veh.dwellTimer / veh.dwellTarget) * 100));
+            barEl.style.width = `${pct}%`;
+          }
+
+          const nodeEl = document.getElementById(`station-node-${toSid}`);
+          if (nodeEl && !nodeEl.classList.contains("status-critical")) {
+            nodeEl.classList.add("in-cycle");
+          }
+
+          // Cycle complete -> exit to downstream conveyor
+          if (veh.dwellTimer >= veh.dwellTarget) {
+            if (nodeEl) nodeEl.classList.remove("in-cycle");
+            if (barEl) barEl.style.width = "0%";
+
+            if (toSid === "ST40") {
+              // Terminal station exit -> loop back to ST01 cleanly
+              veh.fromStation = "ST01";
+              veh.toStation = "ST02";
+              veh.progress = 0.0;
+              veh.state = "TRANSIT";
+              veh.dwellTimer = 0.0;
+              veh.visit_history_len = 1;
+              veh.defect_count = 0;
+            } else {
+              // Advance to next downstream edge
+              const nextEdges = this.edges.filter(e => e[0] === toSid);
+              if (nextEdges.length > 0) {
+                const chosen = nextEdges[Math.floor(Math.random() * nextEdges.length)];
+                veh.fromStation = toSid;
+                veh.toStation = chosen[1];
+                veh.progress = 0.0;
+                veh.state = "TRANSIT";
+                veh.dwellTimer = 0.0;
+                veh.visit_history_len = (veh.visit_history_len || 1) + 1;
+              }
+            }
+          }
+        }
+      } else {
+        // TRANSIT: Gliding continuously along conveyor rail
+        const isCradleOccupied = Boolean(stationOccupants[toSid] && stationOccupants[toSid] !== veh.vin);
+        const qSlot = veh.queueSlot || 0;
+
+        // Calculate max allowable progress along conveyor based on station state & FIFO queue slot
+        let maxAllowedProgress = 1.0;
+
+        if (isDestStopped) {
+          // Machine is broken: vehicles queue before entrance
+          maxAllowedProgress = Math.max(0.20, 0.85 - (qSlot * 0.16));
+        } else if (isCradleOccupied) {
+          // Machine is actively processing preceding vehicle: wait in FIFO queue on conveyor
+          maxAllowedProgress = Math.max(0.20, 0.85 - (qSlot * 0.16));
+        } else if (qSlot > 0) {
+          // Preceding vehicle is entering cradle: stay spaced behind it
+          maxAllowedProgress = Math.max(0.20, 0.85 - (qSlot * 0.16));
+        }
+
+        if (isOriginStopped && veh.progress <= 0.12) {
+          isHalted = true;
+        } else if (veh.progress >= maxAllowedProgress) {
+          isHalted = isDestStopped || isCradleOccupied || (qSlot > 0);
+          veh.progress = maxAllowedProgress;
+        }
+
+        if (!isHalted) {
+          veh.progress += (veh.speed || 0.0055);
+
+          if (veh.progress >= 1.0) {
+            // Cradle is free and vehicle reached cradle -> DOCK into station
+            veh.progress = 1.0;
+            veh.state = "DOCK";
+            veh.dwellTimer = 0.0;
+            veh.dwellTarget = 2.4 + (Math.random() * 0.6);
+            pos = { x: pTo.x + 72, y: pTo.y + 60 };
+            stationOccupants[toSid] = veh.vin; // Claim machine cradle lock immediately
+          } else {
+            pos = this.getConveyorTrackPosition(veh.fromStation, veh.toStation, veh.progress);
+          }
+        } else {
+          pos = this.getConveyorTrackPosition(veh.fromStation, veh.toStation, veh.progress);
+        }
+      }
+
+      veh.is_stopped = isHalted;
+
+      const el = veh.element;
+      if (el) {
+        el.style.left = `${pos.x}px`;
+        el.style.top = `${pos.y}px`;
+
+        const isDocked = (veh.state === "DOCK");
+        el.classList.toggle("in-station", isDocked);
+        el.classList.toggle("halted", isHalted && isDestStopped);
+
+        const badgeEl = el.querySelector(".vehicle-carrier-badge");
+        if (badgeEl) {
+          if (isDestStopped && isHalted) {
+            badgeEl.innerText = `🛑 STOPPED (${toSid})`;
+          } else if (isDocked) {
+            badgeEl.innerText = `⚙️ ${toSid}`;
+          } else if (isHalted && !isDestStopped) {
+            badgeEl.innerText = `⏱️ QUEUE #${(veh.queueSlot || 0) + 1}`;
+          } else {
+            badgeEl.innerText = veh.vin.replace("VIN-2026-", "#");
+          }
+        }
+
+        const pathEl = el.querySelector(".veh-chassis-path");
+        if (pathEl) {
+          const hasDefect = (veh.defect_count || 0) > 0;
+          const isRed = Boolean(isDestStopped && isHalted);
+          pathEl.setAttribute("fill", isRed ? "#ef4444" : (hasDefect ? "#f59e0b" : "#0284c7"));
+          pathEl.setAttribute("stroke", isRed ? "#b91c1c" : (hasDefect ? "#b45309" : "#0369a1"));
+        }
+
+        // Keep HUD pinned above vehicle
+        if (this.activeHudVin === veh.vin && this.hudElement && this.hudElement.style.display !== "none") {
+          this.hudElement.style.left = `${pos.x}px`;
+          this.hudElement.style.top = `${pos.y}px`;
+        }
+      }
+    });
+  }
+
+  updateTelemetry(stationsPayload, vehiclesPayload) {
+    if (!stationsPayload) return;
+    this.stationsPayload = stationsPayload;
+
+    // Update Station Cards Telemetry & Stoppages
     Object.keys(stationsPayload).forEach((sid) => {
       const st = stationsPayload[sid];
       const node = document.getElementById(`station-node-${sid}`);
@@ -474,10 +778,146 @@ class TwinSceneEngine {
         node.classList.remove("status-warning", "status-critical");
         if (riskPct >= 80 || st.is_stopped) {
           node.classList.add("status-critical");
+          node.classList.remove("in-cycle");
         } else if (riskPct >= 60) {
           node.classList.add("status-warning");
         }
       }
     });
+
+    // 1:1 Synchronize Fleet by VIN
+    if (Array.isArray(vehiclesPayload) && vehiclesPayload.length > 0) {
+      const activeVinMap = {};
+      vehiclesPayload.forEach(v => { activeVinMap[v.vin] = v; });
+
+      // Update existing fleet items by their exact VIN
+      this.fleet.forEach(veh => {
+        const vBackend = activeVinMap[veh.vin];
+        if (vBackend) {
+          veh.defect_count = vBackend.defect_count || 0;
+          if (vBackend.visit_history_len) {
+            veh.visit_history_len = vBackend.visit_history_len;
+          }
+        }
+      });
+
+      // If fleet has room, introduce new backend vehicles
+      if (this.fleet.length < Math.min(12, vehiclesPayload.length)) {
+        const currentFleetVins = new Set(this.fleet.map(f => f.vin));
+        vehiclesPayload.forEach(vBackend => {
+          if (!currentFleetVins.has(vBackend.vin) && this.fleet.length < 12) {
+            const curSid = vBackend.current_station || "ST01";
+            const nextEdges = this.edges.filter(e => e[0] === curSid);
+            const toSid = nextEdges.length > 0 ? nextEdges[0][1] : curSid;
+
+            const newVeh = {
+              vin: vBackend.vin,
+              fromStation: curSid,
+              toStation: toSid,
+              progress: 0.1,
+              state: "TRANSIT",
+              dwellTimer: 0.0,
+              dwellTarget: 2.5,
+              speed: 0.0055,
+              defect_count: vBackend.defect_count || 0,
+              visit_history_len: vBackend.visit_history_len || 1,
+              queueSlot: 0,
+              element: null
+            };
+            this.fleet.push(newVeh);
+            currentFleetVins.add(vBackend.vin);
+          }
+        });
+        this.createFleetDOM();
+      }
+    }
+  }
+
+  showVehicleHud(veh, el, isClick = false) {
+    if (this.hudCloseTimer) {
+      clearTimeout(this.hudCloseTimer);
+      this.hudCloseTimer = null;
+    }
+
+    if (!this.hudElement) this.initHoverHud();
+    const hud = this.hudElement;
+    if (!hud || !el) return;
+
+    if (isClick) {
+      this.isHudPinned = true;
+    }
+
+    this.activeHudVin = veh.vin;
+    const currentLoc = veh.state === "DOCK" ? veh.toStation : `${veh.fromStation} ➔ ${veh.toStation}`;
+    const activeSid = veh.state === "DOCK" ? veh.toStation : veh.fromStation;
+    const stMeta = this.stations[activeSid] || {};
+    const isHalted = Boolean(veh.is_stopped);
+    const defectCount = veh.defect_count || 0;
+    const visitedCount = veh.visit_history_len || 1;
+
+    let statusTag = '🟢 CONVEYOR TRANSIT';
+    if (isHalted && this.stationsPayload[veh.toStation]?.is_stopped) statusTag = '🛑 HALTED AT STATION';
+    else if (isHalted && veh.queueSlot > 0) statusTag = `⏱️ QUEUED (#${(veh.queueSlot || 0) + 1})`;
+    else if (veh.state === 'DOCK') statusTag = `⚙️ IN-CYCLE (${veh.toStation})`;
+
+    hud.innerHTML = `
+      <div class="hud-vin-title">
+        <span class="hud-vin-text">${veh.vin}</span>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span class="hud-status-tag ${isHalted ? 'halted' : ''}">${statusTag}</span>
+          <button style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 14px; font-weight: bold; line-height: 1; padding: 2px 4px;" onclick="event.stopPropagation(); if (window.sceneEngine) window.sceneEngine.hideVehicleHud(true);">✕</button>
+        </div>
+      </div>
+      <div class="hud-detail-row">
+        <span>Current Location:</span>
+        <strong>${currentLoc}</strong>
+      </div>
+      <div class="hud-detail-row">
+        <span>Station Description:</span>
+        <strong>${stMeta.name || activeSid}</strong>
+      </div>
+      <div class="hud-detail-row">
+        <span>Manufacturing Zone:</span>
+        <strong>${stMeta.zone || "Body Construction"}</strong>
+      </div>
+      <div class="hud-detail-row">
+        <span>Quality Buy-Off:</span>
+        <strong style="color: ${defectCount > 0 ? '#f59e0b' : '#34d399'};">${defectCount === 0 ? '✓ 0 Defects (Pass)' : `⚠️ ${defectCount} Defect(s) Flagged`}</strong>
+      </div>
+      <div class="hud-detail-row">
+        <span>Line Traversal:</span>
+        <strong>${visitedCount}/40 Stations Traversed</strong>
+      </div>
+      <button class="hud-action-btn" onclick="event.stopPropagation(); window.traceVinFromVehicle('${veh.vin}')">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        Trace VIN in Genealogy
+      </button>
+    `;
+
+    hud.style.left = el.style.left;
+    hud.style.top = el.style.top;
+    hud.style.display = "block";
+  }
+
+  scheduleHideHud(delay = 200) {
+    if (this.isHudPinned) return;
+    if (this.hudCloseTimer) clearTimeout(this.hudCloseTimer);
+    this.hudCloseTimer = setTimeout(() => {
+      this.hideVehicleHud(false);
+    }, delay);
+  }
+
+  hideVehicleHud(force = false) {
+    if (this.hudCloseTimer) {
+      clearTimeout(this.hudCloseTimer);
+      this.hudCloseTimer = null;
+    }
+    if (force || !this.isHudPinned) {
+      if (this.hudElement) {
+        this.hudElement.style.display = "none";
+      }
+      this.activeHudVin = null;
+      this.isHudPinned = false;
+    }
   }
 }

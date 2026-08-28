@@ -102,7 +102,26 @@ graph TD
   * Tracks every VIN from introduction at `ST01` across FIFO queues to terminal buy-off (`ST40`).
   * Real-time latent defect propagation and downstream inspection delay modeling.
 
-### 5. Interactive Dynamic DAG Layout Editor (LAYOUT View)
+### 5. Exact Rail-Conforming Conveyor Engine & Strict FIFO Fleet Dynamics
+* **100% Rail-Conforming Cubic Bézier Trajectory**:
+  * Vehicles trace the exact mathematical geometry of the SVG conveyor rails ($B(t) = (1-t)^3 P_0 + 3(1-t)^2 t P_1 + 3(1-t) t^2 P_2 + t^3 P_3$).
+  * Handles straight transfers, parallel S-curve forks (`ST02` $\rightarrow$ `ST03`/`ST04`, `ST06` $\rightarrow$ `ST07`/`ST08`), merges (`ST07`/`ST08` $\rightarrow$ `ST09`), and U-turn zone loops (`ST14` $\rightarrow$ `ST15`, `ST22` $\rightarrow$ `ST23`, `ST32` $\rightarrow$ `ST33`).
+* **Station Cradle Locking & Sequential FIFO Dwell**:
+  * Machines enforce a strict capacity constraint of **1 vehicle inside the machine cradle** during active machining.
+  * Backlogged vehicles queue neatly along the incoming conveyor track ($\text{Slot } k \text{ spacing } = 0.85 - 0.16 \cdot k$).
+  * When a stoppage is resolved, queued cars process **sequentially one-by-one in FIFO order**, taking their full calibrated cycle time ($2.5\text{s}$) to authentically depict the **cascading ripple delay** of line disruptions.
+* **1:1 Live Simulator Fleet Synchronization & Stable Colors**:
+  * Every vehicle on screen is bound 1:1 by unique VIN (`activeVinMap[veh.vin]`) to the backend `simulator.active_vehicles`.
+  * Stable Automotive Color Palette:
+    * 🟢 **Factory Blue (`#0284c7`)**: Normal in-spec production.
+    * 🟠 **Quality Amber (`#f59e0b`)**: Defect flagged by automated vision/torque sensors.
+    * 🔴 **Stoppage Red (`#ef4444`)**: Halted at a station with an active stoppage.
+* **Real-Time Genealogy Synchronization**:
+  * Clicking **`[Trace VIN in Genealogy]`** on an active vehicle at Station $N$ displays its exact partial traversal path ($N/40\text{ Stations Traversed • IN\_PROGRESS}$), matching the live station location with 100% accuracy.
+* **Capped Memory-Efficient Storage**:
+  * Retains active in-flight vehicles and a rolling ring buffer of the last 50 completed vehicles with automated history pruning, preventing database bloat.
+
+### 6. Interactive Dynamic DAG Layout Editor (LAYOUT View)
 * **Drag-and-Drop Station Positioning**: Real-time card positioning with coordinate persistence.
 * **Dual-Mode Port Wiring**:
   * *Drag-to-Connect*: Drag bezier conveyor lines from `[OUT]` to `[IN]` ports with live dashed preview.
@@ -113,10 +132,10 @@ graph TD
 * **Auto-Arrange & Factory Baseline Reset**: `📐 AUTO-ARRANGE` aligns stations into clean zone lanes; `RESET DEFAULT` calls `POST /api/topology/reset` to restore the 40-station baseline.
 * **Live Twin Reboot (`⚡ APPLY LAYOUT`)**: Sends layout to `POST /api/topology/apply`, dynamically re-instantiating the simulation loop, SPC engine, GBDT risk model, and starvation graph.
 
-### 6. Multi-Persona SCADA Dashboard
+### 7. Multi-Persona SCADA Dashboard
 * **FLOOR View**: Living Line continuous conveyor highway, live vehicle tracking silhouettes, right instrument cockpit drawer, and fault injector.
 * **LAYOUT View**: Full-screen DAG drag-drop canvas and topology tools.
-* **LEAD View**: Leadership thermal heatmap, Pareto root causes, cumulative downtime avoided counter ($3.4M+), and VIN defect genealogy tracer.
+* **LEAD View**: Executive thermal heatmap, Pareto root causes, cumulative downtime avoided counter ($3.4M+), and VIN defect genealogy tracer.
 * **TREND View**: 7-day OEE trajectory and what-if line balancing bottleneck simulator.
 
 ---

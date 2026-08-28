@@ -6,6 +6,7 @@ and vehicle genealogy traceability.
 import asyncio
 import os
 import sys
+import json
 from collections import defaultdict
 from typing import Dict, List, Any, Optional
 import json
@@ -34,7 +35,8 @@ app = FastAPI(title="DigitalTwin.ai REST API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*", "null"],
+    allow_origin_regex=r".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -74,8 +76,9 @@ def _topo_order(topo: Dict[str, Any]) -> List[str]:
 # Core Instances
 topology = build_line_topology(seed=42)
 stations_meta = topology["stations"]
-simulator = LineSimulator(seed=42, custom_topology=topology)
 db = TwinStore()
+simulator = LineSimulator(seed=42, custom_topology=topology)
+simulator.current_tick = db.get_max_tick()
 spc_engine = SPCEngine(lambda_ewma=0.3, z_threshold=3.0)
 virtual_sensor_engine = VirtualSensorEngine(stations_meta)
 confidence_engine = ConfidenceEngine(w1=0.5, w2=0.3, w3=0.2)
@@ -198,7 +201,11 @@ def process_simulation_tick() -> Dict[str, Any]:
             "risk_level": risk_level,
             "is_stopped": ev.get("is_stopped", False),
             "is_blackout": is_blackout,
-            "is_virtual_sensing": is_blackout or (ev.get("cycle_time_s") is None)
+            "is_virtual_sensing": is_blackout or (ev.get("cycle_time_s") is None),
+            "processing_vin": ev.get("processing_vin"),
+            "queued_vins": ev.get("queued_vins", []),
+            "is_processing": ev.get("is_processing", False),
+            "dwell_progress": ev.get("dwell_progress", 0.0)
         }
         
     # 2. Graph Ripple Propagation
@@ -237,11 +244,30 @@ def process_simulation_tick() -> Dict[str, Any]:
     
     prev_tick_risk = this_tick_risk
 
+    active_veh_list = []
+    for vin, vdata in simulator.active_vehicles.items():
+        st_id = vdata.get("current_station", "ST01")
+        st_state = station_states.get(st_id, {})
+        active_veh_list.append({
+            "vin": vin,
+            "vehicle_id": vin,
+            "current_station": st_id,
+            "station_name": st_state.get("name", st_id),
+            "zone": st_state.get("zone", "Body"),
+            "status": vdata.get("status", "IN_PROGRESS"),
+            "entry_tick": vdata.get("entry_tick", simulator.current_tick),
+            "defect_count": len(vdata.get("defect_flags", [])),
+            "defect_flags": vdata.get("defect_flags", []),
+            "is_stopped": bool(st_state.get("is_stopped", False)),
+            "visit_history_len": len(vdata.get("visit_history", []))
+        })
+
     payload = {
         "type": "TICK_UPDATE",
         "tick": simulator.current_tick,
         "timestamp": tick_result["timestamp"],
         "stations": station_states,
+        "vehicles": active_veh_list,
         "propagation": propagation_map,
         "recommendations": recommendations,
         "kpis": {
@@ -286,10 +312,30 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.get("/api/stations")
 def get_stations():
+    active_veh_list = []
+    for vin, vdata in simulator.active_vehicles.items():
+        st_id = vdata.get("current_station", "ST01")
+        st_meta = stations_meta.get(st_id, {})
+        active_veh_list.append({
+            "vin": vin,
+            "vehicle_id": vin,
+            "current_station": st_id,
+            "station_name": st_meta.get("name", st_id),
+            "zone": st_meta.get("zone", "Body"),
+            "status": vdata.get("status", "IN_PROGRESS"),
+            "entry_tick": vdata.get("entry_tick", simulator.current_tick),
+            "defect_count": len(vdata.get("defect_flags", [])),
+            "defect_flags": vdata.get("defect_flags", []),
+            "is_stopped": False,
+            "visit_history_len": len(vdata.get("visit_history", [])),
+            "visit_history": vdata.get("visit_history", [])
+        })
+
     return {
         "stations": stations_meta,
         "edges": topology["edges"],
-        "metadata": topology["metadata"]
+        "metadata": topology["metadata"],
+        "active_vehicles": active_veh_list
     }
 
 @app.get("/api/stations/{station_id}/history")
@@ -384,6 +430,7 @@ def log_override(rec_id: str, req: OverrideRequest):
 
 @app.get("/api/leadership/summary")
 def get_leadership_summary():
+  try:
     recent = db.get_recent_telemetry_window(window_minutes=20)
     st_readings = {}
     for r in recent:
@@ -391,10 +438,24 @@ def get_leadership_summary():
         if sid not in st_readings:
             st_readings[sid] = []
         target = stations_meta.get(sid, {}).get("target_cycle_time_s", 50.0)
-        ct = r["cycle_time_s"] or target
-        st_readings[sid].append(round(ct / max(1.0, target), 2))
         
-    heatmap = [{"station_id": sid, "readings": vals[-15:]} for sid, vals in st_readings.items()]
+        if r.get("is_stopped"):
+            ct = target * 4.5
+        else:
+            ct = r.get("cycle_time_s") or target
+            
+        st_readings[sid].append(round(ct / max(1.0, target), 2))
+    
+    # DB returns newest-first; st_readings[sid][0] = most recent tick
+    # For every station in stations_meta, ensure we produce exactly 20 readings padded with 1.0 (nominal) for earlier ticks
+    # Reverse so index 0 is oldest (Tick -20) and index 19 is newest (current tick)
+    heatmap = []
+    for sid in stations_meta.keys():
+        vals = st_readings.get(sid, [])
+        recent_vals = vals[:20]
+        padded = recent_vals + [1.0] * (20 - len(recent_vals))
+        chronological = list(reversed(padded))
+        heatmap.append({"station_id": sid, "readings": chronological})
     
     # Pareto root causes from anomaly logs
     gt_logs = db.get_ground_truth_logs(limit=100)
@@ -407,11 +468,11 @@ def get_leadership_summary():
         
     top_causes = [{"cause": k, "count": v} for k, v in sorted(cause_counts.items(), key=lambda x: x[1], reverse=True)[:5]]
 
-    # Compute genuine Quality Yield
+    # Compute genuine Quality Yield (defect_flags is a list of defect records per vehicle)
     completed = simulator.completed_vehicles
     total_veh = len(completed)
     if total_veh > 0:
-        defect_free = sum(1 for v in completed if v["defect_flag"] == 0)
+        defect_free = sum(1 for v in completed if len(v.get("defect_flags", [])) == 0)
         yield_pct = round((defect_free / total_veh) * 100, 1)
     else:
         yield_pct = 100.0
@@ -434,6 +495,10 @@ def get_leadership_summary():
         "heatmap": heatmap,
         "top_root_causes": top_causes
     }
+  except Exception as e:
+    import traceback
+    traceback.print_exc()
+    raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/plant_manager/weekly_trends")
 def get_plant_manager_trends():
@@ -449,7 +514,7 @@ def get_plant_manager_trends():
     top_causes = [{"cause": k, "count": v} for k, v in sorted(cause_counts.items(), key=lambda x: x[1], reverse=True)[:10]]
     
     completed = len(simulator.completed_vehicles)
-    defects = sum(1 for v in simulator.completed_vehicles if v["defect_flag"] == 1)
+    defects = sum(1 for v in simulator.completed_vehicles if len(v.get("defect_flags", [])) > 0)
     
     return {
         "view": "PLANT_MANAGER_WEEKLY",
@@ -490,42 +555,87 @@ def get_vehicle_genealogy(vin: str):
     # Check active simulator memory first
     veh = simulator.active_vehicles.get(vin)
     if veh:
-        records = veh["visit_history"]
+        records = veh.get("visit_history", [])
+        unique_records = []
+        seen = set()
+        for r in records:
+            sid = r.get("station_id")
+            if sid and sid not in seen:
+                seen.add(sid)
+                unique_records.append(r)
+
         return {
             "vin": vin,
             "status": veh.get("status", "IN_PROGRESS"),
             "entry_tick": veh.get("entry_tick"),
             "current_station": veh.get("current_station"),
-            "total_stations_visited": len(records),
+            "total_stations_visited": len(unique_records),
             "defect_count": len(veh.get("defect_flags", [])),
             "defect_flags": veh.get("defect_flags", []),
-            "station_trace": records
+            "station_trace": unique_records
         }
     
-    # Check completed vehicles
+    # Check completed vehicles in ring buffer
     for c_veh in simulator.completed_vehicles:
-        if c_veh["vehicle_id"] == vin:
-            records = c_veh["visit_history"]
+        if c_veh.get("vehicle_id") == vin:
+            records = c_veh.get("visit_history", [])
+            unique_records = []
+            seen = set()
+            for r in records:
+                sid = r.get("station_id")
+                if sid and sid not in seen:
+                    seen.add(sid)
+                    unique_records.append(r)
+
             return {
                 "vin": vin,
                 "status": "COMPLETED",
                 "entry_tick": c_veh.get("entry_tick"),
                 "completion_tick": c_veh.get("completion_tick"),
-                "total_stations_visited": len(records),
+                "total_stations_visited": len(unique_records),
                 "defect_count": len(c_veh.get("defect_flags", [])),
                 "defect_flags": c_veh.get("defect_flags", []),
-                "station_trace": records
+                "station_trace": unique_records
             }
 
-    # Query SQLite database
-    db_records = db.get_vehicle_genealogy(vin)
-    if db_records:
+    # Query SQLite vehicle_genealogy table first
+    genealogy_rec = db.get_vehicle_genealogy_record(vin)
+    if genealogy_rec:
+        visit_history = json.loads(genealogy_rec.get("visit_history") or "[]")
+        defect_flags = json.loads(genealogy_rec.get("defect_flags") or "[]")
         return {
             "vin": vin,
-            "status": "PASSED_FINAL_BUYOFF" if all(r.get("defect_flag") == 0 for r in db_records) else "FLAGGED_REWORK",
-            "total_stations_visited": len(db_records),
-            "defect_count": sum(1 for r in db_records if r.get("defect_flag")),
-            "station_trace": db_records
+            "status": genealogy_rec.get("status", "COMPLETED"),
+            "entry_tick": genealogy_rec.get("entry_tick"),
+            "completion_tick": genealogy_rec.get("completion_tick"),
+            "total_stations_visited": len(visit_history),
+            "defect_count": len(defect_flags),
+            "defect_flags": defect_flags,
+            "station_trace": visit_history
+        }
+
+    # Fallback to telemetry rows and aggregate by unique station_id
+    db_records = db.get_vehicle_genealogy(vin)
+    if db_records:
+        visited_station_map = {}
+        defect_stations = set()
+        for r in db_records:
+            sid = r["station_id"]
+            if sid not in visited_station_map:
+                visited_station_map[sid] = r
+            if r.get("defect_flag"):
+                defect_stations.add(sid)
+                visited_station_map[sid]["defect_flag"] = 1
+                visited_station_map[sid]["defect_type"] = r.get("defect_type")
+
+        unique_trace = list(visited_station_map.values())
+        return {
+            "vin": vin,
+            "status": "PASSED_FINAL_BUYOFF" if len(defect_stations) == 0 else "FLAGGED_REWORK",
+            "total_stations_visited": len(unique_trace),
+            "defect_count": len(defect_stations),
+            "defect_flags": list(defect_stations),
+            "station_trace": unique_trace
         }
 
     return {
@@ -552,10 +662,14 @@ async def control_simulator(req: SimulatorControlRequest):
         latest_payload = process_simulation_tick()
         await ws_manager.broadcast_json(latest_payload)
         return {"status": "STEPPED", "tick": latest_payload["tick"], "payload": latest_payload}
-    elif action == "set_speed":
+    elif action in ["set_speed", "speed"]:
         if req.speed_multiplier:
             speed_multiplier = max(0.1, min(20.0, req.speed_multiplier))
         return {"status": "SPEED_UPDATED", "speed_multiplier": speed_multiplier}
+    elif action in ["set_jph", "jph"]:
+        if req.jph:
+            simulator.target_jph = max(10.0, min(120.0, float(req.jph)))
+        return {"status": "JPH_UPDATED", "target_jph": simulator.target_jph}
     elif action in ["clear_anomalies", "reset_anomalies", "clear"]:
         simulator.anomaly_mgr.active_anomalies.clear()
         latest_payload = process_simulation_tick()
