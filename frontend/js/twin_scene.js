@@ -670,17 +670,19 @@ class TwinSceneEngine {
         pos = { x: pTo.x + 72, y: pTo.y + 60 };
         isHalted = isDestStopped;
 
+        const barEl = document.getElementById(`s-bar-${toSid}`);
+        const nodeEl = document.getElementById(`station-node-${toSid}`);
+
         if (!isHalted) {
           veh.dwellTimer += 0.016;
           
           // Animate machine progress bar for the active vehicle
-          const barEl = document.getElementById(`s-bar-${toSid}`);
           if (barEl) {
             const pct = Math.min(100, Math.round((veh.dwellTimer / veh.dwellTarget) * 100));
             barEl.style.width = `${pct}%`;
+            barEl.style.backgroundColor = (veh.defect_count > 0) ? "#ef4444" : "#10b981";
           }
 
-          const nodeEl = document.getElementById(`station-node-${toSid}`);
           if (nodeEl && !nodeEl.classList.contains("status-critical")) {
             nodeEl.classList.add("in-cycle");
           }
@@ -690,9 +692,27 @@ class TwinSceneEngine {
             if (nodeEl) nodeEl.classList.remove("in-cycle");
             if (barEl) barEl.style.width = "0%";
 
-            // P0b: Do nothing here! We wait for the backend to tell us the vehicle has moved.
-            // When the backend says vBackend.current_station is different from veh.toStation,
-            // updateTelemetry will trigger the TRANSIT phase automatically.
+            // Use topology downstream_ids to pick next station (always available)
+            let nextStation = null;
+            const meta = this.stations[veh.toStation];
+            if (meta && meta.downstream_ids && meta.downstream_ids.length > 0) {
+              nextStation = meta.downstream_ids[0];
+            }
+
+            if (nextStation) {
+              const edgeExists = Boolean(this.edgePaths && this.edgePaths[`${veh.toStation}->${nextStation}`]);
+              if (edgeExists) {
+                veh.fromStation = veh.toStation;
+                veh.toStation = nextStation;
+                veh.progress = 0.0;
+                veh.state = "TRANSIT";
+                veh.dwellTimer = 0.0;
+              } else {
+                veh.progress = 1.0;
+                veh.state = "DOCK";
+                veh.dwellTimer = 0.0;
+              }
+            }
           }
         }
       } else {
@@ -729,7 +749,15 @@ class TwinSceneEngine {
             veh.progress = 1.0;
             veh.state = "DOCK";
             veh.dwellTimer = 0.0;
-            veh.dwellTarget = 2.4 + (Math.random() * 0.6);
+
+            // Scale dwellTarget proportionally to station's actual cycle time
+            // Typical cycle times: 40-70s for most stations, 100-200s for ovens/baths
+            // Map to visual dwell: ~1.0s minimum, ~3.5s for heavy process stations
+            const stPayload = this.stationsPayload[toSid] || {};
+            const stMeta = this.stations[toSid] || {};
+            const cycleSec = stPayload.target_cycle_time_s || stMeta.target_cycle_time_s || 55;
+            veh.dwellTarget = Math.max(0.8, Math.min(3.5, cycleSec / 40.0));
+
             pos = { x: pTo.x + 72, y: pTo.y + 60 };
             stationOccupants[toSid] = veh.vin; // Claim machine cradle lock immediately
           } else {
@@ -829,7 +857,8 @@ class TwinSceneEngine {
           veh.route_length = vBackend.route_length;
           veh.visited_station_ids = vBackend.visited_station_ids || [];
           
-          if (vBackend.current_station && vBackend.current_station !== veh.toStation) {
+          // If backend says vehicle moved and frontend is idle in DOCK (finished processing), sync up
+          if (vBackend.current_station && vBackend.current_station !== veh.toStation && veh.state === "DOCK" && veh.dwellTimer >= veh.dwellTarget) {
             const edgeExists = Boolean(this.edgePaths && this.edgePaths[`${veh.toStation}->${vBackend.current_station}`]);
             if (edgeExists) {
               veh.fromStation = veh.toStation;

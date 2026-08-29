@@ -317,7 +317,7 @@ async def simulation_loop():
             if is_sim_running:
                 latest_payload = process_simulation_tick()
                 await ws_manager.broadcast_json(latest_payload)
-            delay = max(0.05, 0.33 / max(0.1, speed_multiplier))
+            delay = max(0.05, 1.5 / max(0.1, speed_multiplier))
             await asyncio.sleep(delay)
         except Exception as e:
             print(f"Error in simulation loop: {e}")
