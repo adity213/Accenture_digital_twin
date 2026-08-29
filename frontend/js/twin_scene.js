@@ -480,14 +480,15 @@ class TwinSceneEngine {
     if (Array.isArray(activeVehicles) && activeVehicles.length > 0) {
       activeVehicles.forEach((vData, i) => {
         const curSid = vData.current_station || "ST01";
-        const prevSid = vData.previous_station || "ST01";
+        const prevSid = vData.previous_station || (this.stations[curSid]?.upstream_ids?.[0]) || curSid;
+        const hasConveyorEdge = Boolean(prevSid && prevSid !== curSid && this.edgePaths && this.edgePaths[`${prevSid}->${curSid}`]);
 
         const veh = {
           vin: vData.vin,
           fromStation: prevSid,
           toStation: curSid,
-          progress: 0.15 + (i * 0.12) % 0.7,
-          state: "TRANSIT",
+          progress: hasConveyorEdge ? (0.2 + (i * 0.15) % 0.6) : 1.0,
+          state: hasConveyorEdge ? "TRANSIT" : "DOCK",
           dwellTimer: 0.0,
           dwellTarget: 2.5,
           speed: 0.0055,
@@ -638,6 +639,22 @@ class TwinSceneEngine {
         stationOccupants[veh.toStation] = veh.vin;
       }
     });
+
+    // Reset dwell bars and in-cycle glow for stations without an active docked vehicle
+    if (this.stations) {
+      Object.keys(this.stations).forEach(sid => {
+        if (!stationOccupants[sid]) {
+          const barEl = document.getElementById(`s-bar-${sid}`);
+          if (barEl && barEl.style.width !== "0%") {
+            barEl.style.width = "0%";
+          }
+          const nodeEl = document.getElementById(`station-node-${sid}`);
+          if (nodeEl && nodeEl.classList.contains("in-cycle")) {
+            nodeEl.classList.remove("in-cycle");
+          }
+        }
+      });
+    }
 
     // 2. Group incoming transit vehicles by destination station and sort by progress
     this.fleet.forEach(veh => {
@@ -837,11 +854,20 @@ class TwinSceneEngine {
           veh.visited_station_ids = vBackend.visited_station_ids || [];
           
           if (vBackend.current_station && vBackend.current_station !== veh.toStation) {
-            veh.fromStation = veh.toStation;
-            veh.toStation = vBackend.current_station;
-            veh.progress = 0.0;
-            veh.state = "TRANSIT";
-            veh.dwellTimer = 0.0;
+            const edgeExists = Boolean(this.edgePaths && this.edgePaths[`${veh.toStation}->${vBackend.current_station}`]);
+            if (edgeExists) {
+              veh.fromStation = veh.toStation;
+              veh.toStation = vBackend.current_station;
+              veh.progress = 0.0;
+              veh.state = "TRANSIT";
+              veh.dwellTimer = 0.0;
+            } else {
+              veh.fromStation = vBackend.current_station;
+              veh.toStation = vBackend.current_station;
+              veh.progress = 1.0;
+              veh.state = "DOCK";
+              veh.dwellTimer = 0.0;
+            }
           }
 
           if (this.activeHudVin === veh.vin && this.hudElement && this.hudElement.style.display !== "none") {
@@ -863,14 +889,15 @@ class TwinSceneEngine {
         vehiclesPayload.forEach(vBackend => {
           if (!currentFleetVins.has(vBackend.vin) && this.fleet.length < 12) {
             const curSid = vBackend.current_station || "ST01";
-            const prevSid = vBackend.previous_station || "ST01";
+            const prevSid = vBackend.previous_station || (this.stations[curSid]?.upstream_ids?.[0]) || curSid;
+            const hasConveyorEdge = Boolean(prevSid && prevSid !== curSid && this.edgePaths && this.edgePaths[`${prevSid}->${curSid}`]);
 
             const newVeh = {
               vin: vBackend.vin,
               fromStation: prevSid,
               toStation: curSid,
-              progress: 0.1,
-              state: "TRANSIT",
+              progress: hasConveyorEdge ? 0.1 : 1.0,
+              state: hasConveyorEdge ? "TRANSIT" : "DOCK",
               dwellTimer: 0.0,
               dwellTarget: 2.5,
               speed: 0.0055,
