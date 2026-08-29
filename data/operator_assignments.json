@@ -55,5 +55,23 @@
       "ST15",
       "ST16"
     ]
+  },
+  {
+    "worker_id": "Coordie_Number_1",
+    "worker_name": "Mohit Choudhary",
+    "assigned_station_ids": [
+      "ST01",
+      "ST03",
+      "ST10"
+    ]
+  },
+  {
+    "worker_id": "sw",
+    "worker_name": "sda",
+    "assigned_station_ids": [
+      "ST05",
+      "ST12",
+      "ST14"
+    ]
   }
 ]

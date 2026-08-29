@@ -332,7 +332,22 @@ function updateCockpitDrawer(sid) {
 
   const alertBox = document.getElementById("sensor-coverage-alert");
   if (alertBox) {
-    alertBox.style.display = isManual ? "block" : "none";
+    alertBox.style.display = isVirtual ? "block" : "none";
+    if (isVirtual) {
+      const vData = st.virtual_sensor_imputed_data;
+      if (vData) {
+        // Disagreement variance is mapped 0-1, lower is higher confidence.
+        const confPct = Math.max(0, 100 - (vData.imputation_disagreement * 100)).toFixed(0);
+        document.getElementById("sensor-coverage-title").innerText = `⚠️ VIRTUAL SENSOR IMPUTATION (CONFIDENCE ${confPct}%)`;
+        document.getElementById("sensor-coverage-details").innerHTML = `
+          Missing: Physical Vibration, Temp, Power.<br/>
+          Est (Neighbor/Flow/Shift): ${vData.imputation_components.neighbor_estimate}s / ${vData.imputation_components.flow_estimate}s / ${vData.imputation_components.shift_baseline}s
+        `;
+      } else {
+         document.getElementById("sensor-coverage-title").innerText = `⚠️ VIRTUAL SENSOR IMPUTATION`;
+         document.getElementById("sensor-coverage-details").innerText = `Missing: Physical Vibration, Temp, Power. Below telemetry is Virtual / Imputed.`;
+      }
+    }
   }
 
   const tierBadge = document.getElementById("focus-tier");

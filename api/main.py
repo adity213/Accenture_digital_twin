@@ -255,6 +255,7 @@ def process_simulation_tick() -> Dict[str, Any]:
             "is_stopped": ev.get("is_stopped", False),
             "is_blackout": is_blackout,
             "is_virtual_sensing": is_blackout or (ev.get("cycle_time_s") is None),
+            "virtual_sensor_imputed_data": imputed_data,
             "processing_vin": ev.get("processing_vin"),
             "queued_vins": ev.get("queued_vins", []),
             "is_processing": ev.get("is_processing", False),
