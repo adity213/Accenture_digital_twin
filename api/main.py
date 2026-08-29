@@ -255,14 +255,22 @@ def process_simulation_tick() -> Dict[str, Any]:
         st_id = vdata.get("current_station", "ST01")
         st_state = station_states.get(st_id, {})
         
-        # Determine exact visitation path
+        # Determine exact visitation path (deduplicated)
         visit_history = vdata.get("visit_history", [])
-        visited_ids = [r.get("station_id") for r in visit_history]
+        seen_sids = []
+        seen_set = set()
+        for r in visit_history:
+            sid_v = r.get("station_id")
+            if sid_v and sid_v not in seen_set:
+                seen_set.add(sid_v)
+                seen_sids.append(sid_v)
+        visited_ids = seen_sids
         route_index = len(visited_ids)
         prev_st = visited_ids[-2] if len(visited_ids) >= 2 else None
         
-        # P0b: route_length is strictly an estimate until terminal station
-        route_len_est = route_index + simulator.shortest_path_to_sink.get(st_id, 1) - 1
+        # P0b: route_length_estimate = shortest path from entry (ST01) to terminal.
+        # Every route through the branching DAG is exactly this many unique stations.
+        route_len_est = simulator.shortest_path_to_sink.get("ST01", 37)
         
         active_veh_list.append({
             "vin": vin,
@@ -693,7 +701,7 @@ def get_vehicle_genealogy(vin: str):
                 unique_records.append(r)
 
         route_index = len(unique_records)
-        route_len_est = route_index + simulator.shortest_path_to_sink.get(veh.get("current_station", "ST01"), 1) - 1
+        route_len_est = simulator.shortest_path_to_sink.get("ST01", 37)
 
         return {
             "vin": vin,

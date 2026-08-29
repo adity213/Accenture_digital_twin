@@ -754,6 +754,32 @@ function renderThermalHeatmap(heatmapData) {
     });
   }
 
+  const count = 20;
+
+  // Render X-axis header row for Shift Ticks
+  const headerRow = document.createElement("div");
+  headerRow.className = "thm-row";
+  headerRow.style.marginBottom = "6px";
+  
+  const emptyCorner = document.createElement("span");
+  emptyCorner.className = "thm-sid";
+  headerRow.appendChild(emptyCorner);
+  
+  for (let i = 0; i < count; i++) {
+    const tickLbl = document.createElement("div");
+    tickLbl.className = "thm-cell";
+    tickLbl.style.background = "transparent";
+    tickLbl.style.fontSize = "0.55rem";
+    tickLbl.style.color = "var(--text-muted)";
+    tickLbl.style.display = "flex";
+    tickLbl.style.alignItems = "flex-end";
+    tickLbl.style.justifyContent = "center";
+    tickLbl.style.fontFamily = "var(--font-mono)";
+    tickLbl.innerText = `-${count - i}`;
+    headerRow.appendChild(tickLbl);
+  }
+  container.appendChild(headerRow);
+
   sids.forEach(sid => {
     const row = document.createElement("div");
     row.className = "thm-row";
@@ -764,7 +790,6 @@ function renderThermalHeatmap(heatmapData) {
     row.appendChild(lbl);
 
     const readings = heatMapLookup[sid] || [];
-    const count = 20;
 
     for (let i = 0; i < count; i++) {
       const cell = document.createElement("div");
