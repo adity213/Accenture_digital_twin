@@ -204,7 +204,7 @@ def main():
     # ---------------------------------------------------------------------------------
     # REGIME 6: Sensor Network Degradation Stress (40% Telemetry Dropouts)
     # ---------------------------------------------------------------------------------
-    print("[6/6] Evaluating Sensor Network Degradation Stress (40% Dropouts)...")
+    print("[6/7] Evaluating Sensor Network Degradation Stress (40% Dropouts)...")
     sensor_test_rows = load_dataset_rows(data_dir / "test_sensor_degraded.csv")
     X_sensor_test, y_bn_sensor_test, _ = parse_features_and_labels(sensor_test_rows)
 
@@ -215,6 +215,23 @@ def main():
         threshold=args.threshold,
     )
     results.append(res_sensor)
+
+    # ---------------------------------------------------------------------------------
+    # REGIME 7: Emergent Wear-Driven Failures (Organic Physics Simulation)
+    # ---------------------------------------------------------------------------------
+    print("[7/7] Evaluating Emergent Wear-Driven Failures (Organic Physics Simulation)...")
+    emergent_test_file = data_dir / "test_emergent_wear.csv"
+    if emergent_test_file.exists():
+        emergent_test_rows = load_dataset_rows(emergent_test_file)
+        X_emergent_test, y_bn_emergent_test, _ = parse_features_and_labels(emergent_test_rows)
+
+        res_emergent = evaluate_regime(
+            model_iid, X_emergent_test, y_bn_emergent_test,
+            regime_name="7. Emergent Wear Failures (Organic)",
+            regime_desc="Emergent mechanical wear accumulation and stochastic unscheduled failures",
+            threshold=args.threshold,
+        )
+        results.append(res_emergent)
 
     # ---------------------------------------------------------------------------------
     # FORMATTED REPORT TABLE

@@ -327,7 +327,20 @@ def main():
         ))
     save_dataset_csv(sensor_test_rows, out_dir / "test_sensor_degraded.csv")
 
-    print(f"\n[scenario_gen] Completed! All 8 scenario partitions written to {out_dir}/")
+    # 7. Emergent Wear-Driven Failures (Organic Physics Simulation)
+    print("\n7. Generating Emergent Wear-Driven Failures (Organic Physics Simulation)...")
+    emergent_test_rows = []
+    for s_idx in range(args.seeds):
+        emergent_test_rows.extend(simulate_scenario_run(
+            seed=args.base_seed + 600 + s_idx,
+            num_ticks=args.ticks_per_run * 2,
+            horizon=args.horizon,
+            anomaly_types=[],  # Rely solely on emergent wear & unscheduled failure triggers
+            scenario_tag="emergent_wear_failures"
+        ))
+    save_dataset_csv(emergent_test_rows, out_dir / "test_emergent_wear.csv")
+
+    print(f"\n[scenario_gen] Completed! All 9 scenario partitions written to {out_dir}/")
 
 
 if __name__ == "__main__":

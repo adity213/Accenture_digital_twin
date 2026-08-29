@@ -97,6 +97,20 @@ class AnomalyManager:
         self.active_anomalies[aid] = anomaly
         return aid
 
+    def inject_unscheduled_failure(self, station_id: str, current_tick: int, duration_ticks: int = 35) -> str:
+        aid = f"UNSCHEDULED_FAIL_{station_id}_{current_tick}"
+        anomaly = ActiveAnomaly(
+            anomaly_id=aid,
+            anomaly_type="unscheduled_failure",
+            station_id=station_id,
+            start_tick=current_tick,
+            duration_ticks=duration_ticks,
+            severity=1.0,
+            params={"failure_mode": "mechanical_wear_outage"}
+        )
+        self.active_anomalies[aid] = anomaly
+        return aid
+
     def get_station_anomaly_effects(self, station_id: str, current_tick: int) -> Dict[str, Any]:
         effects = {
             "cycle_time_multiplier": 1.0,
@@ -146,5 +160,13 @@ class AnomalyManager:
                     
                 elif anom.anomaly_type == "energy_waste":
                     effects["power_multiplier"] = max(effects["power_multiplier"], anom.params.get("surge_multiplier", 2.4))
+
+                elif anom.anomaly_type == "unscheduled_failure":
+                    progress = (current_tick - anom.start_tick) / max(1, anom.duration_ticks)
+                    if progress > 0.5:
+                        effects["is_stopped"] = True
+                        effects["cycle_time_multiplier"] = 999.0
+                    else:
+                        effects["cycle_time_multiplier"] = max(effects["cycle_time_multiplier"], 1.30 + progress * 0.40)
                     
         return effects

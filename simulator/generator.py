@@ -48,6 +48,9 @@ def get_station_category(station: Dict[str, Any]) -> str:
     return "automated_process"
 
 
+NO_DRIFT_CONTROL_STATIONS = {"ST03", "ST15", "ST31"}
+
+
 class LineSimulator:
     def __init__(
         self,
@@ -89,6 +92,16 @@ class LineSimulator:
         # Latent load state per station (Phase 17)
         self.load_state: Dict[str, float] = {sid: 0.0 for sid in self.stations}
 
+        # Emergent wear state per station & maintenance tracking (Phase 21)
+        self.wear_state: Dict[str, float] = {
+            sid: (0.0 if sid in NO_DRIFT_CONTROL_STATIONS else self.rng.uniform(0.0, 0.15))
+            for sid in self.stations
+        }
+        self.maintenance_interval_ticks: int = 1440  # Daily preventive service window (1440 simulated minutes)
+        self.maintenance_resets_count: int = 0
+        self.unscheduled_failures_count: int = 0
+        self.unscheduled_failure_stations: set = set()
+
     def get_simulated_time(self) -> str:
         sim_dt = self.start_time + timedelta(minutes=self.current_tick)
         return sim_dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -118,6 +131,14 @@ class LineSimulator:
             self.active_vehicles[vin] = veh_info
             self.station_buffers["ST01"].append(vin)
 
+        # Periodic preventive maintenance service window (Phase 21: simulated 48-hr maintenance window)
+        if self.current_tick > 0 and self.current_tick % self.maintenance_interval_ticks == 0:
+            for sid in self.stations:
+                if sid not in NO_DRIFT_CONTROL_STATIONS and self.wear_state[sid] > 0.65:
+                    if self.rng.random() < 0.75:  # Realistic service coverage
+                        self.wear_state[sid] = self.rng.uniform(0.05, 0.15)
+                        self.maintenance_resets_count += 1
+
         # 2. Process Station Telemetry & Physical States
         dispatched_this_tick: Dict[str, str] = {}
         for sid, s in self.stations.items():
@@ -130,6 +151,28 @@ class LineSimulator:
             # Anomaly modifications
             anom_effects = self.anomaly_mgr.get_station_anomaly_effects(sid, self.current_tick)
             
+            # Phase 19: Station category classification & multipliers
+            category = get_station_category(s)
+            ct_cv = {"automated_precision": 0.04, "automated_process": 0.06, "manual": 0.13}[category]
+            defect_prob = 0.008 * {"automated_precision": 0.6, "automated_process": 1.0, "manual": 2.8}[category]
+
+            # Phase 21: Emergent wear accumulation & unscheduled failure trigger
+            if sid in NO_DRIFT_CONTROL_STATIONS:
+                base_wear_rate = 0.0
+            else:
+                base_wear_rate = {"automated_precision": 0.00025, "automated_process": 0.00030, "manual": 0.00035}[category]
+                shock = 0.04 if self.rng.random() < 0.0015 else 0.0
+                self.wear_state[sid] = min(1.2, self.wear_state[sid] + base_wear_rate * (1.0 + max(0.0, self.load_state[sid])) + shock)
+
+            # Trigger unscheduled failure if wear exceeds threshold
+            if self.wear_state[sid] > 0.85 and not any(an["type"] == "unscheduled_failure" for an in anom_effects["active_anomalies"]):
+                prob_fail = min(0.12, (self.wear_state[sid] - 0.85) * 0.35)
+                if self.rng.random() < prob_fail:
+                    self.anomaly_mgr.inject_unscheduled_failure(sid, self.current_tick, duration_ticks=35)
+                    self.unscheduled_failures_count += 1
+                    self.unscheduled_failure_stations.add(sid)
+                    anom_effects = self.anomaly_mgr.get_station_anomaly_effects(sid, self.current_tick)
+
             is_stopped = anom_effects["is_stopped"]
             ct_multiplier = anom_effects["cycle_time_multiplier"]
             has_latent_defect = anom_effects["latent_defect_flag"]
@@ -152,11 +195,6 @@ class LineSimulator:
                     "severity": 1.0,
                     "details": {"anomaly_id": an["id"], "progress": an["progress"]}
                 })
-            
-            # Phase 19: Station category classification & multipliers
-            category = get_station_category(s)
-            ct_cv = {"automated_precision": 0.04, "automated_process": 0.06, "manual": 0.13}[category]
-            defect_prob = 0.008 * {"automated_precision": 0.6, "automated_process": 1.0, "manual": 2.8}[category]
 
             # Phase 17: Latent load state AR(1) update
             rho = 0.90
@@ -224,22 +262,23 @@ class LineSimulator:
             temp_noise = self.rng.gauss(0, 0.3)
             temperature = base_temp + (self.load_state[sid] * 3.0) + temp_noise
 
-            # Phase 20: Decoupled anomaly-type-specific physical signatures
+            # Phase 20/21: Decoupled anomaly-type-specific physical signatures
             active_types = {an["type"] for an in anom_effects["active_anomalies"]}
             has_drift = "gradual_drift" in active_types
+            has_unscheduled_fail = "unscheduled_failure" in active_types
 
             if is_stopped:
                 vibration = max(0.02, 0.05 + self.rng.gauss(0, 0.01))
                 temperature = base_temp + temp_noise
-            elif has_drift and ct_multiplier > 1.0:
-                # Mechanical wear signature: vibration and temp rise specifically under gradual drift
+            elif (has_drift or has_unscheduled_fail) and ct_multiplier > 1.0:
+                # Mechanical wear / failure signature: vibration and temp rise specifically under gradual drift or unscheduled failure
                 vibration += min(3.5, (ct_multiplier - 1.0) * 3.5)
                 temperature += min(35.0, (ct_multiplier - 1.0) * 12.0)
 
             # Power & Energy (kW & kWh)
             if base_kw is not None:
                 base_power_factor = 0.9 if not is_stopped else 0.25
-                if has_drift and not is_stopped and ct_multiplier > 1.0:
+                if (has_drift or has_unscheduled_fail) and not is_stopped and ct_multiplier > 1.0:
                     base_power_factor *= (1.0 + min(0.3, (ct_multiplier - 1.0) * 0.25))
                 if power_multiplier > 1.0:
                     base_power_factor = min(2.5, base_power_factor * power_multiplier)
