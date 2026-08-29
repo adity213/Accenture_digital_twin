@@ -859,9 +859,11 @@ class TwinSceneEngine {
     const defectCount = veh.defect_count || 0;
     const routeIndex = veh.route_index || 1;
     const routeEstimate = veh.route_length_estimate || 37;
-    const routeLength = veh.route_length;
+    const routeLength = veh.route_length;  // Only set by backend when vehicle reaches terminal station
     
-    const routeDisplay = routeLength ? `${routeIndex}/${routeLength} Stations Traversed` : `~${routeIndex}/${routeEstimate} Estimated`;
+    const routeDisplay = routeLength
+      ? `${routeIndex}/${routeLength} Stations Traversed`
+      : `${routeIndex}/${routeEstimate} Stations Traversed`;
 
     let statusTag = '🟢 CONVEYOR TRANSIT';
     if (isHalted && this.stationsPayload[veh.toStation]?.is_stopped) statusTag = '🛑 HALTED AT STATION';

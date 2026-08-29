@@ -927,10 +927,11 @@ async function traceGenealogy() {
     const visitedCount = visitedSids.size || data.total_stations_visited || (trace ? trace.length : 0);
     const defectCount = defectSids.size || (data.defect_count !== undefined ? data.defect_count : (data.defect_flags ? data.defect_flags.length : 0));
     const isPassed = defectCount === 0;
+    const routeTotal = data.route_length || data.route_length_estimate || visitedCount;
 
     resultEl.innerHTML = `
       <span style="color: ${isPassed ? 'var(--status-nominal)' : 'var(--status-critical)'}; font-weight: 800;">${data.vin || vin}:</span> 
-      ${visitedCount}/40 Stations Traversed • 
+      ${visitedCount}/${routeTotal} Stations Traversed • 
       Defects Flagged: <strong style="color: ${isPassed ? 'var(--status-nominal)' : 'var(--status-critical)'};">${defectCount}</strong> • 
       Quality Status: <strong style="color: ${isPassed ? 'var(--status-nominal)' : 'var(--status-critical)'}; text-transform: uppercase;">${data.status || (isPassed ? 'PASSED FINAL BUY-OFF' : 'FLAGGED_REWORK')}</strong>
     `;

@@ -692,12 +692,18 @@ def get_vehicle_genealogy(vin: str):
                 seen.add(sid)
                 unique_records.append(r)
 
+        route_index = len(unique_records)
+        route_len_est = route_index + simulator.shortest_path_to_sink.get(veh.get("current_station", "ST01"), 1) - 1
+
         return {
             "vin": vin,
             "status": veh.get("status", "IN_PROGRESS"),
             "entry_tick": veh.get("entry_tick"),
             "current_station": veh.get("current_station"),
             "total_stations_visited": len(unique_records),
+            "route_index": route_index,
+            "route_length_estimate": route_len_est,
+            "route_length": None,
             "defect_count": len(veh.get("defect_flags", [])),
             "defect_flags": veh.get("defect_flags", []),
             "station_trace": unique_records
@@ -721,6 +727,7 @@ def get_vehicle_genealogy(vin: str):
                 "entry_tick": c_veh.get("entry_tick"),
                 "completion_tick": c_veh.get("completion_tick"),
                 "total_stations_visited": len(unique_records),
+                "route_length": len(unique_records),
                 "defect_count": len(c_veh.get("defect_flags", [])),
                 "defect_flags": c_veh.get("defect_flags", []),
                 "station_trace": unique_records
