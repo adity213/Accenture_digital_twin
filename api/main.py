@@ -170,6 +170,8 @@ def process_simulation_tick() -> Dict[str, Any]:
         bn_risk, def_risk, risk_level = risk_model.predict_risk(feats)
         comp_risk = max(bn_risk, def_risk)
         this_tick_risk[sid] = comp_risk
+        
+        contributions = risk_model.get_feature_contributions(sid, feats)
 
         # Composite Twin Confidence based on actual model risk
         twin_conf = confidence_engine.compute_composite_twin_confidence(
@@ -208,7 +210,8 @@ def process_simulation_tick() -> Dict[str, Any]:
             "processing_vin": ev.get("processing_vin"),
             "queued_vins": ev.get("queued_vins", []),
             "is_processing": ev.get("is_processing", False),
-            "dwell_progress": ev.get("dwell_progress", 0.0)
+            "dwell_progress": ev.get("dwell_progress", 0.0),
+            "risk_drivers": contributions
         }
         
     # 2. Graph Ripple Propagation
@@ -251,10 +254,21 @@ def process_simulation_tick() -> Dict[str, Any]:
     for vin, vdata in simulator.active_vehicles.items():
         st_id = vdata.get("current_station", "ST01")
         st_state = station_states.get(st_id, {})
+        
+        # Determine exact visitation path
+        visit_history = vdata.get("visit_history", [])
+        visited_ids = [r.get("station_id") for r in visit_history]
+        route_index = len(visited_ids)
+        prev_st = visited_ids[-2] if len(visited_ids) >= 2 else None
+        
+        # P0b: route_length is strictly an estimate until terminal station
+        route_len_est = route_index + simulator.shortest_path_to_sink.get(st_id, 1) - 1
+        
         active_veh_list.append({
             "vin": vin,
             "vehicle_id": vin,
             "current_station": st_id,
+            "previous_station": prev_st,
             "station_name": st_state.get("name", st_id),
             "zone": st_state.get("zone", "Body"),
             "status": vdata.get("status", "IN_PROGRESS"),
@@ -262,7 +276,12 @@ def process_simulation_tick() -> Dict[str, Any]:
             "defect_count": len(vdata.get("defect_flags", [])),
             "defect_flags": vdata.get("defect_flags", []),
             "is_stopped": bool(st_state.get("is_stopped", False)),
-            "visit_history_len": len(vdata.get("visit_history", []))
+            "visit_history_len": route_index,
+            "route_index": route_index,
+            "route_length_estimate": route_len_est,
+            "route_length": None,  # Not final until ST40
+            "route_id": "MAIN_LINE",
+            "visited_station_ids": visited_ids
         })
 
     payload = {
@@ -319,10 +338,18 @@ def get_stations():
     for vin, vdata in simulator.active_vehicles.items():
         st_id = vdata.get("current_station", "ST01")
         st_meta = stations_meta.get(st_id, {})
+        
+        visit_history = vdata.get("visit_history", [])
+        visited_ids = [r.get("station_id") for r in visit_history]
+        route_index = len(visited_ids)
+        prev_st = visited_ids[-2] if len(visited_ids) >= 2 else None
+        route_len_est = route_index + simulator.shortest_path_to_sink.get(st_id, 1) - 1
+
         active_veh_list.append({
             "vin": vin,
             "vehicle_id": vin,
             "current_station": st_id,
+            "previous_station": prev_st,
             "station_name": st_meta.get("name", st_id),
             "zone": st_meta.get("zone", "Body"),
             "status": vdata.get("status", "IN_PROGRESS"),
@@ -330,8 +357,13 @@ def get_stations():
             "defect_count": len(vdata.get("defect_flags", [])),
             "defect_flags": vdata.get("defect_flags", []),
             "is_stopped": False,
-            "visit_history_len": len(vdata.get("visit_history", [])),
-            "visit_history": vdata.get("visit_history", [])
+            "visit_history_len": route_index,
+            "route_index": route_index,
+            "route_length_estimate": route_len_est,
+            "route_length": None,
+            "route_id": "MAIN_LINE",
+            "visited_station_ids": visited_ids,
+            "visit_history": visit_history
         })
 
     return {
@@ -905,6 +937,14 @@ def apply_topology(req: TopologyUpdateRequest):
             }
         }
         
+        # Check compatibility with trained model
+        old_station_set = set(stations_meta.keys())
+        new_station_set = set(normalized_stations.keys())
+        model_status = "active"
+        if old_station_set != new_station_set:
+            model_status = "retraining_required"
+            # Keep using the trained model if possible, but flag the status
+            
         topology = new_topology
         stations_meta = topology["stations"]
         
@@ -913,17 +953,28 @@ def apply_topology(req: TopologyUpdateRequest):
         spc_engine = SPCEngine(lambda_ewma=0.3, z_threshold=3.0)
         virtual_sensor_engine = VirtualSensorEngine(stations_meta)
         confidence_engine = ConfidenceEngine(w1=0.5, w2=0.3, w3=0.2)
-        risk_model = RiskScoringModel()
+        risk_model = load_or_init_risk_model()
         propagation_engine = GraphPropagationEngine(topology)
         recommender_engine = RecommendationEngine(stations_meta)
         
+        # Check parallel branch balance (Bonus P0c)
+        warnings = []
+        for sid, meta in stations_meta.items():
+            downstreams = meta.get("downstream_ids", [])
+            if len(downstreams) > 1:
+                lengths = [simulator.shortest_path_to_sink.get(d, 0) for d in downstreams]
+                if len(set(lengths)) > 1:
+                    warnings.append(f"Branch at {sid} has unbalanced downstream hop-counts ({lengths})")
+                    
         cumulative_downtime_avoided_min = 0.0
         latest_payload = process_simulation_tick()
         
         return {
             "status": "TOPOLOGY_APPLIED",
             "station_count": len(stations_meta),
-            "edges_count": len(normalized_edges)
+            "edges_count": len(normalized_edges),
+            "model_status": model_status,
+            "warnings": warnings
         }
     finally:
         is_sim_running = was_running
@@ -946,7 +997,7 @@ def reset_topology():
         spc_engine = SPCEngine(lambda_ewma=0.3, z_threshold=3.0)
         virtual_sensor_engine = VirtualSensorEngine(stations_meta)
         confidence_engine = ConfidenceEngine(w1=0.5, w2=0.3, w3=0.2)
-        risk_model = RiskScoringModel()
+        risk_model = load_or_init_risk_model()
         propagation_engine = GraphPropagationEngine(topology)
         recommender_engine = RecommendationEngine(stations_meta)
         
@@ -956,7 +1007,8 @@ def reset_topology():
         return {
             "status": "TOPOLOGY_RESET",
             "station_count": len(stations_meta),
-            "edges_count": len(topology["edges"])
+            "edges_count": len(topology["edges"]),
+            "model_status": "active"
         }
     finally:
         is_sim_running = was_running

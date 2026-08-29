@@ -102,6 +102,36 @@ class LineSimulator:
         self.unscheduled_failures_count: int = 0
         self.unscheduled_failure_stations: set = set()
 
+        # Phase 25/P0b: Pre-compute shortest path to sink for routing estimates
+        self.shortest_path_to_sink = self._compute_shortest_paths_to_sink()
+
+    def _compute_shortest_paths_to_sink(self) -> Dict[str, int]:
+        adj = {sid: set() for sid in self.stations}
+        for u, v in self.edges:
+            adj[u].add(v)
+            
+        terminals = [sid for sid, meta in self.stations.items() if not meta.get("downstream_ids")]
+        
+        dists = {sid: float('inf') for sid in self.stations}
+        queue = deque()
+        for t in terminals:
+            dists[t] = 1
+            queue.append(t)
+            
+        rev_adj = {sid: set() for sid in self.stations}
+        for u, vs in adj.items():
+            for v in vs:
+                rev_adj[v].add(u)
+                
+        while queue:
+            curr = queue.popleft()
+            for prev in rev_adj[curr]:
+                if dists[curr] + 1 < dists[prev]:
+                    dists[prev] = dists[curr] + 1
+                    queue.append(prev)
+                    
+        return {k: int(v) if v != float('inf') else 1 for k, v in dists.items()}
+
     def get_simulated_time(self) -> str:
         sim_dt = self.start_time + timedelta(minutes=self.current_tick)
         return sim_dt.strftime("%Y-%m-%d %H:%M:%S")

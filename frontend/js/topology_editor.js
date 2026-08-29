@@ -919,7 +919,16 @@ async function applyTopology() {
     const data = await res.json();
 
     if (data.status === "TOPOLOGY_APPLIED") {
-      showToast(`✅ Topology applied! Digital Twin rebooted with ${data.station_count} stations & ${data.edges_count || editorEdges.length} conveyor links.`, 4000);
+      let msg = `✅ Topology applied! Digital Twin rebooted with ${data.station_count} stations & ${data.edges_count || editorEdges.length} conveyor links.`;
+      
+      if (data.model_status === "retraining_required") {
+        msg += `<br><br><span style="color: #ef4444; font-weight: bold;">⚠️ MODEL INCOMPATIBILITY DETECTED:</span><br>The new topology station set materially differs from the trained risk model features. ML fallback to deterministic baseline is active until the model is retrained.`;
+      }
+      if (data.warnings && data.warnings.length > 0) {
+        msg += `<br><br><span style="color: #f59e0b; font-weight: bold;">⚠️ ROUTING WARNING:</span><br>` + data.warnings.join('<br>');
+      }
+      
+      showToast(msg, 10000);
 
       // Refresh Floor Supervisor View
       if (typeof loadStationsTopology === "function") {

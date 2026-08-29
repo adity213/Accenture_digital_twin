@@ -430,20 +430,22 @@ class TwinSceneEngine {
     if (Array.isArray(activeVehicles) && activeVehicles.length > 0) {
       activeVehicles.forEach((vData, i) => {
         const curSid = vData.current_station || "ST01";
-        const nextEdges = this.edges.filter(e => e[0] === curSid);
-        const toSid = nextEdges.length > 0 ? nextEdges[0][1] : curSid;
+        const prevSid = vData.previous_station || "ST01";
 
         const veh = {
           vin: vData.vin,
-          fromStation: curSid,
-          toStation: toSid,
+          fromStation: prevSid,
+          toStation: curSid,
           progress: 0.15 + (i * 0.12) % 0.7,
           state: "TRANSIT",
           dwellTimer: 0.0,
           dwellTarget: 2.5,
           speed: 0.0055,
           defect_count: vData.defect_count || 0,
-          visit_history_len: vData.visit_history_len || 1,
+          route_index: vData.route_index || 1,
+          route_length_estimate: vData.route_length_estimate || 37,
+          route_length: vData.route_length,
+          visited_station_ids: vData.visited_station_ids || [],
           queueSlot: 0,
           element: null
         };
@@ -645,28 +647,9 @@ class TwinSceneEngine {
             if (nodeEl) nodeEl.classList.remove("in-cycle");
             if (barEl) barEl.style.width = "0%";
 
-            if (toSid === "ST40") {
-              // Terminal station exit -> loop back to ST01 cleanly
-              veh.fromStation = "ST01";
-              veh.toStation = "ST02";
-              veh.progress = 0.0;
-              veh.state = "TRANSIT";
-              veh.dwellTimer = 0.0;
-              veh.visit_history_len = 1;
-              veh.defect_count = 0;
-            } else {
-              // Advance to next downstream edge
-              const nextEdges = this.edges.filter(e => e[0] === toSid);
-              if (nextEdges.length > 0) {
-                const chosen = nextEdges[Math.floor(Math.random() * nextEdges.length)];
-                veh.fromStation = toSid;
-                veh.toStation = chosen[1];
-                veh.progress = 0.0;
-                veh.state = "TRANSIT";
-                veh.dwellTimer = 0.0;
-                veh.visit_history_len = (veh.visit_history_len || 1) + 1;
-              }
-            }
+            // P0b: Do nothing here! We wait for the backend to tell us the vehicle has moved.
+            // When the backend says vBackend.current_station is different from veh.toStation,
+            // updateTelemetry will trigger the TRANSIT phase automatically.
           }
         }
       } else {
@@ -798,11 +781,27 @@ class TwinSceneEngine {
         const vBackend = activeVinMap[veh.vin];
         if (vBackend) {
           veh.defect_count = vBackend.defect_count || 0;
-          if (vBackend.visit_history_len) {
-            veh.visit_history_len = vBackend.visit_history_len;
+          veh.route_index = vBackend.route_index || 1;
+          veh.route_length_estimate = vBackend.route_length_estimate || 37;
+          veh.route_length = vBackend.route_length;
+          veh.visited_station_ids = vBackend.visited_station_ids || [];
+          
+          if (vBackend.current_station && vBackend.current_station !== veh.toStation) {
+            veh.fromStation = veh.toStation;
+            veh.toStation = vBackend.current_station;
+            veh.progress = 0.0;
+            veh.state = "TRANSIT";
+            veh.dwellTimer = 0.0;
           }
         }
       });
+
+      // Prune vehicles no longer active in the backend
+      const missingVins = this.fleet.filter(veh => !activeVinMap[veh.vin]);
+      missingVins.forEach(veh => {
+        if (veh.element) veh.element.remove();
+      });
+      this.fleet = this.fleet.filter(veh => activeVinMap[veh.vin]);
 
       // If fleet has room, introduce new backend vehicles
       if (this.fleet.length < Math.min(12, vehiclesPayload.length)) {
@@ -810,20 +809,22 @@ class TwinSceneEngine {
         vehiclesPayload.forEach(vBackend => {
           if (!currentFleetVins.has(vBackend.vin) && this.fleet.length < 12) {
             const curSid = vBackend.current_station || "ST01";
-            const nextEdges = this.edges.filter(e => e[0] === curSid);
-            const toSid = nextEdges.length > 0 ? nextEdges[0][1] : curSid;
+            const prevSid = vBackend.previous_station || "ST01";
 
             const newVeh = {
               vin: vBackend.vin,
-              fromStation: curSid,
-              toStation: toSid,
+              fromStation: prevSid,
+              toStation: curSid,
               progress: 0.1,
               state: "TRANSIT",
               dwellTimer: 0.0,
               dwellTarget: 2.5,
               speed: 0.0055,
               defect_count: vBackend.defect_count || 0,
-              visit_history_len: vBackend.visit_history_len || 1,
+              route_index: vBackend.route_index || 1,
+              route_length_estimate: vBackend.route_length_estimate || 37,
+              route_length: vBackend.route_length,
+              visited_station_ids: vBackend.visited_station_ids || [],
               queueSlot: 0,
               element: null
             };
@@ -856,7 +857,11 @@ class TwinSceneEngine {
     const stMeta = this.stations[activeSid] || {};
     const isHalted = Boolean(veh.is_stopped);
     const defectCount = veh.defect_count || 0;
-    const visitedCount = veh.visit_history_len || 1;
+    const routeIndex = veh.route_index || 1;
+    const routeEstimate = veh.route_length_estimate || 37;
+    const routeLength = veh.route_length;
+    
+    const routeDisplay = routeLength ? `${routeIndex}/${routeLength} Stations Traversed` : `~${routeIndex}/${routeEstimate} Estimated`;
 
     let statusTag = '🟢 CONVEYOR TRANSIT';
     if (isHalted && this.stationsPayload[veh.toStation]?.is_stopped) statusTag = '🛑 HALTED AT STATION';
@@ -889,7 +894,7 @@ class TwinSceneEngine {
       </div>
       <div class="hud-detail-row">
         <span>Line Traversal:</span>
-        <strong>${visitedCount}/40 Stations Traversed</strong>
+        <strong>${routeDisplay}</strong>
       </div>
       <button class="hud-action-btn" onclick="event.stopPropagation(); window.traceVinFromVehicle('${veh.vin}')">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>

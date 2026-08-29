@@ -320,6 +320,13 @@ function updateCockpitDrawer(sid) {
 
   const isBlackout = Boolean(st.is_blackout);
   const isStopped = Boolean(st.is_stopped);
+  const isManual = meta.sensor_tier === 'manual';
+  const isVirtual = isBlackout || isManual;
+
+  const alertBox = document.getElementById("sensor-coverage-alert");
+  if (alertBox) {
+    alertBox.style.display = isManual ? "block" : "none";
+  }
 
   const tierBadge = document.getElementById("focus-tier");
   if (isBlackout) {
@@ -327,11 +334,11 @@ function updateCockpitDrawer(sid) {
     tierBadge.className = "node-tier-pill manual";
   } else {
     tierBadge.innerText = `${meta.sensor_tier.toUpperCase()} SENSOR`;
-    tierBadge.className = `node-tier-pill ${meta.sensor_tier === 'manual' ? 'manual' : ''}`;
+    tierBadge.className = `node-tier-pill ${isManual ? 'manual' : ''}`;
   }
 
   const ct = st.cycle_time_s || meta.target_cycle_time_s;
-  const ctSuffix = isBlackout ? " (VIRTUAL)" : (isStopped ? " (HALT)" : "");
+  const ctSuffix = isVirtual ? " (ESTIMATED)" : (isStopped ? " (HALT)" : "");
   document.getElementById("focus-ct").innerText = `${ct.toFixed(1)}s${ctSuffix}`;
   const ctFill = document.getElementById("gauge-ct-fill");
   if (ctFill) {
@@ -351,36 +358,36 @@ function updateCockpitDrawer(sid) {
   }
 
   const vib = st.vibration !== undefined && st.vibration !== null ? st.vibration : 1.20;
-  const isoStatus = isBlackout ? "VIRTUAL" : (st.iso_vibration_status || (vib < 1.12 ? "GOOD" : (vib <= 2.8 ? "SAT" : (vib <= 4.5 ? "WARN" : "CRIT"))));
-  document.getElementById("focus-vib").innerText = isBlackout ? "IMPUTED (NO SIGNAL)" : `${vib.toFixed(2)} mm/s (${isoStatus})`;
+  const isoStatus = isVirtual ? "VIRTUAL" : (st.iso_vibration_status || (vib < 1.12 ? "GOOD" : (vib <= 2.8 ? "SAT" : (vib <= 4.5 ? "WARN" : "CRIT"))));
+  document.getElementById("focus-vib").innerText = isVirtual ? "IMPUTED (NO SIGNAL)" : `${vib.toFixed(2)} mm/s (${isoStatus})`;
   const vibFill = document.getElementById("gauge-vib-fill");
   if (vibFill) {
-    const vibPct = isBlackout ? 20 : Math.min(100, Math.max(5, (vib / 5.0) * 100));
+    const vibPct = isVirtual ? 20 : Math.min(100, Math.max(5, (vib / 5.0) * 100));
     vibFill.style.width = `${vibPct}%`;
-    vibFill.style.background = isBlackout ? "#94a3b8" : (vib > 4.5 ? "var(--status-critical)" : (vib > 2.8 ? "var(--status-warning)" : "var(--status-nominal)"));
+    vibFill.style.background = isVirtual ? "#94a3b8" : (vib > 4.5 ? "var(--status-critical)" : (vib > 2.8 ? "var(--status-warning)" : "var(--status-nominal)"));
   }
 
   const temp = st.temperature !== undefined && st.temperature !== null ? st.temperature : 24.0;
   const tempEl = document.getElementById("focus-temp");
-  if (tempEl) tempEl.innerText = isBlackout ? "IMPUTED (NO SIGNAL)" : `${temp.toFixed(1)}°C`;
+  if (tempEl) tempEl.innerText = isVirtual ? "IMPUTED (NO SIGNAL)" : `${temp.toFixed(1)}°C`;
   const tempFill = document.getElementById("gauge-temp-fill");
   if (tempFill) {
-    const tempPct = isBlackout ? 15 : Math.min(100, Math.max(8, (temp / 210.0) * 100));
+    const tempPct = isVirtual ? 15 : Math.min(100, Math.max(8, (temp / 210.0) * 100));
     tempFill.style.width = `${tempPct}%`;
-    tempFill.style.background = isBlackout ? "#94a3b8" : (temp > 200.0 ? "var(--status-critical)" : (temp > 65.0 && temp < 180.0 ? "var(--status-warning)" : "var(--status-nominal)"));
+    tempFill.style.background = isVirtual ? "#94a3b8" : (temp > 200.0 ? "var(--status-critical)" : (temp > 65.0 && temp < 180.0 ? "var(--status-warning)" : "var(--status-nominal)"));
   }
 
   const pwr = st.power_kw || meta.power_base_kw || 30.0;
-  document.getElementById("focus-power").innerText = isBlackout ? "IMPUTED" : `${pwr.toFixed(1)} kW`;
+  document.getElementById("focus-power").innerText = isVirtual ? "IMPUTED" : `${pwr.toFixed(1)} kW`;
   const pwrFill = document.getElementById("gauge-power-fill");
   if (pwrFill) {
-    const pwrPct = isBlackout ? 20 : Math.min(100, (pwr / 75.0) * 100);
+    const pwrPct = isVirtual ? 20 : Math.min(100, (pwr / 75.0) * 100);
     pwrFill.style.width = `${pwrPct}%`;
-    pwrFill.style.background = isBlackout ? "#94a3b8" : (pwr > (meta.power_base_kw || 30.0) * 1.5 ? "var(--status-warning)" : "var(--status-nominal)");
+    pwrFill.style.background = isVirtual ? "#94a3b8" : (pwr > (meta.power_base_kw || 30.0) * 1.5 ? "var(--status-warning)" : "var(--status-nominal)");
   }
 
   const conf = st.twin_confidence !== undefined ? st.twin_confidence : 95.0;
-  const spcTrend = isBlackout ? "BLACKOUT" : (st.spc_trend || "STABLE");
+  const spcTrend = isVirtual ? "IMPUTED" : (st.spc_trend || "STABLE");
   const confEl = document.getElementById("focus-spc-conf");
   if (confEl) confEl.innerText = `${conf.toFixed(0)}% (${spcTrend})`;
   const confFill = document.getElementById("gauge-conf-fill");
@@ -423,6 +430,33 @@ function updateCockpitDrawer(sid) {
 
   const recs = latestTickData.recommendations || [];
   const stRec = recs.find(r => r.station_id === sid) || recs[0];
+
+  const riskDriversList = document.getElementById("risk-drivers-list");
+  if (riskDriversList && st.risk_drivers && st.risk_drivers.length > 0) {
+    riskDriversList.innerHTML = "";
+    document.getElementById("risk-drivers-container").style.display = "block";
+    
+    // Calculate total impact to show percentage influence
+    const totalImpact = st.risk_drivers.reduce((sum, d) => sum + d.impact_score, 0) || 1.0;
+    
+    st.risk_drivers.forEach(d => {
+      const pct = Math.round((d.impact_score / totalImpact) * 100);
+      const row = document.createElement("div");
+      row.style.cssText = `padding: 6px 8px; border-radius: 4px; background: rgba(15, 23, 42, 0.4); margin-bottom: 2px; border-left: 2px solid #64748b;`;
+      row.innerHTML = `
+        <div style="font-weight: 700; color: #f8fafc; margin-bottom: 2px; display: flex; justify-content: space-between;">
+          <span>${d.feature}</span>
+          <span style="color: #93c5fd;">${pct}% influence</span>
+        </div>
+        <div style="color: #94a3b8; line-height: 1.2; font-size: 0.68rem;">
+          ${d.explanation} ${d.impact_label}
+        </div>
+      `;
+      riskDriversList.appendChild(row);
+    });
+  } else if (riskDriversList) {
+    document.getElementById("risk-drivers-container").style.display = "none";
+  }
 
   if (stRec) {
     document.getElementById("rec-title").innerText = stRec.title;

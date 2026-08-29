@@ -184,6 +184,11 @@
               <div class="cockpit-focus-name" id="focus-name">Framing Main Station</div>
               <div class="cockpit-focus-type" id="focus-zone">BODY // MainFraming</div>
             </div>
+            
+            <div id="sensor-coverage-alert" style="display: none; background: rgba(245,158,11,0.15); border: 1px solid #f59e0b; color: #f59e0b; padding: 10px; font-size: 0.72rem; border-radius: var(--radius-sm); margin: 0 16px 12px 16px; font-family: var(--font-mono);">
+              <div style="font-weight: 800; margin-bottom: 4px;">⚠️ 14% SENSOR COVERAGE</div>
+              <div>Missing: Physical Vibration, Temp, Power. Below telemetry is Virtual / Imputed.</div>
+            </div>
 
             <!-- Cockpit Instrument Grid -->
             <div class="instrument-cluster-grid">
@@ -269,6 +274,16 @@
               </div>
               <div class="ai-rec-impact" id="rec-impact">
                 Impact: Line running at 55.4 JPH design cadence
+              </div>
+
+              <!-- RISK DRIVERS (STATISTICAL EVIDENCE) -->
+              <div id="risk-drivers-container" style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.15);">
+                <div style="font-size: 0.68rem; font-weight: 800; color: #93c5fd; font-family: var(--font-brand); margin-bottom: 6px; text-transform: uppercase;">
+                  Risk Drivers (Statistical Evidence)
+                </div>
+                <div id="risk-drivers-list" style="display: flex; flex-direction: column; gap: 6px; font-size: 0.72rem; font-family: var(--font-mono);">
+                  <!-- Populated dynamically -->
+                </div>
               </div>
 
               <!-- TIERED SOP ESCALATION LADDER (PHASE 8) -->
