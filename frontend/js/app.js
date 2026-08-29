@@ -1423,7 +1423,7 @@ function renderOperatorView() {
             ${statusText}
           </span>
           <div style="font-size: 0.74rem; font-family: var(--font-mono); font-weight: 800; margin-top: 4px; color: ${risk >= 0.8 ? 'var(--status-critical)' : 'inherit'};">
-            Risk: ${(risk * 100).toFixed(0)}%
+            ${st.serving_mode && st.serving_mode.includes('fallback') ? '<span style="font-size: 0.65rem; background-color: #f59e0b; color: white; padding: 2px 4px; border-radius: 4px; margin-right: 4px; vertical-align: middle;" title="Model disconnected or diverging. Hard fallback to deterministic heuristic.">⚠ FALLBACK MODE</span>' : ''}Risk: ${(risk * 100).toFixed(0)}%
           </div>
         </div>
       </div>

@@ -336,8 +336,10 @@ class RiskScoringModel:
         fallback_triggered = (sensor_conf < min_sensor_confidence) or (divergence > divergence_threshold)
         
         if fallback_triggered:
-            final_bn, final_def, final_comp = base_bn, base_def, base_comp
-            serving_mode = "shadow_fallback"
+            final_bn = round(max(ml_bn, base_bn), 3)
+            final_def = round(max(ml_def, base_def), 3)
+            final_comp = round(max(final_bn, final_def), 3)
+            serving_mode = "shadow_fallback_conservative"
         else:
             final_bn, final_def, final_comp = round(ml_bn, 3), round(ml_def, 3), round(ml_comp, 3)
             serving_mode = "ml_model"

@@ -217,8 +217,13 @@ def process_simulation_tick() -> Dict[str, Any]:
             zone=meta.get("zone", "Body"),
             station_type=meta.get("station_type") or meta.get("type", "RoboticWeld")
         )
-        bn_risk, def_risk, risk_level = risk_model.predict_risk(feats)
-        comp_risk = max(bn_risk, def_risk)
+        routing_res = risk_model.predict_risk_with_routing(feats)
+        bn_risk = routing_res["bottleneck_risk"]
+        def_risk = routing_res["defect_risk"]
+        risk_level = routing_res["risk_level"]
+        comp_risk = routing_res["composite_risk"]
+        serving_mode = routing_res["serving_mode"]
+        
         this_tick_risk[sid] = comp_risk
         
         contributions = risk_model.get_feature_contributions(sid, feats)
@@ -254,6 +259,7 @@ def process_simulation_tick() -> Dict[str, Any]:
             "defect_risk": def_risk,
             "composite_risk": comp_risk,
             "risk_level": risk_level,
+            "serving_mode": serving_mode,
             "is_stopped": ev.get("is_stopped", False),
             "is_blackout": is_blackout,
             "is_virtual_sensing": is_blackout or (ev.get("cycle_time_s") is None),
