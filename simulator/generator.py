@@ -19,6 +19,17 @@ from .topology import build_line_topology
 from .anomalies import AnomalyManager
 
 
+def lognormal_cycle_time(rng: random.Random, mean_ct: float, cv: float = 0.04) -> float:
+    """
+    Draws cycle time from a lognormal distribution parameterized so E[X] = mean_ct.
+    Phase 18 replacement for hard-clipped Gaussian, avoiding artificial cliff at 1.3x.
+    """
+    sigma_ln = math.sqrt(math.log(1.0 + cv**2))
+    mu_ln = math.log(mean_ct) - 0.5 * sigma_ln**2
+    val = rng.lognormvariate(mu_ln, sigma_ln)
+    return min(val, mean_ct * 2.5)  # soft cap on extreme outliers
+
+
 class LineSimulator:
     def __init__(
         self,
@@ -124,10 +135,18 @@ class LineSimulator:
                     "details": {"anomaly_id": an["id"], "progress": an["progress"]}
                 })
             
-            # Base Gaussian cycle time calibrated to effective takt
-            sigma = effective_target_ct * 0.04
-            actual_ct = self.rng.gauss(effective_target_ct, sigma)
-            actual_ct = max(effective_target_ct * 0.8, min(effective_target_ct * 1.3, actual_ct))
+            # Phase 17: Latent load state AR(1) update
+            rho = 0.90
+            innovation_sigma = 0.06
+            wear_influence = getattr(self, "wear_state", {}).get(sid, 0.0) * 0.4
+            target_load_mean = wear_influence
+            self.load_state[sid] = rho * self.load_state[sid] + (1 - rho) * target_load_mean + self.rng.gauss(0, innovation_sigma)
+            self.load_state[sid] = max(-1.0, min(2.0, self.load_state[sid]))
+
+            # Phase 18: Lognormal cycle time with load_state coupling (replaces hard-clipped Gaussian)
+            load_ct_mult = 1.0 + 0.05 * self.load_state[sid]
+            effective_mean_ct = effective_target_ct * max(0.8, min(1.2, load_ct_mult))
+            actual_ct = lognormal_cycle_time(self.rng, effective_mean_ct, cv=0.04)
             
             if is_stopped:
                 actual_ct = effective_target_ct * 4.5
@@ -165,14 +184,6 @@ class LineSimulator:
                 if prior_defects:
                     defect_flag = True
                     defect_type = f"detected_{prior_defects[-1]['type']}"
-
-            # Phase 17: Latent load state AR(1) update
-            rho = 0.90
-            innovation_sigma = 0.06
-            wear_influence = getattr(self, "wear_state", {}).get(sid, 0.0) * 0.4
-            target_load_mean = wear_influence
-            self.load_state[sid] = rho * self.load_state[sid] + (1 - rho) * target_load_mean + self.rng.gauss(0, innovation_sigma)
-            self.load_state[sid] = max(-1.0, min(2.0, self.load_state[sid]))
 
             # Physics signals: vibration & temperature (driven by shared load_state)
             robotic_types = [
