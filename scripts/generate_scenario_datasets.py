@@ -120,7 +120,11 @@ def simulate_scenario_run(
             else:
                 imputation_disagreement = 0.0
 
-            spc_res = spc_engine.update_station(sid, actual_ct, target_ct, vibration=ev.get("vibration"))
+            spc_res = spc_engine.update_station(
+                sid, actual_ct, target_ct,
+                vibration=ev.get("vibration"),
+                station_type=meta.get("station_type")
+            )
             data_conf = conf_engine.compute_data_confidence(
                 sensor_tier=meta["sensor_tier"],
                 is_blackout=is_blackout,

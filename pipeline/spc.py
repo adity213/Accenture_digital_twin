@@ -8,42 +8,46 @@ from typing import Dict, List, Any, Optional
 import math
 from collections import deque
 
-# Calibrated Coefficient of Variation (CV = sigma / target_ct) by Station Type
+# Calibrated Coefficient of Variation (CV = sigma / target_ct) by Station Type (Phase 22 Recalibration)
 STATION_TYPE_SIGMA_CV = {
-    # Highly automated / robotic: tight variance (2.5% - 3.5%)
-    "RoboticWeld": 0.032,
-    "RespotWeld": 0.030,
-    "LaserBrazing": 0.030,
-    "MainFraming": 0.035,
-    "AutomatedMarriage": 0.035,
-    "RoboticTorque": 0.032,
-    "AutomatedTorque": 0.032,
-    "RoboticSpray": 0.035,
-    "RoboticUrethane": 0.033,
-    "VisionQC": 0.025,
-    "QualityScan": 0.025,
-    # Process / Chemical / Thermal: medium variance (4.0% - 4.5%)
-    "ChemicalBath": 0.040,
-    "ElectroDeposition": 0.042,
-    "ThermalOven": 0.040,
-    "Dispensing": 0.045,
-    "FluidFill": 0.040,
-    "DynamicTest": 0.045,
-    "ElectronicFlash": 0.038,
-    "TransferBuffer": 0.030,
-    # Manual operations: natural human variation (5.0% - 6.5%)
-    "ManualWiring": 0.060,
-    "ManualTrim": 0.062,
-    "ManualFitting": 0.058,
-    "ManualFinishing": 0.055,
-    "ManualSealing": 0.058,
-    "Fitting": 0.055,
-    "SubAssembly": 0.050,
-    "ModuleMarriage": 0.048,
-    "MechanicalTorque": 0.045,
-    "SafetyCalibration": 0.042,
-    "FinalInspection": 0.050,
+    # 1. Automated Precision (CV = 0.040)
+    "RoboticWeld": 0.040,
+    "RespotWeld": 0.040,
+    "LaserBrazing": 0.040,
+    "MainFraming": 0.040,
+    "AutomatedMarriage": 0.040,
+    "RoboticTorque": 0.040,
+    "AutomatedTorque": 0.040,
+    "RoboticSpray": 0.040,
+    "RoboticUrethane": 0.040,
+    "VisionQC": 0.040,
+    "QualityScan": 0.040,
+
+    # 2. Automated Process (CV = 0.060)
+    "ChemicalBath": 0.060,
+    "ElectroDeposition": 0.060,
+    "ThermalOven": 0.060,
+    "Dispensing": 0.060,
+    "FluidFill": 0.060,
+    "DynamicTest": 0.060,
+    "ElectronicFlash": 0.060,
+    "TransferBuffer": 0.060,
+
+    # 3. Manual Operations (CV = 0.130)
+    "ManualWiring": 0.130,
+    "ManualTrim": 0.130,
+    "ManualFitting": 0.130,
+    "ManualFinishing": 0.130,
+    "ManualSealing": 0.130,
+    "Fitting": 0.130,
+    "SubAssembly": 0.130,
+    "ModuleMarriage": 0.130,
+    "MechanicalTorque": 0.130,
+    "SafetyCalibration": 0.130,
+    "FinalInspection": 0.130,
 }
+
+MANUAL_STATION_IDS = {"ST08", "ST09", "ST13", "ST17", "ST24", "ST27", "ST31", "ST35"}
 
 
 class SPCEngine:
@@ -77,8 +81,14 @@ class SPCEngine:
         curr_ewma = self.lambda_ewma * cycle_time_s + (1.0 - self.lambda_ewma) * prev_ewma
         self.ewma_state[station_id] = curr_ewma
         
-        # Station-type specific empirical sigma calibration
-        cv = STATION_TYPE_SIGMA_CV.get(station_type or "", 0.04)
+        # Station-type specific empirical sigma calibration (Phase 22)
+        if station_type and station_type in STATION_TYPE_SIGMA_CV:
+            cv = STATION_TYPE_SIGMA_CV[station_type]
+        elif station_id in MANUAL_STATION_IDS:
+            cv = 0.130
+        else:
+            cv = 0.050  # Balanced automated default
+            
         baseline_sigma = max(0.5, target_cycle_time_s * cv)
         
         # z-score against calibrated target baseline
