@@ -282,6 +282,12 @@
               <div class="ai-rec-impact" id="rec-impact">
                 Impact: Line running at 55.4 JPH design cadence
               </div>
+              <button id="btn-apply-intervention" onclick="applyIntervention()" style="display: none; width: 100%; margin-top: 10px; background: #3b82f6; color: #fff; border: none; padding: 8px; border-radius: 4px; font-weight: 700; cursor: pointer;">
+                APPLY RECOMMENDED OVERRIDE
+              </button>
+              <div id="intervention-badge" style="display: none; margin-top: 10px; background: rgba(59, 130, 246, 0.2); color: #60a5fa; padding: 6px; text-align: center; font-size: 0.72rem; font-weight: 700; border: 1px solid #3b82f6; border-radius: 4px;">
+                ⚡ INTERVENTION ACTIVE
+              </div>
 
               <!-- RISK DRIVERS (STATISTICAL EVIDENCE) -->
               <div id="risk-drivers-container" style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.15);">
@@ -381,7 +387,6 @@
                 <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">100.7% Line vs Plant Target</div>
               </div>
             </div>
-
             <!-- Per-Station Capex, ROI & Payback Period Table -->
             <div style="margin-top: 18px;">
               <div style="font-weight: 800; font-size: 0.82rem; color: #0f172a; margin-bottom: 8px;">
@@ -433,7 +438,7 @@
                 <button class="hmi-btn" style="height: 24px; font-size: 0.68rem;" onclick="traceGenealogy()">TRACE</button>
               </div>
               <input id="genealogy-input" value="VIN-2026-01042" style="width: 100%; margin-top: 6px; padding: 4px 8px; font-family: var(--font-mono); font-size: 0.75rem; border: 1px solid var(--border-subtle); border-radius: 4px;">
-              <div class="vin-trail-grid" id="vin-trail-container"></div>
+              <div class="vin-trail-grid" id="vin-trail-container" style="overflow-y: auto; max-height: 300px; padding-right: 4px;"></div>
               <div id="genealogy-result" style="margin-top: 8px; font-size: 0.74rem; font-family: var(--font-mono);">
                 40/40 Stations Verified • 0 Quality Buy-off Defects
               </div>
@@ -526,7 +531,7 @@
                   <div id="oee-bar-body" style="width: 91.4%; height: 100%; background: #0284c7;"></div>
                 </div>
                 <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); margin-top: 3px; font-family: var(--font-mono);">
-                  <span>Availability: 96.2%</span><span>Performance: 97.1%</span><span>Quality: 98.0%</span>
+                  <span id="oee-avail-body">Availability: 96.2%</span><span id="oee-perf-body">Performance: 97.1%</span><span id="oee-qual-body">Quality: 98.0%</span>
                 </div>
               </div>
               <div>
@@ -538,7 +543,7 @@
                   <div id="oee-bar-paint" style="width: 88.7%; height: 100%; background: #6366f1;"></div>
                 </div>
                 <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); margin-top: 3px; font-family: var(--font-mono);">
-                  <span>Availability: 94.0%</span><span>Performance: 96.5%</span><span>Quality: 97.8%</span>
+                  <span id="oee-avail-paint">Availability: 94.0%</span><span id="oee-perf-paint">Performance: 96.5%</span><span id="oee-qual-paint">Quality: 97.8%</span>
                 </div>
               </div>
               <div>
@@ -550,7 +555,7 @@
                   <div id="oee-bar-assy" style="width: 94.2%; height: 100%; background: #10b981;"></div>
                 </div>
                 <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); margin-top: 3px; font-family: var(--font-mono);">
-                  <span>Availability: 98.1%</span><span>Performance: 97.5%</span><span>Quality: 98.5%</span>
+                  <span id="oee-avail-assy">Availability: 98.1%</span><span id="oee-perf-assy">Performance: 97.5%</span><span id="oee-qual-assy">Quality: 98.5%</span>
                 </div>
               </div>
             </div>

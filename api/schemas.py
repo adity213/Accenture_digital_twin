@@ -38,3 +38,9 @@ class AssignmentRequest(BaseModel):
     worker_name: str
     assigned_station_ids: List[str]
 
+class InterventionRequest(BaseModel):
+    station_id: str
+    intervention_type: str
+    duration_ticks: Optional[int] = 30
+    parameters: Optional[Dict[str, Any]] = None
+

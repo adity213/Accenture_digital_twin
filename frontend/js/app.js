@@ -291,7 +291,7 @@ function handleTickUpdate(payload) {
 
 window.traceVinFromVehicle = function(vin) {
   if (!vin) return;
-  switchView('leadership');
+  switchView('plant-manager');
   const input = document.getElementById("genealogy-input");
   if (input) input.value = vin;
   setTimeout(() => {
@@ -461,21 +461,63 @@ function updateCockpitDrawer(sid) {
     // Calculate total impact to show percentage influence
     const totalImpact = st.risk_drivers.reduce((sum, d) => sum + d.impact_score, 0) || 1.0;
     
-    st.risk_drivers.forEach(d => {
+    const chainContainer = document.createElement("div");
+    chainContainer.style.display = "flex";
+    chainContainer.style.flexDirection = "column";
+    chainContainer.style.gap = "0px";
+    
+    st.risk_drivers.forEach((d, index) => {
       const pct = Math.round((d.impact_score / totalImpact) * 100);
+      const isLast = index === st.risk_drivers.length - 1;
+      
       const row = document.createElement("div");
-      row.style.cssText = `padding: 6px 8px; border-radius: 4px; background: rgba(15, 23, 42, 0.4); margin-bottom: 2px; border-left: 2px solid #64748b;`;
-      row.innerHTML = `
-        <div style="font-weight: 700; color: #f8fafc; margin-bottom: 2px; display: flex; justify-content: space-between;">
-          <span>${d.feature}</span>
-          <span style="color: #93c5fd;">${pct}% influence</span>
+      row.style.cssText = `display: flex; flex-direction: column;`;
+      
+      const node = document.createElement("div");
+      node.style.cssText = `padding: 8px 10px; border-radius: 6px; background: #ffffff; border: 1px solid var(--border-subtle); position: relative; z-index: 2; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);`;
+      
+      node.innerHTML = `
+        <div style="font-weight: 800; color: #0f172a; margin-bottom: 3px; display: flex; justify-content: space-between; font-size: 0.75rem;">
+          <span>${d.feature.toUpperCase().replace(/_/g, ' ')}</span>
+          <span style="color: #0284c7;">${pct}% Confidence</span>
         </div>
-        <div style="color: #94a3b8; line-height: 1.2; font-size: 0.68rem;">
-          ${d.explanation} ${d.impact_label}
+        <div style="color: #475569; line-height: 1.3; font-size: 0.70rem;">
+          ${d.explanation}
+        </div>
+        <div style="margin-top: 4px; font-size: 0.65rem; color: #64748b; font-family: var(--font-mono);">
+          Evidence: Observed ${parseFloat(d.value).toFixed(2)} vs Baseline ${parseFloat(d.baseline).toFixed(2)}
         </div>
       `;
-      riskDriversList.appendChild(row);
+      
+      row.appendChild(node);
+      
+      if (!isLast) {
+        const arrow = document.createElement("div");
+        arrow.style.cssText = `height: 14px; width: 2px; background: #e2e8f0; margin: 0 auto; position: relative; z-index: 1;`;
+        const arrowhead = document.createElement("div");
+        arrowhead.style.cssText = `position: absolute; bottom: -2px; left: -3px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #e2e8f0;`;
+        arrow.appendChild(arrowhead);
+        row.appendChild(arrow);
+      }
+      
+      chainContainer.appendChild(row);
     });
+    
+    // Final prediction node
+    const finalArrow = document.createElement("div");
+    finalArrow.style.cssText = `height: 14px; width: 2px; background: #fca5a5; margin: 0 auto; position: relative; z-index: 1;`;
+    const finalArrowhead = document.createElement("div");
+    finalArrowhead.style.cssText = `position: absolute; bottom: -2px; left: -3px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #fca5a5;`;
+    finalArrow.appendChild(finalArrowhead);
+    
+    const predictionNode = document.createElement("div");
+    predictionNode.style.cssText = `padding: 8px 10px; border-radius: 6px; background: #fee2e2; border: 1px solid #fca5a5; text-align: center; font-weight: 800; color: #b91c1c; font-size: 0.75rem; text-transform: uppercase;`;
+    predictionNode.innerText = "🚨 RISK PREDICTED";
+    
+    chainContainer.appendChild(finalArrow);
+    chainContainer.appendChild(predictionNode);
+    
+    riskDriversList.appendChild(chainContainer);
   } else if (riskDriversList) {
     document.getElementById("risk-drivers-container").style.display = "none";
   }
@@ -485,6 +527,28 @@ function updateCockpitDrawer(sid) {
     document.getElementById("rec-action").innerText = stRec.recommended_action || stRec.rationale;
     document.getElementById("rec-impact").innerText = `Impact: ${stRec.expected_impact || `${stRec.downtime_avoided_min || 0} min line starvation avoided`}`;
     document.getElementById("rec-conf-tag").innerText = `${Math.round((stRec.confidence || 0.9) * 100)}% CONFIDENCE`;
+
+    const btnApply = document.getElementById("btn-apply-intervention");
+    const badge = document.getElementById("intervention-badge");
+    
+    // Check if an intervention is already active for this station
+    const activeInterventions = latestTickData.interventions || {};
+    if (activeInterventions[sid] && activeInterventions[sid].active) {
+      if (btnApply) btnApply.style.display = "none";
+      if (badge) {
+        badge.style.display = "block";
+        badge.innerText = `⚡ ${activeInterventions[sid].type.replace(/_/g, ' ')} ACTIVE`;
+      }
+    } else {
+      if (badge) badge.style.display = "none";
+      // Show Apply button if recommendation is actionable (e.g. has SOP steps or a specific title)
+      if (btnApply && stRec.sop && stRec.sop.steps.length > 0) {
+        btnApply.style.display = "block";
+        btnApply.onclick = () => applyIntervention(sid, "INCREASE_CONVEYOR_SPEED"); // example
+      } else if (btnApply) {
+        btnApply.style.display = "none";
+      }
+    }
 
     const sopStepsList = document.getElementById("sop-steps-list");
     const sopBadge = document.getElementById("sop-badge");
@@ -551,6 +615,28 @@ function initSchematicInteractivity() {
     viewport.scrollLeft = scrollLeft - (x - startX) * 1.5;
     viewport.scrollTop = scrollTop - (y - startY) * 1.5;
   });
+}
+
+async function applyIntervention(stationId, interventionType = "INCREASE_CONVEYOR_SPEED") {
+  if (!stationId) stationId = selectedStationId;
+  if (!stationId) return;
+  
+  try {
+    const res = await fetch("http://localhost:8000/api/interventions/apply", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        station_id: stationId,
+        intervention_type: interventionType,
+        duration_ticks: 30
+      })
+    });
+    if (!res.ok) {
+      console.error("Failed to apply intervention");
+    }
+  } catch(e) {
+    console.error("API error", e);
+  }
 }
 
 async function controlSim(action) {
@@ -710,6 +796,29 @@ async function loadLeadershipData() {
 
     renderThermalHeatmap(data.heatmap || []);
     renderParetoCauses(data.top_root_causes || []);
+    
+    // Render Dynamic Zone OEE
+    if (data.zone_oee) {
+      const zo = data.zone_oee;
+      const setOee = (zone, key) => {
+        if (!zo[key]) return;
+        const valEl = document.getElementById(`oee-val-${zone}`);
+        const barEl = document.getElementById(`oee-bar-${zone}`);
+        const availEl = document.getElementById(`oee-avail-${zone}`);
+        const perfEl = document.getElementById(`oee-perf-${zone}`);
+        const qualEl = document.getElementById(`oee-qual-${zone}`);
+
+        if (valEl) valEl.innerText = `${zo[key].oee.toFixed(1)}% OEE`;
+        if (barEl) barEl.style.width = `${zo[key].oee}%`;
+        if (availEl) availEl.innerText = `Availability: ${zo[key].availability.toFixed(1)}%`;
+        if (perfEl) perfEl.innerText = `Performance: ${zo[key].performance.toFixed(1)}%`;
+        if (qualEl) qualEl.innerText = `Quality: ${zo[key].quality.toFixed(1)}%`;
+      };
+      
+      setOee('body', 'body');
+      setOee('paint', 'paint');
+      setOee('assy', 'assy');
+    }
   } catch (err) {
     console.warn("Leadership load error:", err);
     renderThermalHeatmap([]);
@@ -782,6 +891,10 @@ function renderThermalHeatmap(heatmapData) {
   const headerRow = document.createElement("div");
   headerRow.className = "thm-row";
   headerRow.style.marginBottom = "6px";
+  headerRow.style.position = "sticky";
+  headerRow.style.top = "0";
+  headerRow.style.zIndex = "10";
+  headerRow.style.backgroundColor = "var(--panel-bg, #ffffff)";
   
   const emptyCorner = document.createElement("span");
   emptyCorner.className = "thm-sid";

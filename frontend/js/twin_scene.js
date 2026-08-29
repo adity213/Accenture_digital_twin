@@ -686,34 +686,59 @@ class TwinSceneEngine {
           if (nodeEl && !nodeEl.classList.contains("status-critical")) {
             nodeEl.classList.add("in-cycle");
           }
+            // Cycle complete -> exit to downstream conveyor or finish line
+            if (veh.dwellTimer >= veh.dwellTarget) {
+              if (nodeEl) nodeEl.classList.remove("in-cycle");
+              if (barEl) barEl.style.width = "0%";
 
-          // Cycle complete -> exit to downstream conveyor
-          if (veh.dwellTimer >= veh.dwellTarget) {
-            if (nodeEl) nodeEl.classList.remove("in-cycle");
-            if (barEl) barEl.style.width = "0%";
-
-            // Use topology downstream_ids to pick next station (always available)
-            let nextStation = null;
-            const meta = this.stations[veh.toStation];
-            if (meta && meta.downstream_ids && meta.downstream_ids.length > 0) {
-              nextStation = meta.downstream_ids[0];
-            }
-
-            if (nextStation) {
-              const edgeExists = Boolean(this.edgePaths && this.edgePaths[`${veh.toStation}->${nextStation}`]);
-              if (edgeExists) {
-                veh.fromStation = veh.toStation;
-                veh.toStation = nextStation;
-                veh.progress = 0.0;
-                veh.state = "TRANSIT";
-                veh.dwellTimer = 0.0;
-              } else {
-                veh.progress = 1.0;
-                veh.state = "DOCK";
-                veh.dwellTimer = 0.0;
+              // Use topology downstream_ids to pick next station
+              let nextStation = null;
+              const meta = this.stations[veh.toStation];
+              if (meta && meta.downstream_ids && meta.downstream_ids.length > 0) {
+                if (meta.downstream_ids.length === 1) {
+                  nextStation = meta.downstream_ids[0];
+                } else {
+                  // If parallel branches (e.g. ST03/ST04, ST07/ST08, ST25/ST26), balance queue
+                  nextStation = meta.downstream_ids.reduce((best, curr) => {
+                    const qBest = (stationQueues[best]?.length || 0) + (stationOccupants[best] ? 1 : 0);
+                    const qCurr = (stationQueues[curr]?.length || 0) + (stationOccupants[curr] ? 1 : 0);
+                    return qCurr < qBest ? curr : best;
+                  }, meta.downstream_ids[0]);
+                }
               }
-            }
-          }
+
+              if (nextStation) {
+                const edgeExists = Boolean(this.edgePaths && this.edgePaths[`${veh.toStation}->${nextStation}`]);
+                if (edgeExists) {
+                  veh.fromStation = veh.toStation;
+                  veh.toStation = nextStation;
+                  veh.progress = 0.0;
+                  veh.state = "TRANSIT";
+                  veh.dwellTimer = 0.0;
+                } else {
+                  veh.progress = 1.0;
+                  veh.state = "DOCK";
+                  veh.dwellTimer = 0.0;
+                }
+              } else {
+                // Terminal Station Completed (e.g. ST40 Final Buy-Off & ADAS Calibration)!
+                // Vehicle has completed the manufacturing process.
+                // Release machine cradle lock immediately so queued cars can enter.
+                delete stationOccupants[veh.toStation];
+                if (veh.element) {
+                  veh.element.style.transition = "opacity 0.6s ease, transform 0.6s ease";
+                  veh.element.style.opacity = "0";
+                  veh.element.style.transform = "translateX(-60px) scale(0.85)";
+                  const elToRemove = veh.element;
+                  setTimeout(() => {
+                    if (elToRemove && elToRemove.parentNode) {
+                      elToRemove.remove();
+                    }
+                  }, 600);
+                }
+                veh.isCompleted = true;
+              }
+            }  
         }
       } else {
         // TRANSIT: Gliding continuously along conveyor rail
@@ -724,14 +749,14 @@ class TwinSceneEngine {
         let maxAllowedProgress = 1.0;
 
         if (isDestStopped) {
-          // Machine is broken: vehicles queue before entrance
-          maxAllowedProgress = Math.max(0.20, 0.85 - (qSlot * 0.16));
+          // Machine is broken: vehicles queue cleanly before entrance on conveyor track
+          maxAllowedProgress = Math.max(0.15, 0.70 - (qSlot * 0.22));
         } else if (isCradleOccupied) {
-          // Machine is actively processing preceding vehicle: wait in FIFO queue on conveyor
-          maxAllowedProgress = Math.max(0.20, 0.85 - (qSlot * 0.16));
+          // Machine is actively processing preceding vehicle: wait in neat FIFO queue along incoming rail
+          maxAllowedProgress = Math.max(0.15, 0.70 - (qSlot * 0.22));
         } else if (qSlot > 0) {
           // Preceding vehicle is entering cradle: stay spaced behind it
-          maxAllowedProgress = Math.max(0.20, 0.85 - (qSlot * 0.16));
+          maxAllowedProgress = Math.max(0.15, 0.70 - (qSlot * 0.22));
         }
 
         if (isOriginStopped && veh.progress <= 0.12) {
@@ -807,6 +832,9 @@ class TwinSceneEngine {
         }
       }
     });
+
+    // Cleanly prune vehicles that completed the line
+    this.fleet = this.fleet.filter(veh => !veh.isCompleted);
   }
 
   updateTelemetry(stationsPayload, vehiclesPayload) {
@@ -889,10 +917,11 @@ class TwinSceneEngine {
       this.fleet = this.fleet.filter(veh => activeVinMap[veh.vin]);
 
       // If fleet has room, introduce new backend vehicles
-      if (this.fleet.length < Math.min(12, vehiclesPayload.length)) {
+      const MAX_FLEET_RENDER = 100;
+      if (this.fleet.length < Math.min(MAX_FLEET_RENDER, vehiclesPayload.length)) {
         const currentFleetVins = new Set(this.fleet.map(f => f.vin));
         vehiclesPayload.forEach(vBackend => {
-          if (!currentFleetVins.has(vBackend.vin) && this.fleet.length < 12) {
+          if (!currentFleetVins.has(vBackend.vin) && this.fleet.length < MAX_FLEET_RENDER) {
             const curSid = vBackend.current_station || "ST01";
             const prevSid = vBackend.previous_station || (this.stations[curSid]?.upstream_ids?.[0]) || curSid;
             const hasConveyorEdge = Boolean(prevSid && prevSid !== curSid && this.edgePaths && this.edgePaths[`${prevSid}->${curSid}`]);

@@ -911,6 +911,8 @@ body {
   position: relative;
   overflow: hidden;
   box-shadow: var(--shadow-card);
+  min-height: 0;
+  height: 100%;
 }
 
 .schematic-toolbar {
@@ -933,6 +935,8 @@ body {
   overflow: auto;
   position: relative;
   background: #f8fafc;
+  min-height: 0;
+  height: 100%;
 }
 
 .living-line-stage {
@@ -1555,25 +1559,30 @@ body {
 
 /* AI Action Recommendation */
 .ai-recommendation-panel {
-  background: #0f172a;
-  color: #ffffff;
+  background: #f8fafc;
+  color: #0f172a;
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   padding: 14px;
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .ai-rec-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
 }
 
 .ai-rec-conf {
   font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 700;
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.15);
+  color: #0284c7;
+  background: #e0f2fe;
   padding: 2px 7px;
   border-radius: var(--radius-full);
 }
@@ -1583,11 +1592,12 @@ body {
   font-size: 0.98rem;
   font-weight: 800;
   margin-top: 5px;
+  color: #0f172a;
 }
 
 .ai-rec-body {
   font-size: 0.78rem;
-  color: #cbd5e1;
+  color: #475569;
   line-height: 1.4;
   margin-top: 5px;
 }
@@ -1596,9 +1606,9 @@ body {
   font-family: var(--font-mono);
   font-size: 0.76rem;
   font-weight: 700;
-  color: #34d399;
+  color: #059669;
   margin-top: 8px;
-  border-top: 1px solid #334155;
+  border-top: 1px solid #e2e8f0;
   padding-top: 6px;
 }
 

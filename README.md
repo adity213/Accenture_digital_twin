@@ -27,6 +27,7 @@ graph TD
 
 - 📘 **[PHYSICS_GUIDE.md](PHYSICS_GUIDE.md)**: First-principles physics, AR(1) load memory, lognormal cycle times, 3-shift circadian fatigue models, emergent tool wear mechanics, and ISO/DIN standards.
 - ⚙️ **[COMPUTATION_GUIDE.md](COMPUTATION_GUIDE.md)**: System computation flow, 19-feature vector formulation, GBDT training, shadow-mode fail-safe routing, and DAG starvation propagation algorithms.
+- 📇 **[MODEL_CARD.md](docs/model_card.md)**: Machine-readable model card aggregating training metrics, fair machine learning splits, and shadow-mode mechanics.
 - 📊 **[SCENARIO_VALIDATION_REPORT.md](docs/SCENARIO_VALIDATION_REPORT.md)**: 7-regime Out-of-Distribution (OOD) benchmark results with separated bottleneck and quality defect metrics.
 - 📐 **[REFERENCES.md](REFERENCES.md)**: Complete mathematical formulas, OEM standards, and parameter calibration tables.
 

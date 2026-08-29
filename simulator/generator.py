@@ -144,9 +144,9 @@ class LineSimulator:
         ground_truth: List[Dict[str, Any]] = []
         updated_genealogy_records: List[Dict[str, Any]] = []
         
-        # 1. Vehicle Ingress at ST01 (Paced cleanly: max 12 active vehicles on the line to prevent overpiling)
+        # 1. Vehicle Ingress at ST01 (Paced cleanly: max active vehicles on the line tied to JPH)
         spawn_prob = min(0.6, max(0.15, self.target_jph / 90.0))
-        if self.rng.random() < spawn_prob and len(self.active_vehicles) < 12 and len(self.station_buffers["ST01"]) == 0:
+        if self.rng.random() < spawn_prob and len(self.active_vehicles) < int(self.target_jph) and len(self.station_buffers["ST01"]) == 0:
             self.vehicle_counter += 1
             vin = f"VIN-2026-{self.vehicle_counter:05d}"
             veh_info = {

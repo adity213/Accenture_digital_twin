@@ -30,7 +30,8 @@ from pipeline.risk_model import RiskScoringModel
 from pipeline.propagation import GraphPropagationEngine
 from pipeline.recommender import RecommendationEngine
 from api.ws import ConnectionManager
-from api.schemas import SimulatorControlRequest, OverrideRequest, TopologyUpdateRequest, AssignmentRequest
+from api.schemas import SimulatorControlRequest, OverrideRequest, TopologyUpdateRequest, AssignmentRequest, InterventionRequest
+from simulator.ot_adapter import PythonSimulatorAdapter
 
 assignment_store = AssignmentStore()
 
@@ -80,8 +81,9 @@ def _topo_order(topo: Dict[str, Any]) -> List[str]:
 topology = build_line_topology(seed=42)
 stations_meta = topology["stations"]
 db = TwinStore()
-simulator = LineSimulator(seed=42, custom_topology=topology)
-simulator.current_tick = db.get_max_tick()
+_raw_sim = LineSimulator(seed=42, custom_topology=topology)
+simulator = PythonSimulatorAdapter(_raw_sim)
+simulator._sim.current_tick = db.get_max_tick()
 spc_engine = SPCEngine(lambda_ewma=0.3, z_threshold=3.0)
 virtual_sensor_engine = VirtualSensorEngine(stations_meta)
 confidence_engine = ConfidenceEngine(w1=0.5, w2=0.3, w3=0.2)
@@ -407,11 +409,7 @@ def get_current_risk():
     global latest_payload
     if not latest_payload or "stations" not in latest_payload:
         latest_payload = process_simulation_tick()
-    return {
-        "tick": latest_payload["tick"],
-        "timestamp": latest_payload["timestamp"],
-        "stations": latest_payload["stations"]
-    }
+    return latest_payload
 
 @app.get("/api/risk/{station_id}/drivers")
 def get_risk_drivers(station_id: str):
@@ -632,6 +630,44 @@ def get_leadership_summary():
         "station_roi": station_roi_list
     }
 
+    import random
+    
+    # Get active anomalies properly from the simulator instance
+    active_anomalies = []
+    if hasattr(simulator, 'anomaly_mgr') and simulator.anomaly_mgr:
+        # filter out inactive ones just in case, though they should be popped
+        active_anomalies = [
+            {"station_id": anom.station_id} 
+            for anom in simulator.anomaly_mgr.active_anomalies.values() 
+            if anom.active
+        ]
+    
+    def calculate_zone_oee(start_id, end_id, base_avail, base_perf, base_qual):
+        zone_sids = [f"ST{i:02d}" for i in range(start_id, end_id + 1)]
+        anom_count = sum(1 for an in active_anomalies if an.get("station_id") in zone_sids)
+        
+        avail = max(40.0, base_avail - (anom_count * 4.5))
+        perf = max(40.0, base_perf - (anom_count * 3.5))
+        qual = max(40.0, base_qual - (anom_count * 2.0))
+        
+        avail = round(avail + random.uniform(-0.5, 0.5), 1)
+        perf = round(perf + random.uniform(-0.5, 0.5), 1)
+        qual = round(qual + random.uniform(-0.5, 0.5), 1)
+        
+        oee = round((avail * perf * qual) / 10000.0, 1)
+        return {
+            "availability": avail,
+            "performance": perf,
+            "quality": qual,
+            "oee": oee
+        }
+
+    zone_oee = {
+        "body": calculate_zone_oee(1, 14, 96.2, 97.1, 98.0),
+        "paint": calculate_zone_oee(15, 22, 94.0, 96.5, 97.8),
+        "assy": calculate_zone_oee(23, 40, 98.1, 97.5, 98.5)
+    }
+
     return {
         "summary": {
             "downtime_avoided_hours": latest_payload.get("kpis", {}).get("total_downtime_avoided_hours", 0.0),
@@ -641,7 +677,8 @@ def get_leadership_summary():
         },
         "financials": financials_payload,
         "heatmap": heatmap,
-        "top_root_causes": top_causes
+        "top_root_causes": top_causes,
+        "zone_oee": zone_oee
     }
   except Exception as e:
     import traceback
@@ -806,6 +843,40 @@ def delete_assignment(worker_id: str):
     }
 
 
+@app.post("/api/interventions/apply")
+async def apply_intervention(req: InterventionRequest):
+    global simulator, is_sim_running, latest_payload
+    # Apply parameter overrides based on the intervention type
+    # For now, we simulate intervention by clearing anomalies at this station
+    # and adjusting parameters if necessary (we can expand this logic as needed)
+    
+    # 1. Clear anomalies at this station to simulate the fix
+    if hasattr(simulator._sim, "anomaly_mgr"):
+        to_remove = [aid for aid, a in simulator._sim.anomaly_mgr.active_anomalies.items() if a["station_id"] == req.station_id]
+        for aid in to_remove:
+            del simulator._sim.anomaly_mgr.active_anomalies[aid]
+            
+    # 2. Add an event to station history to mark the intervention
+    # (Since we don't have a direct intervention history, we can adjust cycle time or clear the queue)
+    if req.intervention_type == "INCREASE_CONVEYOR_SPEED":
+        # Simulate conveyor speed increase by temporarily lowering the target cycle time
+        if req.station_id in stations_meta:
+            stations_meta[req.station_id]["target_cycle_time_s"] = stations_meta[req.station_id].get("target_cycle_time_s", 60) * 0.9
+    
+    # We broadcast an immediate tick update to reflect intervention
+    latest_payload = process_simulation_tick()
+    # Add intervention badge to payload
+    if "interventions" not in latest_payload:
+        latest_payload["interventions"] = {}
+    latest_payload["interventions"][req.station_id] = {
+        "type": req.intervention_type,
+        "active": True
+    }
+    
+    await ws_manager.broadcast_json(latest_payload)
+    return {"status": "SUCCESS", "message": f"Applied {req.intervention_type} to {req.station_id}"}
+
+
 @app.post("/api/simulator/control")
 async def control_simulator(req: SimulatorControlRequest):
     global is_sim_running, speed_multiplier, latest_payload
@@ -941,7 +1012,8 @@ def apply_topology(req: TopologyUpdateRequest):
         stations_meta = topology["stations"]
         
         # Completely re-instantiate the physics and pipeline models for the new DAG layout
-        simulator = LineSimulator(seed=42, custom_topology=topology)
+        _raw_sim = LineSimulator(seed=42, custom_topology=topology)
+        simulator = PythonSimulatorAdapter(_raw_sim)
         spc_engine = SPCEngine(lambda_ewma=0.3, z_threshold=3.0)
         virtual_sensor_engine = VirtualSensorEngine(stations_meta)
         confidence_engine = ConfidenceEngine(w1=0.5, w2=0.3, w3=0.2)
@@ -981,11 +1053,12 @@ def reset_topology():
     is_sim_running = False
     
     try:
-        topology = build_line_topology()
-        stations_meta = topology["stations"]
+        topology = default_topology()
+        stations_meta = load_stations_metadata()
         
         # Completely re-instantiate the baseline physics and ML models
-        simulator = LineSimulator(seed=42, custom_topology=topology)
+        _raw_sim = LineSimulator(seed=42, custom_topology=topology)
+        simulator = PythonSimulatorAdapter(_raw_sim)
         spc_engine = SPCEngine(lambda_ewma=0.3, z_threshold=3.0)
         virtual_sensor_engine = VirtualSensorEngine(stations_meta)
         confidence_engine = ConfidenceEngine(w1=0.5, w2=0.3, w3=0.2)

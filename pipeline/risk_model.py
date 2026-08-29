@@ -432,7 +432,7 @@ class RiskScoringModel:
             elif name == "buffer_utilization" and val > 0.85:
                 expl = f"Buffer bottlenecking / overflowing at {int(val*100)}% capacity."
             else:
-                expl = f"Observed {name}={val:.2f} vs expected baseline {base:.2f}."
+                expl = "Metric deviates from baseline."
 
             contributions.append({
                 "feature": name,
