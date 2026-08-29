@@ -793,6 +793,10 @@ class TwinSceneEngine {
             veh.state = "TRANSIT";
             veh.dwellTimer = 0.0;
           }
+
+          if (this.activeHudVin === veh.vin && this.hudElement && this.hudElement.style.display !== "none") {
+            this.showVehicleHud(veh, veh.element, this.isHudPinned);
+          }
         }
       });
 

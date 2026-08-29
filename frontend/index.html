@@ -30,11 +30,18 @@
           <span class="dock-label-micro">FLOOR</span>
         </button>
 
-        <button id="dock-btn-leadership" class="dock-btn" onclick="switchView('leadership')" title="Plant Manager Analytics & Genealogy">
+        <button id="dock-btn-leadership" class="dock-btn" onclick="switchView('leadership')" title="Senior Leadership Financials">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+          <span class="dock-label-micro">LEAD</span>
+        </button>
+
+        <button id="dock-btn-plant-manager" class="dock-btn" onclick="switchView('plant-manager')" title="Plant Manager Analytics & Genealogy">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 20V10M12 20V4M6 20v-6"/>
           </svg>
-          <span class="dock-label-micro">LEAD</span>
+          <span class="dock-label-micro">PLANT</span>
         </button>
 
         <button id="dock-btn-operator" class="dock-btn" onclick="switchView('operator')" title="Operator Area Filtered View">
@@ -338,10 +345,10 @@
 
       <!-- VIEW 2: LEADERSHIP ANALYTICS -->
       <div id="view-leadership" class="view-panel">
-        <div class="leadership-screen">
+        <div class="leadership-screen" style="display: block;">
 
           <!-- SENIOR LEADERSHIP EXECUTIVE FINANCIALS & UNIT ECONOMICS (PHASE 5) -->
-          <div class="scada-lead-panel" style="grid-column: span 2;">
+          <div class="scada-lead-panel">
             <div class="lead-panel-title" style="display: flex; justify-content: space-between; align-items: center;">
               <span>💼 SENIOR LEADERSHIP // PLANT FINANCIAL INTELLIGENCE & UNIT ECONOMICS</span>
               <span class="plant-tag" id="lead-status-tag">40 STATIONS // $450M CAPEX BASE</span>
@@ -400,6 +407,12 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- VIEW X: PLANT MANAGER -->
+      <div id="view-plant-manager" class="view-panel">
+        <div class="leadership-screen">
 
           <div class="scada-lead-panel">
             <div class="lead-panel-title">Thermal Deviation Heatmap</div>
@@ -722,8 +735,8 @@
 
   </div>
 
-  <script src="js/twin_scene.js?v=4.7"></script>
-  <script src="js/topology_editor.js?v=4.7"></script>
-  <script src="js/app.js?v=4.7"></script>
+  <script src="js/twin_scene.js?v=5.1"></script>
+  <script src="js/topology_editor.js?v=5.1"></script>
+  <script src="js/app.js?v=5.1"></script>
 </body>
 </html>

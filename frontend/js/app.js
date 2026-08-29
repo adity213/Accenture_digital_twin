@@ -94,35 +94,42 @@ function switchView(viewName) {
   currentView = viewName;
   const dockFloor = document.getElementById("dock-btn-floor");
   const dockLead = document.getElementById("dock-btn-leadership");
+  const dockPlantManager = document.getElementById("dock-btn-plant-manager");
   const dockOperator = document.getElementById("dock-btn-operator");
   const dockWeekly = document.getElementById("dock-btn-weekly");
   const dockTopology = document.getElementById("dock-btn-topology");
   
   if (dockFloor) dockFloor.classList.toggle("active", viewName === "floor");
   if (dockLead) dockLead.classList.toggle("active", viewName === "leadership");
+  if (dockPlantManager) dockPlantManager.classList.toggle("active", viewName === "plant-manager");
   if (dockOperator) dockOperator.classList.toggle("active", viewName === "operator");
   if (dockWeekly) dockWeekly.classList.toggle("active", viewName === "weekly");
   if (dockTopology) dockTopology.classList.toggle("active", viewName === "topology");
 
   const viewFloor = document.getElementById("view-floor");
   const viewLead = document.getElementById("view-leadership");
+  const viewPlantManager = document.getElementById("view-plant-manager");
   const viewOperator = document.getElementById("view-operator");
   const viewWeekly = document.getElementById("view-weekly");
   const viewTopology = document.getElementById("view-topology");
 
   if (viewFloor) viewFloor.classList.toggle("active", viewName === "floor");
   if (viewLead) viewLead.classList.toggle("active", viewName === "leadership");
+  if (viewPlantManager) viewPlantManager.classList.toggle("active", viewName === "plant-manager");
   if (viewOperator) viewOperator.classList.toggle("active", viewName === "operator");
   if (viewWeekly) viewWeekly.classList.toggle("active", viewName === "weekly");
   if (viewTopology) viewTopology.classList.toggle("active", viewName === "topology");
 
-  if (viewName === "leadership") {
-    loadLeadershipData();
-    loadAssignments();
-    renderVinTrailGrid();
+  if (viewName === "leadership" || viewName === "plant-manager") {
+    if (viewName === "leadership") {
+      loadLeadershipData();
+    } else {
+      loadAssignments();
+      renderVinTrailGrid();
+    }
     if (!window._leadershipRefreshTimer) {
       window._leadershipRefreshTimer = setInterval(() => {
-        if (currentView === "leadership") {
+        if (currentView === "leadership" || currentView === "plant-manager") {
           loadLeadershipData();
         } else {
           clearInterval(window._leadershipRefreshTimer);
