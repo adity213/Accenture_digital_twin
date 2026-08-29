@@ -13,10 +13,11 @@ Outputs:
 - Rich comparative summary table to stdout
 - Machine-readable JSON results at data/scenario_validation_results.json
 """
+import os
+os.environ["LOKY_MAX_CPU_COUNT"] = "4"
 import argparse
 import csv
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Any, Tuple

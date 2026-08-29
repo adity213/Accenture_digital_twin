@@ -25,6 +25,8 @@ Usage:
     python scripts/train_risk_model.py --data data/training_dataset.csv \
         --test-seeds 1005 --model-out data/risk_model.joblib
 """
+import os
+os.environ["LOKY_MAX_CPU_COUNT"] = "4"
 import argparse
 import csv
 import sys
