@@ -30,6 +30,24 @@ def lognormal_cycle_time(rng: random.Random, mean_ct: float, cv: float = 0.04) -
     return min(val, mean_ct * 2.5)  # soft cap on extreme outliers
 
 
+def get_station_category(station: Dict[str, Any]) -> str:
+    """
+    Categorizes station into automated_precision, automated_process, or manual.
+    Phase 19 category classification.
+    """
+    if station.get("sensor_tier") == "manual" or station.get("is_manual", False):
+        return "manual"
+    robotic_types = {
+        "RoboticWeld", "RespotWeld", "MechanicalTorque", "RoboticTorque",
+        "AutomatedTorque", "RoboticSpray", "RoboticUrethane", "LaserBrazing",
+        "AutomatedMarriage", "MainFraming"
+    }
+    st_type = station.get("station_type") or station.get("type", "")
+    if st_type in robotic_types:
+        return "automated_precision"
+    return "automated_process"
+
+
 class LineSimulator:
     def __init__(
         self,
@@ -135,6 +153,11 @@ class LineSimulator:
                     "details": {"anomaly_id": an["id"], "progress": an["progress"]}
                 })
             
+            # Phase 19: Station category classification & multipliers
+            category = get_station_category(s)
+            ct_cv = {"automated_precision": 0.04, "automated_process": 0.06, "manual": 0.13}[category]
+            defect_prob = 0.008 * {"automated_precision": 0.6, "automated_process": 1.0, "manual": 2.8}[category]
+
             # Phase 17: Latent load state AR(1) update
             rho = 0.90
             innovation_sigma = 0.06
@@ -143,10 +166,10 @@ class LineSimulator:
             self.load_state[sid] = rho * self.load_state[sid] + (1 - rho) * target_load_mean + self.rng.gauss(0, innovation_sigma)
             self.load_state[sid] = max(-1.0, min(2.0, self.load_state[sid]))
 
-            # Phase 18: Lognormal cycle time with load_state coupling (replaces hard-clipped Gaussian)
+            # Phase 18/19: Lognormal cycle time with load_state coupling & category CV
             load_ct_mult = 1.0 + 0.05 * self.load_state[sid]
             effective_mean_ct = effective_target_ct * max(0.8, min(1.2, load_ct_mult))
-            actual_ct = lognormal_cycle_time(self.rng, effective_mean_ct, cv=0.04)
+            actual_ct = lognormal_cycle_time(self.rng, effective_mean_ct, cv=ct_cv)
             
             if is_stopped:
                 actual_ct = effective_target_ct * 4.5
@@ -157,8 +180,8 @@ class LineSimulator:
             defect_flag = False
             defect_type = None
             
-            # Natural defect rate ~0.8%
-            if self.rng.random() < 0.008:
+            # Natural defect rate with Phase 19 category multiplier
+            if self.rng.random() < defect_prob:
                 defect_flag = True
                 defect_type = "surface_scratch" if s["zone"] == "Paint" else "fastener_undertorque"
             
@@ -186,15 +209,11 @@ class LineSimulator:
                     defect_type = f"detected_{prior_defects[-1]['type']}"
 
             # Physics signals: vibration & temperature (driven by shared load_state)
-            robotic_types = [
-                "RoboticWeld", "RespotWeld", "MechanicalTorque", "RoboticTorque",
-                "AutomatedTorque", "RoboticSpray", "RoboticUrethane", "LaserBrazing",
-                "AutomatedMarriage", "MainFraming"
-            ]
-            base_vib = 1.2 if s["station_type"] in robotic_types else 0.4
+            base_vib = 1.2 if category == "automated_precision" else 0.4
             load_factor = 1.0 + 0.35 * self.load_state[sid]
-            vib_noise = self.rng.gauss(0, 0.04)
-            vibration = max(0.1, base_vib * load_factor + vib_noise)
+            vib_noise_sigma = 0.035 * (base_vib / 1.2)
+            vib_noise = self.rng.gauss(0, vib_noise_sigma)
+            vibration = max(0.05, base_vib * load_factor + vib_noise)
 
             base_temp = 24.0
             if s["station_type"] in ["ThermalOven"]:
