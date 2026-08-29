@@ -82,10 +82,12 @@ class SPCEngine:
         self.ewma_state[station_id] = curr_ewma
         
         # Station-type specific empirical sigma calibration (Phase 22)
-        if station_type and station_type in STATION_TYPE_SIGMA_CV:
-            cv = STATION_TYPE_SIGMA_CV[station_type]
-        elif sensor_tier == "manual":
+        # Manual sensor tier takes priority: a manual Dispensing station has
+        # human-operator variability, not automated-process variability.
+        if sensor_tier == "manual":
             cv = 0.130
+        elif station_type and station_type in STATION_TYPE_SIGMA_CV:
+            cv = STATION_TYPE_SIGMA_CV[station_type]
         else:
             cv = 0.050  # Balanced automated default
             
