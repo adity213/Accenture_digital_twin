@@ -56,10 +56,16 @@ class ConfidenceEngine:
         self,
         data_confidence: float,
         model_risk_prob: float,
-        spc_deviation_flag: bool
+        spc_deviation_flag: bool,
+        zone: str = "Body",
+        is_defect_driven: bool = False
     ) -> int:
         model_certainty = 1.0 - 2.0 * abs(model_risk_prob - 0.5)
         model_confidence = 0.6 + 0.4 * (1.0 - model_certainty)
+        
+        if zone == "Assembly" and is_defect_driven:
+            model_confidence = max(0.1, model_confidence * 0.6)
+            
         composite = 0.70 * data_confidence + 0.30 * model_confidence
         if spc_deviation_flag:
             composite = max(0.15, composite * 0.9)

@@ -232,7 +232,9 @@ def process_simulation_tick() -> Dict[str, Any]:
         twin_conf = confidence_engine.compute_composite_twin_confidence(
             data_confidence=data_conf,
             model_risk_prob=comp_risk,
-            spc_deviation_flag=spc_res.get("ewma_drift_flag", False)
+            spc_deviation_flag=spc_res.get("ewma_drift_flag", False),
+            zone=meta.get("zone", "Body"),
+            is_defect_driven=(def_risk > bn_risk)
         )
         
         raw_risks[sid] = comp_risk
