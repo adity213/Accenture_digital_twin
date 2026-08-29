@@ -156,6 +156,7 @@ class LineSimulator:
                 "current_station": "ST01",
                 "status": "IN_PROGRESS",
                 "visit_history": [{"station_id": "ST01", "tick": self.current_tick, "defect_flag": False}],
+                "route_station_ids": ["ST01"],
                 "defect_flags": []
             }
             self.active_vehicles[vin] = veh_info
@@ -441,6 +442,7 @@ class LineSimulator:
                     self.station_buffers[target_down].append(vin)
                     if vin in self.active_vehicles:
                         self.active_vehicles[vin]["current_station"] = target_down
+                        self.active_vehicles[vin]["route_station_ids"].append(target_down)
                         self.active_vehicles[vin]["visit_history"].append({
                             "station_id": target_down,
                             "tick": self.current_tick,

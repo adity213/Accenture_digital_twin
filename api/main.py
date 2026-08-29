@@ -98,6 +98,54 @@ latest_payload: Dict[str, Any] = {}
 cumulative_downtime_avoided_min = 0.0
 prev_tick_risk: Dict[str, float] = {sid: 0.0 for sid in stations_meta}
 
+def serialize_vehicle_state(vdata: Dict[str, Any], station_states: Dict[str, Any] = None) -> Dict[str, Any]:
+    st_id = vdata.get("current_station", "ST01")
+    st_state = station_states.get(st_id, {}) if station_states else {}
+    
+    route_station_ids = vdata.get("route_station_ids", [])
+    if not route_station_ids:
+        # Fallback to visited_history deduction
+        visit_history = vdata.get("visit_history", [])
+        seen_set = set()
+        for r in visit_history:
+            sid_v = r.get("station_id")
+            if sid_v and sid_v not in seen_set:
+                seen_set.add(sid_v)
+                route_station_ids.append(sid_v)
+                
+    route_index = len(route_station_ids)
+    prev_st = route_station_ids[-2] if len(route_station_ids) >= 2 else None
+    
+    # We can infer next station from simulator topology if not dispatched yet
+    next_st = simulator.stations[st_id]["downstream_ids"][0] if st_id in simulator.stations and simulator.stations[st_id]["downstream_ids"] else None
+
+    route_len_est = simulator.shortest_path_to_sink.get("ST01", 37)
+    route_length = route_index if vdata.get("status") == "COMPLETED" else None
+    
+    return {
+        "vin": vdata.get("vehicle_id"),
+        "current_station": st_id,
+        "previous_station": prev_st,
+        "next_station": next_st,
+        "route_id": "MAIN_LINE",
+        "route_index": route_index,
+        "visited_station_ids": route_station_ids,
+        "route_length_estimate": route_len_est,
+        "route_length": route_length,
+        "progress": round(route_index / max(1, route_len_est), 2),
+        "state": vdata.get("status", "IN_PROGRESS"),
+        # Backward compatibility fields
+        "vehicle_id": vdata.get("vehicle_id"),
+        "station_name": st_state.get("name", st_id),
+        "zone": st_state.get("zone", "Body"),
+        "status": vdata.get("status", "IN_PROGRESS"),
+        "entry_tick": vdata.get("entry_tick", simulator.current_tick),
+        "defect_count": len(vdata.get("defect_flags", [])),
+        "defect_flags": vdata.get("defect_flags", []),
+        "is_stopped": bool(st_state.get("is_stopped", False)),
+        "visit_history_len": route_index
+    }
+
 def process_simulation_tick() -> Dict[str, Any]:
     global cumulative_downtime_avoided_min, prev_tick_risk
     tick_result = simulator.step()
@@ -252,45 +300,8 @@ def process_simulation_tick() -> Dict[str, Any]:
 
     active_veh_list = []
     for vin, vdata in simulator.active_vehicles.items():
-        st_id = vdata.get("current_station", "ST01")
-        st_state = station_states.get(st_id, {})
-        
-        # Determine exact visitation path (deduplicated)
-        visit_history = vdata.get("visit_history", [])
-        seen_sids = []
-        seen_set = set()
-        for r in visit_history:
-            sid_v = r.get("station_id")
-            if sid_v and sid_v not in seen_set:
-                seen_set.add(sid_v)
-                seen_sids.append(sid_v)
-        visited_ids = seen_sids
-        route_index = len(visited_ids)
-        prev_st = visited_ids[-2] if len(visited_ids) >= 2 else None
-        
-        # P0b: route_length_estimate = shortest path from entry (ST01) to terminal.
-        # Every route through the branching DAG is exactly this many unique stations.
-        route_len_est = simulator.shortest_path_to_sink.get("ST01", 37)
-        
-        active_veh_list.append({
-            "vin": vin,
-            "vehicle_id": vin,
-            "current_station": st_id,
-            "previous_station": prev_st,
-            "station_name": st_state.get("name", st_id),
-            "zone": st_state.get("zone", "Body"),
-            "status": vdata.get("status", "IN_PROGRESS"),
-            "entry_tick": vdata.get("entry_tick", simulator.current_tick),
-            "defect_count": len(vdata.get("defect_flags", [])),
-            "defect_flags": vdata.get("defect_flags", []),
-            "is_stopped": bool(st_state.get("is_stopped", False)),
-            "visit_history_len": route_index,
-            "route_index": route_index,
-            "route_length_estimate": route_len_est,
-            "route_length": None,  # Not final until ST40
-            "route_id": "MAIN_LINE",
-            "visited_station_ids": visited_ids
-        })
+        serialized_veh = serialize_vehicle_state(vdata, station_states)
+        active_veh_list.append(serialized_veh)
 
     payload = {
         "type": "TICK_UPDATE",
@@ -677,8 +688,9 @@ def get_floor_supervisor_realtime():
 @app.get("/api/vehicles/recent")
 def get_recent_vehicles(limit: int = 50):
     """Returns recently completed and active vehicles in the manufacturing line."""
-    completed = list(simulator.completed_vehicles)[-limit:]
-    active = list(simulator.active_vehicles.values())[:limit]
+    # We should serialize these!
+    completed = [serialize_vehicle_state(v) for v in list(simulator.completed_vehicles)[-limit:]]
+    active = [serialize_vehicle_state(v) for v in list(simulator.active_vehicles.values())[:limit]]
     return {
         "completed_count": len(simulator.completed_vehicles),
         "active_count": len(simulator.active_vehicles),
@@ -691,55 +703,19 @@ def get_vehicle_genealogy(vin: str):
     # Check active simulator memory first
     veh = simulator.active_vehicles.get(vin)
     if veh:
-        records = veh.get("visit_history", [])
-        unique_records = []
-        seen = set()
-        for r in records:
-            sid = r.get("station_id")
-            if sid and sid not in seen:
-                seen.add(sid)
-                unique_records.append(r)
-
-        route_index = len(unique_records)
-        route_len_est = simulator.shortest_path_to_sink.get("ST01", 37)
-
-        return {
-            "vin": vin,
-            "status": veh.get("status", "IN_PROGRESS"),
-            "entry_tick": veh.get("entry_tick"),
-            "current_station": veh.get("current_station"),
-            "total_stations_visited": len(unique_records),
-            "route_index": route_index,
-            "route_length_estimate": route_len_est,
-            "route_length": None,
-            "defect_count": len(veh.get("defect_flags", [])),
-            "defect_flags": veh.get("defect_flags", []),
-            "station_trace": unique_records
-        }
+        base = serialize_vehicle_state(veh)
+        # Add legacy fields if needed
+        base["station_trace"] = veh.get("visit_history", [])
+        base["total_stations_visited"] = base["route_index"]
+        return base
     
     # Check completed vehicles in ring buffer
     for c_veh in simulator.completed_vehicles:
         if c_veh.get("vehicle_id") == vin:
-            records = c_veh.get("visit_history", [])
-            unique_records = []
-            seen = set()
-            for r in records:
-                sid = r.get("station_id")
-                if sid and sid not in seen:
-                    seen.add(sid)
-                    unique_records.append(r)
-
-            return {
-                "vin": vin,
-                "status": "COMPLETED",
-                "entry_tick": c_veh.get("entry_tick"),
-                "completion_tick": c_veh.get("completion_tick"),
-                "total_stations_visited": len(unique_records),
-                "route_length": len(unique_records),
-                "defect_count": len(c_veh.get("defect_flags", [])),
-                "defect_flags": c_veh.get("defect_flags", []),
-                "station_trace": unique_records
-            }
+            base = serialize_vehicle_state(c_veh)
+            base["station_trace"] = c_veh.get("visit_history", [])
+            base["total_stations_visited"] = base["route_index"]
+            return base
 
     # Query SQLite vehicle_genealogy table first
     genealogy_rec = db.get_vehicle_genealogy_record(vin)
