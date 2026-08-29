@@ -47,7 +47,6 @@ STATION_TYPE_SIGMA_CV = {
     "FinalInspection": 0.130,
 }
 
-MANUAL_STATION_IDS = {"ST08", "ST09", "ST13", "ST17", "ST24", "ST27", "ST31", "ST35"}
 
 
 class SPCEngine:
@@ -67,7 +66,8 @@ class SPCEngine:
         cycle_time_s: float,
         target_cycle_time_s: float,
         vibration: Optional[float] = None,
-        station_type: Optional[str] = None
+        station_type: Optional[str] = None,
+        sensor_tier: Optional[str] = None
     ) -> Dict[str, Any]:
         if station_id not in self.history_windows:
             self.history_windows[station_id] = deque(maxlen=self.window_size)
@@ -84,7 +84,7 @@ class SPCEngine:
         # Station-type specific empirical sigma calibration (Phase 22)
         if station_type and station_type in STATION_TYPE_SIGMA_CV:
             cv = STATION_TYPE_SIGMA_CV[station_type]
-        elif station_id in MANUAL_STATION_IDS:
+        elif sensor_tier == "manual":
             cv = 0.130
         else:
             cv = 0.050  # Balanced automated default

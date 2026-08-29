@@ -192,7 +192,8 @@ def process_simulation_tick() -> Dict[str, Any]:
         spc_res = spc_engine.update_station(
             sid, actual_ct, target_ct,
             vibration=ev.get("vibration"),
-            station_type=meta.get("station_type") or meta.get("type")
+            station_type=meta.get("station_type") or meta.get("type"),
+            sensor_tier=meta.get("sensor_tier")
         )
         data_conf = confidence_engine.compute_data_confidence(
             sensor_tier=meta["sensor_tier"],
