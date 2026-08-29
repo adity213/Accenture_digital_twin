@@ -27,6 +27,7 @@ This module does not modify simulator/anomalies.py or generator.py -- it only de
 import random
 from collections import defaultdict, deque
 from typing import Dict, Any, List, Optional
+from .generator import NO_DRIFT_CONTROL_STATIONS
 
 ANOMALY_TYPES = [
     "gradual_drift",
@@ -89,7 +90,8 @@ def generate_balanced_campaign(
     """
     zones: Dict[str, List[str]] = defaultdict(list)
     for sid, meta in topology["stations"].items():
-        zones[meta["zone"]].append(sid)
+        if sid not in NO_DRIFT_CONTROL_STATIONS:
+            zones[meta["zone"]].append(sid)
 
     descendants = _build_descendants_map(topology)
     station_last_end: Dict[str, int] = defaultdict(lambda: -10_000)
@@ -118,7 +120,7 @@ def generate_balanced_campaign(
                 if anomaly_type == "gradual_drift":
                     params["drift_factor"] = round(rng.uniform(0.20, 0.65), 2)
                 elif anomaly_type == "latent_defect":
-                    downs = descendants.get(sid, [])
+                    downs = [d for d in descendants.get(sid, []) if d not in NO_DRIFT_CONTROL_STATIONS]
                     params["inspection_station_id"] = rng.choice(downs) if downs else sid
                     params["defect_type"] = rng.choice(
                         ["weld_porosity", "surface_scratch", "fastener_undertorque", "adhesive_void"]
@@ -167,9 +169,9 @@ def generate_scenario_campaign(
 
     stations = topology["stations"]
     if station_whitelist is not None:
-        target_station_ids = [sid for sid in stations if sid in station_whitelist]
+        target_station_ids = [sid for sid in stations if sid in station_whitelist and sid not in NO_DRIFT_CONTROL_STATIONS]
     else:
-        target_station_ids = list(stations.keys())
+        target_station_ids = [sid for sid in stations if sid not in NO_DRIFT_CONTROL_STATIONS]
 
     if not target_station_ids:
         return []
@@ -208,7 +210,7 @@ def generate_scenario_campaign(
                 else:
                     params["drift_factor"] = round(rng.uniform(0.20, 0.65), 2)
             elif anomaly_type == "latent_defect":
-                downs = descendants.get(sid, [])
+                downs = [d for d in descendants.get(sid, []) if d not in NO_DRIFT_CONTROL_STATIONS]
                 params["inspection_station_id"] = rng.choice(downs) if downs else sid
                 params["defect_type"] = rng.choice(
                     ["weld_porosity", "surface_scratch", "fastener_undertorque", "adhesive_void"]

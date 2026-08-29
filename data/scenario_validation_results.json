@@ -2,105 +2,197 @@
   "status": "success",
   "benchmark_type": "scenario_based_ood_validation",
   "decision_threshold": 0.5,
-  "baseline_auc": 0.915,
+  "baseline_bn_auc": 0.979,
+  "baseline_def_auc": 0.776,
   "regimes": [
     {
       "regime": "1. Baseline I.I.D.",
       "description": "70/30 random slice across all 40 stations with nominal conditions",
       "test_samples": 36000,
-      "positives": 1908,
-      "positive_rate": 0.053,
-      "roc_auc": 0.915,
-      "pr_auc": 0.302,
-      "precision": 0.246,
-      "recall": 0.98,
-      "f1": 0.393,
-      "brier_score": 0.1159,
-      "false_alarm_rate": 0.1683
+      "bottleneck": {
+        "positives": 4753,
+        "positive_rate": 0.132,
+        "roc_auc": 0.979,
+        "pr_auc": 0.859,
+        "precision": 0.617,
+        "recall": 0.993,
+        "f1": 0.761,
+        "brier_score": 0.0565,
+        "false_alarm_rate": 0.0935
+      },
+      "defect": {
+        "positives": 6594,
+        "positive_rate": 0.1832,
+        "roc_auc": 0.776,
+        "pr_auc": 0.518,
+        "precision": 0.421,
+        "recall": 0.682,
+        "f1": 0.521,
+        "brier_score": 0.1877,
+        "false_alarm_rate": 0.2103
+      }
     },
     {
       "regime": "2. Spatial OOD (Cross-Station)",
       "description": "Trained on ST01-ST30; zero-shot evaluation on unseen ST31-ST40",
       "test_samples": 30000,
-      "positives": 3114,
-      "positive_rate": 0.1038,
-      "roc_auc": 0.879,
-      "pr_auc": 0.513,
-      "precision": 0.305,
-      "recall": 0.924,
-      "f1": 0.459,
-      "brier_score": 0.1387,
-      "false_alarm_rate": 0.2438
+      "bottleneck": {
+        "positives": 6811,
+        "positive_rate": 0.227,
+        "roc_auc": 0.967,
+        "pr_auc": 0.899,
+        "precision": 0.692,
+        "recall": 0.98,
+        "f1": 0.811,
+        "brier_score": 0.0679,
+        "false_alarm_rate": 0.1281
+      },
+      "defect": {
+        "positives": 6094,
+        "positive_rate": 0.2031,
+        "roc_auc": 0.483,
+        "pr_auc": 0.194,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "brier_score": 0.1947,
+        "false_alarm_rate": 0.0018
+      }
     },
     {
       "regime": "3. Symptom OOD (Compound Faults)",
       "description": "Trained on single faults; tested on compound drift + motor surge",
       "test_samples": 120000,
-      "positives": 6932,
-      "positive_rate": 0.0578,
-      "roc_auc": 0.918,
-      "pr_auc": 0.344,
-      "precision": 0.28,
-      "recall": 0.987,
-      "f1": 0.436,
-      "brier_score": 0.1065,
-      "false_alarm_rate": 0.1555
+      "bottleneck": {
+        "positives": 15818,
+        "positive_rate": 0.1318,
+        "roc_auc": 0.982,
+        "pr_auc": 0.871,
+        "precision": 0.646,
+        "recall": 0.995,
+        "f1": 0.783,
+        "brier_score": 0.0495,
+        "false_alarm_rate": 0.0827
+      },
+      "defect": {
+        "positives": 20814,
+        "positive_rate": 0.1734,
+        "roc_auc": 0.76,
+        "pr_auc": 0.466,
+        "precision": 0.406,
+        "recall": 0.643,
+        "f1": 0.498,
+        "brier_score": 0.1911,
+        "false_alarm_rate": 0.1972
+      }
     },
     {
       "regime": "4. Speed Stress OOD (+20% Takt)",
       "description": "Evaluated under +20% accelerated line speed and shortened takt",
       "test_samples": 120000,
-      "positives": 7512,
-      "positive_rate": 0.0626,
-      "roc_auc": 0.921,
-      "pr_auc": 0.404,
-      "precision": 0.297,
-      "recall": 0.969,
-      "f1": 0.454,
-      "brier_score": 0.1058,
-      "false_alarm_rate": 0.1534
+      "bottleneck": {
+        "positives": 16234,
+        "positive_rate": 0.1353,
+        "roc_auc": 0.981,
+        "pr_auc": 0.891,
+        "precision": 0.653,
+        "recall": 0.991,
+        "f1": 0.788,
+        "brier_score": 0.0505,
+        "false_alarm_rate": 0.0822
+      },
+      "defect": {
+        "positives": 21188,
+        "positive_rate": 0.1766,
+        "roc_auc": 0.746,
+        "pr_auc": 0.45,
+        "precision": 0.4,
+        "recall": 0.636,
+        "f1": 0.491,
+        "brier_score": 0.1954,
+        "false_alarm_rate": 0.2048
+      }
     },
     {
       "regime": "5. Severity Stress OOD (Extreme)",
       "description": "Drift factor up to 1.20 and power surges up to 5.0x outside training bounds",
       "test_samples": 120000,
-      "positives": 7438,
-      "positive_rate": 0.062,
-      "roc_auc": 0.925,
-      "pr_auc": 0.42,
-      "precision": 0.296,
-      "recall": 0.974,
-      "f1": 0.454,
-      "brier_score": 0.106,
-      "false_alarm_rate": 0.1534
+      "bottleneck": {
+        "positives": 15994,
+        "positive_rate": 0.1333,
+        "roc_auc": 0.979,
+        "pr_auc": 0.866,
+        "precision": 0.639,
+        "recall": 0.991,
+        "f1": 0.777,
+        "brier_score": 0.054,
+        "false_alarm_rate": 0.0861
+      },
+      "defect": {
+        "positives": 20005,
+        "positive_rate": 0.1667,
+        "roc_auc": 0.73,
+        "pr_auc": 0.395,
+        "precision": 0.354,
+        "recall": 0.604,
+        "f1": 0.447,
+        "brier_score": 0.2014,
+        "false_alarm_rate": 0.2202
+      }
     },
     {
       "regime": "6. Sensor Degradation Stress (40%)",
       "description": "40% stochastic sensor dropouts stressing Virtual Sensor Imputation",
       "test_samples": 120000,
-      "positives": 4910,
-      "positive_rate": 0.0409,
-      "roc_auc": 0.886,
-      "pr_auc": 0.26,
-      "precision": 0.187,
-      "recall": 0.819,
-      "f1": 0.305,
-      "brier_score": 0.1017,
-      "false_alarm_rate": 0.1517
+      "bottleneck": {
+        "positives": 12713,
+        "positive_rate": 0.1059,
+        "roc_auc": 0.955,
+        "pr_auc": 0.726,
+        "precision": 0.506,
+        "recall": 0.969,
+        "f1": 0.665,
+        "brier_score": 0.0754,
+        "false_alarm_rate": 0.1121
+      },
+      "defect": {
+        "positives": 13773,
+        "positive_rate": 0.1148,
+        "roc_auc": 0.717,
+        "pr_auc": 0.296,
+        "precision": 0.255,
+        "recall": 0.599,
+        "f1": 0.358,
+        "brier_score": 0.194,
+        "false_alarm_rate": 0.2268
+      }
     },
     {
       "regime": "7. Emergent Wear Failures (Organic)",
       "description": "Emergent mechanical wear accumulation and stochastic unscheduled failures",
       "test_samples": 240000,
-      "positives": 45480,
-      "positive_rate": 0.1895,
-      "roc_auc": 0.881,
-      "pr_auc": 0.785,
-      "precision": 0.558,
-      "recall": 0.855,
-      "f1": 0.675,
-      "brier_score": 0.1194,
-      "false_alarm_rate": 0.1584
+      "bottleneck": {
+        "positives": 63003,
+        "positive_rate": 0.2625,
+        "roc_auc": 0.921,
+        "pr_auc": 0.873,
+        "precision": 0.768,
+        "recall": 0.897,
+        "f1": 0.828,
+        "brier_score": 0.0747,
+        "false_alarm_rate": 0.0962
+      },
+      "defect": {
+        "positives": 40053,
+        "positive_rate": 0.1669,
+        "roc_auc": 0.726,
+        "pr_auc": 0.4,
+        "precision": 0.345,
+        "recall": 0.627,
+        "f1": 0.445,
+        "brier_score": 0.1995,
+        "false_alarm_rate": 0.2384
+      }
     }
   ]
 }
