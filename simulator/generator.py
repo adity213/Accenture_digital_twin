@@ -57,6 +57,9 @@ class LineSimulator:
             self.station_processing[sid] = None
             self.station_dwell_ticks[sid] = 0
 
+        # Latent load state per station (Phase 17)
+        self.load_state: Dict[str, float] = {sid: 0.0 for sid in self.stations}
+
     def get_simulated_time(self) -> str:
         sim_dt = self.start_time + timedelta(minutes=self.current_tick)
         return sim_dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -163,15 +166,24 @@ class LineSimulator:
                     defect_flag = True
                     defect_type = f"detected_{prior_defects[-1]['type']}"
 
-            # Physics signals: vibration & temperature
+            # Phase 17: Latent load state AR(1) update
+            rho = 0.90
+            innovation_sigma = 0.06
+            wear_influence = getattr(self, "wear_state", {}).get(sid, 0.0) * 0.4
+            target_load_mean = wear_influence
+            self.load_state[sid] = rho * self.load_state[sid] + (1 - rho) * target_load_mean + self.rng.gauss(0, innovation_sigma)
+            self.load_state[sid] = max(-1.0, min(2.0, self.load_state[sid]))
+
+            # Physics signals: vibration & temperature (driven by shared load_state)
             robotic_types = [
                 "RoboticWeld", "RespotWeld", "MechanicalTorque", "RoboticTorque",
                 "AutomatedTorque", "RoboticSpray", "RoboticUrethane", "LaserBrazing",
                 "AutomatedMarriage", "MainFraming"
             ]
             base_vib = 1.2 if s["station_type"] in robotic_types else 0.4
-            vib_noise = self.rng.gauss(0, 0.08)
-            vibration = max(0.1, base_vib + vib_noise)
+            load_factor = 1.0 + 0.35 * self.load_state[sid]
+            vib_noise = self.rng.gauss(0, 0.04)
+            vibration = max(0.1, base_vib * load_factor + vib_noise)
 
             base_temp = 24.0
             if s["station_type"] in ["ThermalOven"]:
@@ -179,8 +191,8 @@ class LineSimulator:
             elif s["station_type"] in ["ChemicalBath", "ElectroDeposition"]:
                 base_temp = 55.0
 
-            temp_noise = self.rng.gauss(0, 0.5)
-            temperature = base_temp + temp_noise
+            temp_noise = self.rng.gauss(0, 0.3)
+            temperature = base_temp + (self.load_state[sid] * 3.0) + temp_noise
 
             if is_stopped:
                 vibration = 0.05
@@ -191,10 +203,11 @@ class LineSimulator:
 
             # Power & Energy (kW & kWh)
             if base_kw is not None:
-                load_factor = 0.9 if not is_stopped else 0.25
+                base_power_factor = 0.9 if not is_stopped else 0.25
                 if power_multiplier > 1.0:
-                    load_factor = min(2.5, load_factor * power_multiplier)
-                power_kw = base_kw * load_factor + self.rng.gauss(0, 0.3)
+                    base_power_factor = min(2.5, base_power_factor * power_multiplier)
+                eff_power_factor = base_power_factor * (load_factor if not is_stopped else 1.0)
+                power_kw = max(0.0, base_kw * eff_power_factor + self.rng.gauss(0, 0.15))
                 energy_kwh = (power_kw / 60.0)
             else:
                 power_kw = None

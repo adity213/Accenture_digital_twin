@@ -29,15 +29,17 @@ def measure_empirical_decay_from_csv(csv_path: str = "data/training_dataset.csv"
     # Precalculate all shortest path lengths
     shortest_paths = dict(nx.all_pairs_shortest_path_length(dag))
 
-    print(f"Loading training data from {csv_path}...")
+    print(f"Loading dataset from {csv_path}...")
     
-    # Group rows by (seed, tick) -> {station_id: bottleneck_label or processing_time_ratio}
     ticks_data = defaultdict(dict)
+    total_rows = 0
+    seeds_present = set()
     
     with open(csv_path, "r", newline="") as f:
         reader = csv.DictReader(f)
         for r in reader:
             seed = r["seed"]
+            seeds_present.add(seed)
             tick = int(r["tick"])
             sid = r["station_id"]
             ct_ratio = float(r["processing_time_ratio"])
@@ -46,56 +48,67 @@ def measure_empirical_decay_from_csv(csv_path: str = "data/training_dataset.csv"
                 "ct_ratio": ct_ratio,
                 "bn_label": bn_label
             }
+            total_rows += 1
 
-    print(f"Loaded {len(ticks_data)} unique (seed, tick) manufacturing states.")
+    print(f"Loaded {total_rows:,} rows across {len(seeds_present)} seeds ({sorted(seeds_present)}).")
+    print(f"Total unique (seed, tick) line states: {len(ticks_data):,}")
     
-    # Analyze decay: when an upstream station has a severe anomaly (ct_ratio > 1.30 or bn_label == 1),
-    # what is the downstream bottleneck likelihood / degradation at distance h?
-    decay_by_hop = defaultdict(list)
+    # Downstream propagation tracking:
+    # When an upstream station is actively experiencing a severe bottleneck/stoppage (ct_ratio >= 1.30 or bn_label == 1),
+    # count how many times downstream stations at hop distance h also experience bottleneck (bn_label == 1).
+    decay_by_hop = defaultdict(lambda: {"total": 0, "positives": 0})
     
     for (seed, tick), st_map in ticks_data.items():
         for src_id, src_val in st_map.items():
             if src_val["ct_ratio"] >= 1.30 or src_val["bn_label"] == 1:
-                src_mag = max(0.5, src_val["ct_ratio"] - 1.0)
                 if src_id in shortest_paths:
                     for dest_id, hop in shortest_paths[src_id].items():
                         if hop > 0 and dest_id in st_map:
                             dest_val = st_map[dest_id]
-                            # downstream impact magnitude relative to source
-                            dest_mag = max(0.0, dest_val["ct_ratio"] - 1.0)
-                            rel_impact = min(1.0, dest_mag / max(0.01, src_mag)) if src_mag > 0 else 0.0
-                            decay_by_hop[hop].append(dest_val["bn_label"])
+                            decay_by_hop[hop]["total"] += 1
+                            if dest_val["bn_label"] == 1:
+                                decay_by_hop[hop]["positives"] += 1
 
-    print("\n=== EMPIRICAL PROPAGATION DECAY ANALYSIS ===")
-    print(f"{'Path Len (Hops)':<16} | {'Downstream Samples':<20} | {'Downstream Bottleneck Prob':<30} | {'Assumed (0.85^h)':<18}")
-    print("-" * 90)
+    print("\n" + "=" * 105)
+    print(f"{'Path Hop (h)':<14} | {'Downstream Pairs':<18} | {'Positive Bottlenecks (y=1)':<28} | {'Positive Rate':<15} | {'Assumed (0.85^h)':<18}")
+    print("-" * 105)
     
     hops_list = []
     prob_list = []
+    pos_counts = []
     
     for h in sorted(decay_by_hop.keys())[:7]:
-        samples = decay_by_hop[h]
-        mean_p = np.mean(samples)
+        d = decay_by_hop[h]
+        tot = d["total"]
+        pos = d["positives"]
+        pos_counts.append(pos)
+        mean_p = pos / max(1, tot)
         assumed = 0.85 ** h
         hops_list.append(h)
         prob_list.append(mean_p)
-        print(f"{h:<16d} | {len(samples):<20d} | {mean_p:>28.3f} | {assumed:>16.3f}")
+        reliability_tag = " [LOW SAMPLE]" if pos < 50 else ""
+        print(f"{h:<14d} | {tot:<18,d} | {pos:<28d} | {mean_p*100:>13.2f}% | {assumed:>16.3f}{reliability_tag}")
 
-    # Normalized relative decay starting from hop 1
-    base_p = prob_list[0] if prob_list and prob_list[0] > 0 else 0.01
+    base_p = prob_list[0] if prob_list and prob_list[0] > 0 else 0.001
     norm_decay = [p / base_p for p in prob_list]
     
-    print("\n--- Relative Decay Normalized to Hop 1 ---")
-    for h, nd in zip(hops_list, norm_decay):
-        print(f"  Hop {h}: Empirical Rel Decay = {nd:.3f} | Assumed (0.85^(h-1)) = {(0.85**(h-1)):.3f}")
+    print("\n--- Normalized Relative Decay (relative to Hop 1) ---")
+    for h, pos, nd in zip(hops_list, pos_counts, norm_decay):
+        note = " (LOW SAMPLE: n_pos < 50)" if pos < 50 else ""
+        print(f"  Hop {h}: Positives={pos:3d} | Rel Decay = {nd:.3f} | Assumed (0.85^(h-1)) = {(0.85**(h-1)):.3f}{note}")
         
-    if len(hops_list) >= 3:
-        log_y = np.log(np.maximum(0.001, norm_decay))
-        slope = np.polyfit([h - 1 for h in hops_list], log_y, 1)[0]
-        gamma_fit = float(np.exp(slope))
-        print(f"\nEmpirical Exponential Decay Factor: gamma = {gamma_fit:.3f} (vs Assumed: 0.850)")
-        print(f"Difference: {abs(gamma_fit - 0.850):.3f}")
-        return gamma_fit
+    low_sample = any(p < 50 for p in pos_counts)
+    if low_sample:
+        print("\n[NOTE ON RELIABILITY]")
+        print("Because positive bottleneck events per hop bucket are under ~50 at several hops, the fitted decay")
+        print("constant is dominated by small-sample variance across discrete anomaly injection windows.")
+    else:
+        if len(hops_list) >= 3:
+            log_y = np.log(np.maximum(0.001, norm_decay))
+            slope = np.polyfit([h - 1 for h in hops_list], log_y, 1)[0]
+            gamma_fit = float(np.exp(slope))
+            print(f"\nEmpirical Exponential Decay Factor: gamma = {gamma_fit:.3f} (vs Assumed: 0.850)")
 
 if __name__ == "__main__":
-    measure_empirical_decay_from_csv()
+    csv_file = sys.argv[1] if len(sys.argv) > 1 else "data/training_dataset.csv"
+    measure_empirical_decay_from_csv(csv_file)
