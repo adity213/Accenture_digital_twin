@@ -224,16 +224,23 @@ class LineSimulator:
             temp_noise = self.rng.gauss(0, 0.3)
             temperature = base_temp + (self.load_state[sid] * 3.0) + temp_noise
 
+            # Phase 20: Decoupled anomaly-type-specific physical signatures
+            active_types = {an["type"] for an in anom_effects["active_anomalies"]}
+            has_drift = "gradual_drift" in active_types
+
             if is_stopped:
-                vibration = 0.05
+                vibration = max(0.02, 0.05 + self.rng.gauss(0, 0.01))
                 temperature = base_temp + temp_noise
-            elif ct_multiplier > 1.2:
+            elif has_drift and ct_multiplier > 1.0:
+                # Mechanical wear signature: vibration and temp rise specifically under gradual drift
                 vibration += min(3.5, (ct_multiplier - 1.0) * 3.5)
                 temperature += min(35.0, (ct_multiplier - 1.0) * 12.0)
 
             # Power & Energy (kW & kWh)
             if base_kw is not None:
                 base_power_factor = 0.9 if not is_stopped else 0.25
+                if has_drift and not is_stopped and ct_multiplier > 1.0:
+                    base_power_factor *= (1.0 + min(0.3, (ct_multiplier - 1.0) * 0.25))
                 if power_multiplier > 1.0:
                     base_power_factor = min(2.5, base_power_factor * power_multiplier)
                 eff_power_factor = base_power_factor * (load_factor if not is_stopped else 1.0)
