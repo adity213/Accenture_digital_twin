@@ -292,8 +292,10 @@ class RiskScoringModel:
             def_risk = 0.65
         elif machine_shaking_vibration > 2.8:
             def_risk = 0.35
-        elif motor_heat_temperature > 220.0 and machine_shaking_vibration > 1.0:
+        elif motor_heat_temperature > 65.0 and machine_shaking_vibration > 1.0:
             def_risk = 0.45
+        elif motor_heat_temperature > 45.0 and machine_shaking_vibration > 1.0:
+            def_risk = 0.20
 
         comp_risk = max(bn_risk, def_risk)
         return round(float(bn_risk), 3), round(float(def_risk), 3), round(float(comp_risk), 3)
