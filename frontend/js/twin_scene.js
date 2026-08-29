@@ -61,6 +61,17 @@ class TwinSceneEngine {
           </svg>
         `;
 
+      case "Dispensing":
+      case "RoboticUrethane":
+        return `
+          <svg viewBox="0 0 80 40" width="80" height="38">
+            <rect x="20" y="8" width="40" height="6" rx="1" fill="#0f172a"/>
+            <line x1="40" y1="14" x2="40" y2="26" stroke="#0284c7" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="40" cy="28" r="3" fill="#38bdf8"/>
+            <path d="M 36 34 Q 40 30 44 34" fill="none" stroke="#0284c7" stroke-width="2"/>
+          </svg>
+        `;
+
       case "RoboticSpray":
       case "ThermalOven":
         return `
@@ -86,8 +97,20 @@ class TwinSceneEngine {
           </svg>
         `;
 
+      case "QualityScan":
+      case "VisionQC":
+        return `
+          <svg viewBox="0 0 80 40" width="80" height="38">
+            <circle cx="40" cy="20" r="12" fill="none" stroke="#0284c7" stroke-width="1.8"/>
+            <circle cx="40" cy="20" r="5" fill="#38bdf8" opacity="0.8"/>
+            <line x1="22" y1="20" x2="58" y2="20" stroke="#0284c7" stroke-width="1" stroke-dasharray="2 2"/>
+            <line x1="40" y1="4" x2="40" y2="36" stroke="#0284c7" stroke-width="1" stroke-dasharray="2 2"/>
+          </svg>
+        `;
+
       case "BufferStation":
       case "ConveyorBuffer":
+      case "TransferBuffer":
         return `
           <svg viewBox="0 0 80 40" width="80" height="38">
             <line x1="8" y1="20" x2="72" y2="20" stroke="#94a3b8" stroke-width="5" stroke-linecap="round"/>
@@ -100,7 +123,10 @@ class TwinSceneEngine {
       case "AutomatedMarriage":
       case "ModuleMarriage":
       case "AutomatedTorque":
+      case "MechanicalTorque":
+      case "RoboticTorque":
       case "Dynamometer":
+      case "DynamicTest":
         return `
           <svg viewBox="0 0 80 40" width="80" height="38">
             <rect x="14" y="26" width="52" height="5" rx="1" fill="#0f172a"/>
@@ -113,6 +139,7 @@ class TwinSceneEngine {
 
       case "BuyOff":
       case "QualityGate":
+      case "FinalInspection":
         return `
           <svg viewBox="0 0 80 40" width="80" height="38">
             <path d="M 16 36 L 16 8 L 64 8 L 64 36" fill="none" stroke="#0f172a" stroke-width="2.5"/>
@@ -124,6 +151,29 @@ class TwinSceneEngine {
             <line x1="40" y1="19" x2="40" y2="34" stroke="#10b981" stroke-width="1.5" stroke-dasharray="2 2"/>
           </svg>
         `;
+
+      default:
+        if (isManual) {
+          return `
+            <svg viewBox="0 0 80 40" width="80" height="38">
+              <circle cx="30" cy="12" r="4.5" fill="#0f172a"/>
+              <path d="M 20 32 L 22 20 L 38 20 L 40 32" fill="none" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round"/>
+              <rect x="42" y="14" width="15" height="18" rx="1.5" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+              <polyline points="46,24 49,27 54,21" fill="none" stroke="#15803d" stroke-width="2"/>
+            </svg>
+          `;
+        } else {
+          return `
+            <svg viewBox="0 0 80 40" width="80" height="38">
+              <rect x="18" y="8" width="44" height="22" rx="2" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+              <circle cx="40" cy="19" r="6" fill="#ffffff" stroke="#0057ff" stroke-width="1.5"/>
+              <line x1="40" y1="13" x2="40" y2="25" stroke="#0057ff" stroke-width="1"/>
+              <line x1="34" y1="19" x2="46" y2="19" stroke="#0057ff" stroke-width="1"/>
+            </svg>
+          `;
+        }
+    }
+  }
 
       default:
         if (isManual) {

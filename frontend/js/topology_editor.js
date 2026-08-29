@@ -169,6 +169,47 @@ function updateEditorCounter() {
   }
 }
 
+// Industrial Manufacturing Asset Symbol Catalog (30 Machine Categories)
+const ASSET_SYMBOLS = [
+  { type: "RoboticWeld", label: "Robotic Weld", icon: "🦾", zone: "Body", desc: "Robotic Spot & Arc Welder" },
+  { type: "LaserBrazing", label: "Laser Brazing", icon: "⚡", zone: "Body", desc: "Precision Roof Laser Brazing" },
+  { type: "MainFraming", label: "Main Framing", icon: "🏗️", zone: "Body", desc: "Body Framing Geometry Rig" },
+  { type: "RespotWeld", label: "Respot Weld", icon: "⚡", zone: "Body", desc: "Respot Resistance Welder" },
+  { type: "Dispensing", label: "Sealer Dispense", icon: "💧", zone: "Body", desc: "Structural Adhesive Dispenser" },
+  { type: "Fitting", label: "Door & Panel Fit", icon: "🚪", zone: "Body", desc: "Door/Hood Alignment Rig" },
+  { type: "QualityScan", label: "CMM Laser Scan", icon: "🔍", zone: "Body", desc: "3D Geometry Optical Scan" },
+  { type: "ManualFinishing", label: "Metal Polish", icon: "🪚", zone: "Body", desc: "Manual Metal Finishing" },
+  { type: "SubAssembly", label: "Sub-Assembly", icon: "⚙️", zone: "Body", desc: "Underbody Press & Jigs" },
+  { type: "ChemicalBath", label: "Chemical Bath", icon: "🧪", zone: "Paint", desc: "Degreasing & Pre-Treatment" },
+  { type: "ElectroDeposition", label: "E-Coat Dip", icon: "⚡", zone: "Paint", desc: "Cathodic E-Coat Immersion" },
+  { type: "ThermalOven", label: "Thermal Oven", icon: "🔥", zone: "Paint", desc: "E-Coat Curing Thermal Oven" },
+  { type: "ManualSealing", label: "PVC Sealing", icon: "🪛", zone: "Paint", desc: "Underbody PVC Manual Seal" },
+  { type: "RoboticSpray", label: "Paint Spray", icon: "🎨", zone: "Paint", desc: "Automated Spray Booth" },
+  { type: "VisionQC", label: "Vision QC", icon: "👁️", zone: "Paint", desc: "Surface & Paint Vision Check" },
+  { type: "TransferBuffer", label: "Transfer Buffer", icon: "📦", zone: "Transfer", desc: "Conveyor Buffer / Lift Table" },
+  { type: "ManualWiring", label: "Wire Harness", icon: "🔌", zone: "Assembly", desc: "Wiring Harness Routing" },
+  { type: "ModuleMarriage", label: "Module Marriage", icon: "🧩", zone: "Assembly", desc: "Cockpit / IP Marriage" },
+  { type: "MechanicalTorque", label: "Chassis Torque", icon: "🔧", zone: "Assembly", desc: "Suspension Mechanical Torque" },
+  { type: "AutomatedMarriage", label: "Battery Marriage", icon: "🔋", zone: "Assembly", desc: "Drivetrain & Battery Marriage" },
+  { type: "RoboticTorque", label: "Robotic Torque", icon: "⚙️", zone: "Assembly", desc: "Undercarriage Nutrunner" },
+  { type: "RoboticUrethane", label: "Robotic Glazing", icon: "🪟", zone: "Assembly", desc: "Windshield Robotic Glazing" },
+  { type: "ManualTrim", label: "Interior Trim", icon: "✂️", zone: "Assembly", desc: "Headliner & Pillars Trim" },
+  { type: "SafetyCalibration", label: "Safety / ADAS", icon: "🎯", zone: "Assembly", desc: "Steering & Safety Calibration" },
+  { type: "AutomatedTorque", label: "Wheel Torquing", icon: "🔩", zone: "Assembly", desc: "Automated 5-Spindle Torque" },
+  { type: "FluidFill", label: "Fluid Vacuum Fill", icon: "🛢️", zone: "Assembly", desc: "Brake/Coolant Vacuum Fill" },
+  { type: "ManualFitting", label: "Weatherstrip Fit", icon: "🧤", zone: "Assembly", desc: "Door Weatherstrip Manual Fit" },
+  { type: "ElectronicFlash", label: "ECU Flash", icon: "💻", zone: "Assembly", desc: "EOL ECU Flash & Sync" },
+  { type: "DynamicTest", label: "Dynamometer", icon: "🏎️", zone: "Assembly", desc: "Dynamometer & Roll Bench" },
+  { type: "FinalInspection", label: "Final Buy-off", icon: "🏁", zone: "Assembly", desc: "Final ADAS Buy-Off Tunnel" }
+];
+
+function getAssetSymbolInfo(type) {
+  if (!type) return { icon: "⚙️", label: "Station", desc: "Standard Station" };
+  const lower = String(type).toLowerCase();
+  const match = ASSET_SYMBOLS.find(s => s.type.toLowerCase() === lower);
+  return match || { icon: "⚙️", label: type, desc: type };
+}
+
 /**
  * Main Render Function for Canvas & Stations
  */
@@ -234,13 +275,14 @@ function renderEditorCanvas() {
     const bufCap = meta.buffer_capacity_units || 8;
     const tier = (meta.sensor_tier || "RICH").toUpperCase();
     const stName = meta.name || sid;
+    const assetInfo = getAssetSymbolInfo(meta.station_type || meta.type);
 
     node.innerHTML = `
       <div class="ed-node-header">
-        <span class="ed-node-title">${sid}</span>
+        <span class="ed-node-title"><span class="ed-node-glyph-icon">${assetInfo.icon}</span>${sid}</span>
         <span class="ed-node-zone-pill">${zoneLabel.split(" ")[0]}</span>
       </div>
-      <div class="ed-node-desc" title="${stName}">${stName}</div>
+      <div class="ed-node-desc" title="${stName} (${assetInfo.label})">${stName}</div>
       <div class="ed-node-meta">
         <span>Takt: <strong>${taktTime}s</strong></span>
         <span>Cap: <strong>${bufCap}</strong></span>
@@ -251,9 +293,16 @@ function renderEditorCanvas() {
       <div class="ed-port ed-port-in" id="port-in-${sid}" data-sid="${sid}" data-type="in" title="Input Port (Drop or click here to connect incoming conveyor)">IN</div>
       <div class="ed-port ed-port-out" id="port-out-${sid}" data-sid="${sid}" data-type="out" title="Output Port (Drag or click to connect outgoing conveyor)">OUT</div>
       
-      <!-- Delete Button -->
+      <!-- Action Buttons -->
+      <button class="ed-node-edit" title="Edit station parameters & symbol (or double-click)" onclick="openEditStationModal('${sid}')">✏️</button>
       <button class="ed-node-del" title="Delete station from line" onclick="deleteEditorNode('${sid}')">✕</button>
     `;
+
+    // Double click to open Edit Modal directly
+    node.addEventListener("dblclick", (e) => {
+      e.stopPropagation();
+      openEditStationModal(sid);
+    });
 
     // Port Mouse & Click Listeners
     const portIn = node.querySelector(".ed-port-in");
@@ -267,7 +316,7 @@ function renderEditorCanvas() {
 
     // Node Drag Handler
     node.addEventListener("mousedown", (e) => {
-      if (e.target.classList.contains("ed-port") || e.target.classList.contains("ed-node-del")) return;
+      if (e.target.classList.contains("ed-port") || e.target.classList.contains("ed-node-del") || e.target.classList.contains("ed-node-edit")) return;
       isDraggingNode = true;
       dragContext = {
         sid: sid,
@@ -809,6 +858,182 @@ function submitAddStation() {
 }
 
 /**
+ * Render Asset Symbol Grid for Modal
+ */
+function renderAssetSymbolGrid(selectedType = "RoboticWeld") {
+  const grid = document.getElementById("edit-symbol-grid");
+  if (!grid) return;
+
+  grid.innerHTML = "";
+  ASSET_SYMBOLS.forEach(item => {
+    const isSelected = item.type.toLowerCase() === selectedType.toLowerCase();
+    const chip = document.createElement("div");
+    chip.className = `asset-symbol-chip ${isSelected ? "active" : ""}`;
+    chip.id = `symbol-chip-${item.type}`;
+    chip.onclick = () => selectAssetSymbol(item.type);
+
+    chip.innerHTML = `
+      <span class="asset-chip-icon">${item.icon}</span>
+      <div style="overflow: hidden; flex: 1;">
+        <div class="asset-chip-label" title="${item.desc}">${item.label}</div>
+        <div class="asset-chip-zone">${item.zone}</div>
+      </div>
+    `;
+    grid.appendChild(chip);
+  });
+}
+
+function selectAssetSymbol(type) {
+  const hiddenInput = document.getElementById("edit-type");
+  if (hiddenInput) hiddenInput.value = type;
+
+  const labelEl = document.getElementById("edit-selected-type-label");
+  const assetInfo = getAssetSymbolInfo(type);
+  if (labelEl) labelEl.innerText = `${assetInfo.icon} ${assetInfo.label} (${type})`;
+
+  // Update chip active classes
+  const chips = document.querySelectorAll(".asset-symbol-chip");
+  chips.forEach(c => c.classList.remove("active"));
+  const activeChip = document.getElementById(`symbol-chip-${type}`);
+  if (activeChip) activeChip.classList.add("active");
+
+  updateEditPreview();
+}
+
+function toggleEditSensorFields() {
+  const tier = document.getElementById("edit-tier")?.value;
+  const powerBox = document.getElementById("edit-power-group");
+  if (powerBox) {
+    powerBox.style.display = (tier === "rich") ? "block" : "none";
+  }
+}
+
+function updateEditPreview() {
+  const sid = document.getElementById("edit-sid")?.value || "ST01";
+  const name = document.getElementById("edit-name")?.value.trim() || `Station ${sid}`;
+  const zone = document.getElementById("edit-zone")?.value || "Body";
+  const tier = document.getElementById("edit-tier")?.value || "rich";
+  const type = document.getElementById("edit-type")?.value || "RoboticWeld";
+  const ct = document.getElementById("edit-ct")?.value || "55.0";
+
+  const assetInfo = getAssetSymbolInfo(type);
+
+  const glyphEl = document.getElementById("edit-preview-glyph");
+  const nameEl = document.getElementById("edit-preview-name");
+  const zoneEl = document.getElementById("edit-preview-zone");
+  const tierEl = document.getElementById("edit-preview-tier");
+  const taktEl = document.getElementById("edit-preview-takt");
+
+  if (glyphEl) glyphEl.innerHTML = `<span style="font-size: 1.25rem;">${assetInfo.icon}</span>`;
+  if (nameEl) nameEl.innerText = name;
+  if (zoneEl) zoneEl.innerText = `${zone} Zone`;
+  if (tierEl) tierEl.innerText = tier === "rich" ? "RICH PLC SENSOR" : "MANUAL SENSOR";
+  if (taktEl) taktEl.innerText = `${ct}s Takt`;
+}
+
+/**
+ * Open Edit Station Modal with pre-populated values
+ */
+function openEditStationModal(sid) {
+  const meta = editorStations[sid];
+  if (!meta) {
+    showToast(`⚠️ Station ${sid} not found in editor layout.`, 2500);
+    return;
+  }
+
+  const sidInput = document.getElementById("edit-sid");
+  const sidBadge = document.getElementById("edit-sid-badge");
+  const nameInput = document.getElementById("edit-name");
+  const zoneSelect = document.getElementById("edit-zone");
+  const tierSelect = document.getElementById("edit-tier");
+  const typeInput = document.getElementById("edit-type");
+  const ctInput = document.getElementById("edit-ct");
+  const bufferInput = document.getElementById("edit-buffer");
+  const powerInput = document.getElementById("edit-power");
+
+  if (sidInput) sidInput.value = sid;
+  if (sidBadge) sidBadge.innerText = sid;
+  if (nameInput) nameInput.value = meta.name || sid;
+  if (zoneSelect) zoneSelect.value = meta.zone || "Body";
+  if (tierSelect) tierSelect.value = meta.sensor_tier || "rich";
+
+  const currentType = meta.station_type || meta.type || "RoboticWeld";
+  if (typeInput) typeInput.value = currentType;
+
+  if (ctInput) ctInput.value = meta.target_cycle_time_s || meta.target_cycle_time || 55.0;
+  if (bufferInput) bufferInput.value = meta.buffer_capacity_units || 8;
+  if (powerInput) powerInput.value = meta.power_base_kw || 28.0;
+
+  // Render symbol picker
+  renderAssetSymbolGrid(currentType);
+
+  // Set type label
+  const assetInfo = getAssetSymbolInfo(currentType);
+  const labelEl = document.getElementById("edit-selected-type-label");
+  if (labelEl) labelEl.innerText = `${assetInfo.icon} ${assetInfo.label} (${currentType})`;
+
+  toggleEditSensorFields();
+  updateEditPreview();
+
+  const modal = document.getElementById("edit-station-modal");
+  if (modal) modal.style.display = "flex";
+}
+
+function closeEditStationModal() {
+  const modal = document.getElementById("edit-station-modal");
+  if (modal) modal.style.display = "none";
+}
+
+/**
+ * Save Modified Station Parameters
+ */
+function saveEditStation() {
+  const sid = document.getElementById("edit-sid")?.value;
+  if (!sid || !editorStations[sid]) {
+    alert("Invalid station ID.");
+    return;
+  }
+
+  const name = document.getElementById("edit-name")?.value.trim();
+  const zone = document.getElementById("edit-zone")?.value || "Body";
+  const type = document.getElementById("edit-type")?.value || "RoboticWeld";
+  const ct = parseFloat(document.getElementById("edit-ct")?.value || 55.0);
+  const tier = document.getElementById("edit-tier")?.value || "rich";
+  const buffer = parseInt(document.getElementById("edit-buffer")?.value || 8, 10);
+  const power = parseFloat(document.getElementById("edit-power")?.value || 28.0);
+
+  if (!name) {
+    alert("Please provide a valid Station Name.");
+    return;
+  }
+
+  if (isNaN(ct) || ct <= 0) {
+    alert("Please enter a valid positive cycle time.");
+    return;
+  }
+
+  // Push snapshot for Undo/Redo
+  pushHistorySnapshot();
+
+  // Update Station Definition
+  editorStations[sid].name = name;
+  editorStations[sid].zone = zone;
+  editorStations[sid].station_type = type;
+  editorStations[sid].type = type;
+  editorStations[sid].sensor_tier = tier;
+  editorStations[sid].target_cycle_time = ct;
+  editorStations[sid].target_cycle_time_s = ct;
+  editorStations[sid].buffer_capacity_units = buffer;
+  editorStations[sid].power_base_kw = (tier === "rich") ? power : null;
+
+  closeEditStationModal();
+  renderEditorCanvas();
+
+  const assetInfo = getAssetSymbolInfo(type);
+  showToast(`✅ Updated ${sid} (${name}) with ${assetInfo.icon} ${assetInfo.label}! (Ctrl+Z to undo)`, 3500);
+}
+
+/**
  * Connections List Modal
  */
 function showConnectionsModal() {
@@ -974,3 +1199,23 @@ function showToast(msg, duration = 3000) {
     toast.classList.remove("show");
   }, duration);
 }
+
+// Global Window Bindings
+window.openEditStationModal = openEditStationModal;
+window.closeEditStationModal = closeEditStationModal;
+window.saveEditStation = saveEditStation;
+window.selectAssetSymbol = selectAssetSymbol;
+window.toggleEditSensorFields = toggleEditSensorFields;
+window.updateEditPreview = updateEditPreview;
+window.showAddStationModal = showAddStationModal;
+window.closeAddStationModal = closeAddStationModal;
+window.submitAddStation = submitAddStation;
+window.deleteEditorNode = deleteEditorNode;
+window.autoArrangeLayout = autoArrangeLayout;
+window.showConnectionsModal = showConnectionsModal;
+window.closeConnectionsModal = closeConnectionsModal;
+window.resetEditorToDefault = resetEditorToDefault;
+window.applyTopology = applyTopology;
+window.undo = undo;
+window.redo = redo;
+

@@ -665,14 +665,36 @@
           <div class="modal-form-group">
             <label>Station Category</label>
             <select id="new-type" class="modal-form-select">
-              <option value="RoboticWeld">Robotic Weld Arm</option>
-              <option value="MechanicalTorque">Torque & Marriage</option>
-              <option value="RoboticSpray">Robotic Spray Booth</option>
-              <option value="ThermalOven">Thermal Curing Oven (190°C)</option>
-              <option value="ChemicalBath">Chemical Bath (55°C)</option>
-              <option value="ManualAssembly">Manual Assembly</option>
-              <option value="QualityScan">CMM / Vision QC</option>
-              <option value="TransferBuffer">Conveyor Transfer Buffer</option>
+              <option value="RoboticWeld">🦾 Robotic Spot/Arc Weld Arm</option>
+              <option value="LaserBrazing">⚡ Laser Brazing Cell</option>
+              <option value="MainFraming">🏗️ Main Body Framing Rig</option>
+              <option value="RespotWeld">⚡ Respot Resistance Welder</option>
+              <option value="Dispensing">💧 Structural Sealer & Adhesive</option>
+              <option value="Fitting">🚪 Panel & Door Alignment Rig</option>
+              <option value="QualityScan">🔍 CMM 3D Optical Laser Scan</option>
+              <option value="ManualFinishing">🪚 Metal Finishing & Polish</option>
+              <option value="ChemicalBath">🧪 Chemical Pre-Treatment Bath</option>
+              <option value="ElectroDeposition">⚡ Cathodic E-Coat Dip Tank</option>
+              <option value="ThermalOven">🔥 E-Coat Curing Thermal Oven</option>
+              <option value="ManualSealing">🪛 Underbody PVC Sealing</option>
+              <option value="RoboticSpray">🎨 Automated Paint Spray Booth</option>
+              <option value="VisionQC">👁️ Surface Vision QC Station</option>
+              <option value="ManualWiring">🔌 Wire Harness Routing</option>
+              <option value="ModuleMarriage">🧩 Cockpit / IP Module Marriage</option>
+              <option value="MechanicalTorque">🔧 Mechanical Torque Station</option>
+              <option value="AutomatedMarriage">🔋 Drivetrain & Battery Marriage</option>
+              <option value="RoboticTorque">⚙️ Undercarriage Robotic Torque</option>
+              <option value="RoboticUrethane">🪟 Windshield Robotic Glazing</option>
+              <option value="ManualTrim">✂️ Interior Headliner & Trim</option>
+              <option value="SafetyCalibration">🎯 ADAS & Safety Calibration</option>
+              <option value="AutomatedTorque">🔩 Wheel 5-Spindle Torquing</option>
+              <option value="FluidFill">🛢️ Vacuum Fluid Fill & Bleed</option>
+              <option value="ManualFitting">🧤 Weatherstrip Manual Fit</option>
+              <option value="ElectronicFlash">💻 EOL ECU Flash & Sensor Sync</option>
+              <option value="DynamicTest">🏎️ Dynamometer & Roll Bench</option>
+              <option value="FinalInspection">🏁 Final Buy-off Calibration</option>
+              <option value="TransferBuffer">📦 Conveyor Transfer Buffer</option>
+              <option value="SubAssembly">⚙️ Sub-Assembly Jigs & Press</option>
             </select>
           </div>
         </div>
@@ -711,6 +733,95 @@
       </div>
     </div>
 
+    <!-- EDIT STATION & ASSET SYMBOL MODAL -->
+    <div id="edit-station-modal" class="editor-modal-wrap" style="display: none;">
+      <div class="editor-modal-box" style="width: 600px; max-height: 88vh; overflow-y: auto;">
+        <div class="editor-modal-title">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span>EDIT STATION & ASSET PARAMETERS</span>
+            <span id="edit-sid-badge" style="font-family: var(--font-mono); font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; background: #0284c7; color: white;">ST01</span>
+          </div>
+          <button style="background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #64748b;" onclick="closeEditStationModal()">✕</button>
+        </div>
+
+        <input type="hidden" id="edit-sid">
+
+        <!-- Live Station Preview Card -->
+        <div class="station-preview-banner" style="display: flex; align-items: center; justify-content: space-between; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div id="edit-preview-glyph" style="width: 50px; height: 32px; display: flex; align-items: center; justify-content: center; background: #ffffff; border-radius: 6px; border: 1px solid #cbd5e1;"></div>
+            <div>
+              <div id="edit-preview-name" style="font-weight: 700; font-size: 0.84rem; color: #0f172a;">Station Name</div>
+              <div style="display: flex; gap: 8px; font-size: 0.68rem; color: #64748b; font-family: var(--font-mono); margin-top: 2px;">
+                <span id="edit-preview-zone">Body Construction</span> •
+                <span id="edit-preview-tier">RICH SENSOR</span> •
+                <span id="edit-preview-takt">55.0s Takt</span>
+              </div>
+            </div>
+          </div>
+          <div id="edit-preview-badge" style="font-size: 0.70rem; font-weight: 800; font-family: var(--font-mono); color: #0284c7; background: #e0f2fe; padding: 4px 8px; border-radius: 4px;">ACTIVE</div>
+        </div>
+
+        <div class="modal-form-group">
+          <label>Station Name / Description</label>
+          <input type="text" id="edit-name" class="modal-form-input" placeholder="e.g. Floor Pan Robotic Weld" oninput="updateEditPreview()">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="modal-form-group">
+            <label>Manufacturing Zone</label>
+            <select id="edit-zone" class="modal-form-select" onchange="updateEditPreview()">
+              <option value="Body">Zone 1: Body Construction</option>
+              <option value="Paint">Zone 2: Paint Shop</option>
+              <option value="Assembly">Zone 3: Final Assembly</option>
+            </select>
+          </div>
+
+          <div class="modal-form-group">
+            <label>Sensor Instrumentation Tier</label>
+            <select id="edit-tier" class="modal-form-select" onchange="toggleEditSensorFields(); updateEditPreview();">
+              <option value="rich">RICH (Automated PLC Telemetry)</option>
+              <option value="manual">MANUAL (Operator Barcode / Virtual Sensing)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Asset Symbol & Machine Type Picker -->
+        <div class="modal-form-group">
+          <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span>Asset Symbol & Equipment Category</span>
+            <span id="edit-selected-type-label" style="font-size: 0.68rem; color: #0284c7; font-weight: 700; font-family: var(--font-mono);">RoboticWeld</span>
+          </label>
+          <div class="asset-symbol-grid" id="edit-symbol-grid">
+            <!-- Populated dynamically with visual equipment symbol cards -->
+          </div>
+          <input type="hidden" id="edit-type" value="RoboticWeld">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+          <div class="modal-form-group">
+            <label>Target Cycle Time (s)</label>
+            <input type="number" id="edit-ct" class="modal-form-input" value="55.0" step="0.5" min="10" max="300" oninput="updateEditPreview()">
+          </div>
+
+          <div class="modal-form-group">
+            <label>Buffer Capacity (Units)</label>
+            <input type="number" id="edit-buffer" class="modal-form-input" value="8" min="2" max="30">
+          </div>
+
+          <div class="modal-form-group" id="edit-power-group">
+            <label>Base Power Draw (kW)</label>
+            <input type="number" id="edit-power" class="modal-form-input" value="28.0" step="1.0" min="0" max="200">
+          </div>
+        </div>
+
+        <div class="modal-btn-row" style="margin-top: 16px;">
+          <button class="fault-btn" onclick="closeEditStationModal()">Cancel</button>
+          <button class="hmi-btn active-play" onclick="saveEditStation()">💾 Save Changes</button>
+        </div>
+      </div>
+    </div>
+
     <!-- CONNECTIONS LIST MODAL -->
     <div id="connections-modal" class="editor-modal-wrap">
       <div class="editor-modal-box" style="width: 520px;">
@@ -735,8 +846,8 @@
 
   </div>
 
-  <script src="js/twin_scene.js?v=5.1"></script>
-  <script src="js/topology_editor.js?v=5.1"></script>
-  <script src="js/app.js?v=5.1"></script>
+  <script src="js/twin_scene.js?v=5.2"></script>
+  <script src="js/topology_editor.js?v=5.2"></script>
+  <script src="js/app.js?v=5.2"></script>
 </body>
 </html>
