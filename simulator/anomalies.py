@@ -64,7 +64,7 @@ class AnomalyManager:
             start_tick=current_tick,
             duration_ticks=duration_ticks,
             severity=1.0,
-            params={"inspection_station_id": inspection_station_id, "defect_type": defect_type, "defect_rate": 0.85}
+            params={"inspection_station_id": inspection_station_id, "defect_type": defect_type, "defect_rate": 0.05}
         )
         self.active_anomalies[aid] = anomaly
         return aid

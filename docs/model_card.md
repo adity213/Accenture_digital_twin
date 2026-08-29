@@ -12,7 +12,7 @@
 - **Held-out Test Split:** 20% (160,000 samples)
 - **Base Rates:**
   - Bottleneck Prevalence: 27.88% (Train) / 25.63% (Test)
-  - Defect Prevalence: 16.41% (Train) / 16.07% (Test)
+  - Defect Prevalence: ~5% (Tuned for realistic 3-8% ST40 yield loss, previously 16.41%)
 - **Class Imbalance Strategy:**
   Class weighting (`sample_weight`) is dynamically applied during `fit()` using balanced ratios for positive and negative classes.
 
