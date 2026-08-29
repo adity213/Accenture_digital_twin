@@ -851,8 +851,9 @@ class TwinSceneEngine {
       if (ctEl) ctEl.innerText = `${(st.cycle_time_s || 60).toFixed(1)}s`;
 
       const riskPct = Math.round((st.composite_risk || 0.05) * 100);
+      const isFallback = st.serving_mode && st.serving_mode.startsWith("shadow_fallback");
       if (riskEl) {
-        riskEl.innerText = `${riskPct}%`;
+        riskEl.innerText = isFallback ? `⚠ ${riskPct}%` : `${riskPct}%`;
         riskEl.style.color = riskPct >= 80 ? "var(--status-critical)" : (riskPct >= 60 ? "var(--status-warning)" : "var(--status-nominal)");
       }
 
@@ -885,21 +886,56 @@ class TwinSceneEngine {
           veh.route_length = vBackend.route_length;
           veh.visited_station_ids = vBackend.visited_station_ids || [];
           
-          // If backend says vehicle moved and frontend is idle in DOCK (finished processing), sync up
-          if (vBackend.current_station && vBackend.current_station !== veh.toStation && veh.state === "DOCK" && veh.dwellTimer >= veh.dwellTarget) {
-            const edgeExists = Boolean(this.edgePaths && this.edgePaths[`${veh.toStation}->${vBackend.current_station}`]);
-            if (edgeExists) {
-              veh.fromStation = veh.toStation;
-              veh.toStation = vBackend.current_station;
-              veh.progress = 0.0;
-              veh.state = "TRANSIT";
-              veh.dwellTimer = 0.0;
+          // Store backend truth separately for HUD display (never use animation state for HUD text)
+          veh.backendCurrentStation = vBackend.current_station || veh.toStation;
+          veh.backendPreviousStation = vBackend.previous_station || veh.fromStation;
+          
+          // Reconciliation: converge animation toward backend truth without teleporting
+          if (vBackend.current_station && vBackend.current_station !== veh.toStation) {
+            // Backend says vehicle is at a different station than what we're animating toward.
+            // Two cases:
+            //   (a) Vehicle is DOCKED and backend moved ahead -> start transit to backend station
+            //   (b) Vehicle is mid-TRANSIT to wrong station -> redirect to backend station
+            
+            // Find the edge from backend's previous station to backend's current station
+            const prev = vBackend.previous_station || veh.toStation;
+            const edgeKey = `${prev}->${vBackend.current_station}`;
+            const edgeExists = Boolean(this.edgePaths && this.edgePaths[edgeKey]);
+            
+            if (veh.state === "DOCK") {
+              // Docked at old station, backend has moved on -> begin transit
+              if (edgeExists) {
+                veh.fromStation = prev;
+                veh.toStation = vBackend.current_station;
+                veh.progress = 0.0;
+                veh.state = "TRANSIT";
+                veh.dwellTimer = 0.0;
+              } else {
+                // No direct edge (skipped station or topology gap) -> snap to backend position
+                veh.fromStation = vBackend.current_station;
+                veh.toStation = vBackend.current_station;
+                veh.progress = 1.0;
+                veh.state = "DOCK";
+                veh.dwellTimer = 0.0;
+              }
             } else {
-              veh.fromStation = vBackend.current_station;
-              veh.toStation = vBackend.current_station;
-              veh.progress = 1.0;
-              veh.state = "DOCK";
-              veh.dwellTimer = 0.0;
+              // Mid-transit to wrong station.
+              // If backend is >1 station ahead (frontend fell behind), skip to the
+              // station immediately before backend's current, then animate the last hop.
+              if (edgeExists) {
+                veh.fromStation = prev;
+                veh.toStation = vBackend.current_station;
+                veh.progress = 0.0;
+                veh.state = "TRANSIT";
+                veh.dwellTimer = 0.0;
+              } else {
+                // Can't find a direct edge, snap to dock at backend position
+                veh.fromStation = vBackend.current_station;
+                veh.toStation = vBackend.current_station;
+                veh.progress = 1.0;
+                veh.state = "DOCK";
+                veh.dwellTimer = 0.0;
+              }
             }
           }
 
@@ -967,8 +1003,11 @@ class TwinSceneEngine {
     }
 
     this.activeHudVin = veh.vin;
-    const currentLoc = veh.state === "DOCK" ? veh.toStation : `${veh.fromStation} ➔ ${veh.toStation}`;
-    const activeSid = veh.state === "DOCK" ? veh.toStation : veh.fromStation;
+    // HUD text uses backend-authoritative station, not animation state
+    const backendSid = veh.backendCurrentStation || veh.toStation;
+    const backendPrev = veh.backendPreviousStation || veh.fromStation;
+    const currentLoc = veh.state === "DOCK" ? backendSid : `${backendPrev} ➔ ${backendSid}`;
+    const activeSid = backendSid;
     const stMeta = this.stations[activeSid] || {};
     const isHalted = Boolean(veh.is_stopped);
     const defectCount = veh.defect_count || 0;
