@@ -262,43 +262,108 @@ class RiskScoringModel:
             "false_alarm_rate": round(false_alarm_rate, 4),
         }
 
-    def predict_risk(self, features: List[float]) -> Tuple[float, float, str]:
+    def compute_baseline_risk(self, features: List[float]) -> Tuple[float, float, float]:
+        """
+        Computes deterministic, physics-grounded baseline risk probabilities (Phase 25).
+        Returns: (baseline_bottleneck_risk, baseline_defect_risk, baseline_composite_risk)
+        """
+        processing_time_ratio = features[0]
+        buffer_utilization = features[1]
+        degradation_momentum = features[2]
+        spc_z_score = features[3]
+        max_upstream_risk = features[5]
+        machine_shaking_vibration = features[16]
+        motor_heat_temperature = features[17]
+
+        # Bottleneck Baseline Physics
+        bn_risk = 0.05
+        if processing_time_ratio > 1.30:
+            bn_risk = 0.75 + min(0.24, (processing_time_ratio - 1.30) * 0.5)
+        elif processing_time_ratio > 1.15 or degradation_momentum > 0:
+            bn_risk = 0.55
+        elif buffer_utilization < 0.20 and max_upstream_risk > 0.6:
+            bn_risk = 0.65
+        elif abs(spc_z_score) > 3.0:
+            bn_risk = 0.60
+
+        # Defect Baseline Physics (ISO 10816 Zone C/D limits + Oven overheat)
+        def_risk = 0.02
+        if machine_shaking_vibration > 4.5:
+            def_risk = 0.65
+        elif machine_shaking_vibration > 2.8:
+            def_risk = 0.35
+        elif motor_heat_temperature > 220.0 and machine_shaking_vibration > 1.0:
+            def_risk = 0.45
+
+        comp_risk = max(bn_risk, def_risk)
+        return round(float(bn_risk), 3), round(float(def_risk), 3), round(float(comp_risk), 3)
+
+    def predict_risk_with_routing(
+        self,
+        features: List[float],
+        divergence_threshold: float = 0.45,
+        min_sensor_confidence: float = 0.65
+    ) -> Dict[str, Any]:
+        """
+        Shadow Mode Router for Risk Model (Phase 25):
+        Evaluates both deterministic baseline and ML model.
+        Monitors prediction divergence and sensor confidence.
+        Routes to ML serving or fails safe to deterministic baseline if divergence/blackout detected.
+        """
+        base_bn, base_def, base_comp = self.compute_baseline_risk(features)
+        sensor_conf = features[6] if len(features) > 6 else 1.0
+        
         if not self.is_trained:
-            # Calibrated physics / heuristic fallback
-            processing_time_ratio = features[0]
-            buffer_utilization = features[1]
-            degradation_momentum = features[2]
-            max_upstream_risk = features[5]
-            machine_shaking_vibration = features[16]
-            motor_heat_temperature = features[17]
-
-            bn_risk = 0.05
-            if processing_time_ratio > 1.3:
-                bn_risk = 0.75 + min(0.24, (processing_time_ratio - 1.3) * 0.5)
-            elif processing_time_ratio > 1.15 or degradation_momentum > 0:
-                bn_risk = 0.55
-            elif buffer_utilization < 0.20 and max_upstream_risk > 0.6:
-                bn_risk = 0.65
-
-            def_risk = 0.02
-            # ISO 10816: Unacceptable vibration warning limit is > 4.5 mm/s for Class I/II machinery
-            if machine_shaking_vibration > 4.5 or (motor_heat_temperature > 220.0 and machine_shaking_vibration > 1.0):
-                def_risk = 0.45
-
-            comp_risk = max(bn_risk, def_risk)
+            return {
+                "bottleneck_risk": base_bn,
+                "defect_risk": base_def,
+                "composite_risk": base_comp,
+                "risk_level": "CRITICAL" if base_comp > 0.80 else ("WARNING" if base_comp > 0.60 else "NORMAL"),
+                "serving_mode": "baseline_heuristic",
+                "divergence_score": 0.0,
+                "router_fallback_active": False,
+                "sensor_confidence": sensor_conf
+            }
+            
+        X_infer = np.asarray([features], dtype=np.float32)
+        ml_bn = float(self.bottleneck_model.predict_proba(X_infer)[0, 1])
+        ml_def = float(self.defect_model.predict_proba(X_infer)[0, 1])
+        ml_comp = max(ml_bn, ml_def)
+        
+        divergence = abs(ml_comp - base_comp)
+        fallback_triggered = (sensor_conf < min_sensor_confidence) or (divergence > divergence_threshold)
+        
+        if fallback_triggered:
+            final_bn, final_def, final_comp = base_bn, base_def, base_comp
+            serving_mode = "shadow_fallback"
         else:
-            X_infer = np.asarray([features], dtype=np.float32)
-            bn_risk = self.bottleneck_model.predict_proba(X_infer)[0, 1]
-            def_risk = self.defect_model.predict_proba(X_infer)[0, 1]
-            comp_risk = max(bn_risk, def_risk)
-
+            final_bn, final_def, final_comp = round(ml_bn, 3), round(ml_def, 3), round(ml_comp, 3)
+            serving_mode = "ml_model"
+            
         risk_level = "NORMAL"
-        if comp_risk > 0.80:
+        if final_comp > 0.80:
             risk_level = "CRITICAL"
-        elif comp_risk > 0.60:
+        elif final_comp > 0.60:
             risk_level = "WARNING"
+            
+        return {
+            "bottleneck_risk": final_bn,
+            "defect_risk": final_def,
+            "composite_risk": final_comp,
+            "risk_level": risk_level,
+            "serving_mode": serving_mode,
+            "divergence_score": round(divergence, 3),
+            "router_fallback_active": fallback_triggered,
+            "ml_bottleneck_risk": round(ml_bn, 3),
+            "ml_defect_risk": round(ml_def, 3),
+            "base_bottleneck_risk": base_bn,
+            "base_defect_risk": base_def,
+            "sensor_confidence": sensor_conf
+        }
 
-        return round(float(bn_risk), 3), round(float(def_risk), 3), risk_level
+    def predict_risk(self, features: List[float]) -> Tuple[float, float, str]:
+        routing_res = self.predict_risk_with_routing(features)
+        return routing_res["bottleneck_risk"], routing_res["defect_risk"], routing_res["risk_level"]
 
     def get_feature_contributions(self, station_id: str, features: List[float]) -> List[Dict[str, Any]]:
         """
