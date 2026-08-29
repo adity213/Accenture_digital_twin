@@ -153,8 +153,52 @@ class LineSimulator:
             
             # Phase 19: Station category classification & multipliers
             category = get_station_category(s)
-            ct_cv = {"automated_precision": 0.04, "automated_process": 0.06, "manual": 0.13}[category]
-            defect_prob = 0.008 * {"automated_precision": 0.6, "automated_process": 1.0, "manual": 2.8}[category]
+            
+            # Phase 24: 3-Shift Circadian Schedule (1440 ticks/day: Day 0-479, Evening 480-959, Night 960-1439)
+            day_tick = (self.current_tick - 1) % 1440
+            shift_tick = day_tick % 480
+            tau_fatigue = shift_tick / 480.0  # 0.0 to 1.0 within shift
+            
+            if day_tick < 480:
+                shift_name = "day"
+                shift_index = 0
+                is_night_shift = False
+                shift_ct_mult = 1.00
+                shift_defect_mult = 1.00
+                shift_cv_mult = 1.00
+            elif day_tick < 960:
+                shift_name = "evening"
+                shift_index = 1
+                is_night_shift = False
+                if category == "manual":
+                    shift_ct_mult = 1.04
+                    shift_defect_mult = 1.15
+                    shift_cv_mult = 1.05
+                else:
+                    shift_ct_mult = 1.00
+                    shift_defect_mult = 1.00
+                    shift_cv_mult = 1.00
+            else:
+                shift_name = "night"
+                shift_index = 2
+                is_night_shift = True
+                if category == "manual":
+                    shift_ct_mult = 1.10
+                    shift_defect_mult = 1.40
+                    shift_cv_mult = 1.15
+                else:
+                    shift_ct_mult = 1.01
+                    shift_defect_mult = 1.02
+                    shift_cv_mult = 1.00
+
+            # Within-shift fatigue modulation on manual stations (gradual fatigue with mid-shift break relief)
+            if category == "manual":
+                fatigue_growth = 0.05 * (tau_fatigue - 0.4 * math.sin(2.0 * math.pi * tau_fatigue))
+                shift_ct_mult += max(0.0, fatigue_growth)
+                shift_defect_mult += max(0.0, fatigue_growth * 1.5)
+
+            ct_cv = {"automated_precision": 0.04, "automated_process": 0.06, "manual": 0.13}[category] * shift_cv_mult
+            defect_prob = 0.008 * {"automated_precision": 0.6, "automated_process": 1.0, "manual": 2.8}[category] * shift_defect_mult
 
             # Phase 21: Emergent wear accumulation & unscheduled failure trigger
             if sid in NO_DRIFT_CONTROL_STATIONS:
@@ -196,17 +240,18 @@ class LineSimulator:
                     "details": {"anomaly_id": an["id"], "progress": an["progress"]}
                 })
 
-            # Phase 17: Latent load state AR(1) update
+            # Phase 17: Latent load state AR(1) update coupled to wear and fatigue
             rho = 0.90
             innovation_sigma = 0.06
             wear_influence = getattr(self, "wear_state", {}).get(sid, 0.0) * 0.4
-            target_load_mean = wear_influence
+            fatigue_influence = 0.15 * (shift_ct_mult - 1.0)
+            target_load_mean = wear_influence + fatigue_influence
             self.load_state[sid] = rho * self.load_state[sid] + (1 - rho) * target_load_mean + self.rng.gauss(0, innovation_sigma)
             self.load_state[sid] = max(-1.0, min(2.0, self.load_state[sid]))
 
-            # Phase 18/19: Lognormal cycle time with load_state coupling & category CV
+            # Phase 18/19/24: Lognormal cycle time with load_state, shift fatigue & category CV
             load_ct_mult = 1.0 + 0.05 * self.load_state[sid]
-            effective_mean_ct = effective_target_ct * max(0.8, min(1.2, load_ct_mult))
+            effective_mean_ct = effective_target_ct * max(0.8, min(1.3, load_ct_mult * shift_ct_mult))
             actual_ct = lognormal_cycle_time(self.rng, effective_mean_ct, cv=ct_cv)
             
             if is_stopped:
@@ -316,6 +361,9 @@ class LineSimulator:
                     "is_processing": False,
                     "dwell_progress": 0.0,
                     "sensor_tier": tier,
+                    "shift_name": shift_name,
+                    "shift_index": shift_index,
+                    "is_night_shift": is_night_shift,
                     "is_blackout": True,
                     "is_stopped": False
                 }
@@ -339,6 +387,9 @@ class LineSimulator:
                     "is_processing": bool(current_vin and not is_stopped),
                     "dwell_progress": dwell_prog,
                     "sensor_tier": tier,
+                    "shift_name": shift_name,
+                    "shift_index": shift_index,
+                    "is_night_shift": is_night_shift,
                     "is_blackout": False,
                     "is_stopped": is_stopped
                 }

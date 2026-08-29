@@ -99,8 +99,8 @@ class RiskScoringModel:
         avg_upstream_starvation_risk = sum(upstream_risks) / len(upstream_risks) if upstream_risks else 0.0
         max_upstream_starvation_risk = max(upstream_risks) if upstream_risks else 0.0
 
-        # Sinusoidal / Cosine diurnal phase encoding (480-tick shift)
-        phase = 2.0 * math.pi * ((shift_tick % 480) / 480.0)
+        # Sinusoidal / Cosine diurnal circadian phase encoding (1440-tick 3-shift day)
+        phase = 2.0 * math.pi * ((shift_tick % 1440) / 1440.0)
         shift_tick_sin = math.sin(phase)
         shift_tick_cos = math.cos(phase)
 
