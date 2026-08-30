@@ -215,16 +215,16 @@ class TwinSceneEngine {
       window.stationCoords = {};
     }
 
-    const baseline = (typeof getBaselineFactoryCoordinates === "function") 
-      ? getBaselineFactoryCoordinates() 
+    const baseline = (typeof getBaselineFactoryCoordinates === "function")
+      ? getBaselineFactoryCoordinates()
       : {
-        "ST01": { x: 80,   y: 170, isParallel: false },
-        "ST02": { x: 310,  y: 170, isParallel: false },
-        "ST03": { x: 540,  y: 35,  isParallel: true, branch: "FORK: UPPER LH" },
-        "ST04": { x: 540,  y: 305, isParallel: true, branch: "FORK: LOWER RH" },
-        "ST05": { x: 770,  y: 170, isParallel: false, branch: "MERGE" },
+        "ST01": { x: 80, y: 170, isParallel: false },
+        "ST02": { x: 310, y: 170, isParallel: false },
+        "ST03": { x: 540, y: 35, isParallel: true, branch: "FORK: UPPER LH" },
+        "ST04": { x: 540, y: 305, isParallel: true, branch: "FORK: LOWER RH" },
+        "ST05": { x: 770, y: 170, isParallel: false, branch: "MERGE" },
         "ST06": { x: 1000, y: 170, isParallel: false },
-        "ST07": { x: 1230, y: 35,  isParallel: true, branch: "FORK: RESPOT A" },
+        "ST07": { x: 1230, y: 35, isParallel: true, branch: "FORK: RESPOT A" },
         "ST08": { x: 1230, y: 305, isParallel: true, branch: "FORK: RESPOT B" },
         "ST09": { x: 1460, y: 170, isParallel: false, branch: "MERGE" },
         "ST10": { x: 1690, y: 170, isParallel: false },
@@ -238,15 +238,15 @@ class TwinSceneEngine {
         "ST17": { x: 1886, y: 480, isParallel: false },
         "ST18": { x: 1524, y: 480, isParallel: false },
         "ST19": { x: 1162, y: 480, isParallel: false },
-        "ST20": { x: 800,  y: 480, isParallel: false },
-        "ST21": { x: 438,  y: 480, isParallel: false },
-        "ST22": { x: 80,   y: 480, isParallel: false },
+        "ST20": { x: 800, y: 480, isParallel: false },
+        "ST21": { x: 438, y: 480, isParallel: false },
+        "ST22": { x: 80, y: 480, isParallel: false },
 
-        "ST23": { x: 80,   y: 810, isParallel: false },
-        "ST24": { x: 310,  y: 810, isParallel: false },
-        "ST25": { x: 540,  y: 685, isParallel: true, branch: "FORK: COCKPIT" },
-        "ST26": { x: 540,  y: 935, isParallel: true, branch: "FORK: SUSPENSION" },
-        "ST27": { x: 770,  y: 810, isParallel: false, branch: "MERGE" },
+        "ST23": { x: 80, y: 810, isParallel: false },
+        "ST24": { x: 310, y: 810, isParallel: false },
+        "ST25": { x: 540, y: 685, isParallel: true, branch: "FORK: COCKPIT" },
+        "ST26": { x: 540, y: 935, isParallel: true, branch: "FORK: SUSPENSION" },
+        "ST27": { x: 770, y: 810, isParallel: false, branch: "MERGE" },
         "ST28": { x: 1000, y: 810, isParallel: false },
         "ST29": { x: 1230, y: 810, isParallel: false },
         "ST30": { x: 1460, y: 810, isParallel: false },
@@ -257,10 +257,10 @@ class TwinSceneEngine {
         "ST34": { x: 1657, y: 1100, isParallel: false },
         "ST35": { x: 1394, y: 1100, isParallel: false },
         "ST36": { x: 1131, y: 1100, isParallel: false },
-        "ST37": { x: 868,  y: 1100, isParallel: false },
-        "ST38": { x: 605,  y: 1100, isParallel: false },
-        "ST39": { x: 342,  y: 1100, isParallel: false },
-        "ST40": { x: 80,   y: 1100, isParallel: false }
+        "ST37": { x: 868, y: 1100, isParallel: false },
+        "ST38": { x: 605, y: 1100, isParallel: false },
+        "ST39": { x: 342, y: 1100, isParallel: false },
+        "ST40": { x: 80, y: 1100, isParallel: false }
       };
 
     Object.keys(baseline).forEach(sid => {
@@ -467,7 +467,7 @@ class TwinSceneEngine {
           state: hasConveyorEdge ? "TRANSIT" : "DOCK",
           dwellTimer: 0.0,
           dwellTarget: 2.5,
-          speed: 0.0055,
+          speed: 0.012,
           defect_count: vData.defect_count || 0,
           route_index: vData.route_index || 1,
           route_length_estimate: vData.route_length_estimate || 37,
@@ -492,7 +492,7 @@ class TwinSceneEngine {
         const el = document.createElement("div");
         el.id = `veh-carrier-${veh.vin}`;
         el.className = "vehicle-carrier-node";
-        
+
         el.innerHTML = `
           <span class="vehicle-carrier-badge">${veh.vin.replace("VIN-2026-", "#")}</span>
           <svg class="veh-body-svg" viewBox="0 0 54 28" width="54" height="28">
@@ -674,8 +674,10 @@ class TwinSceneEngine {
         const nodeEl = document.getElementById(`station-node-${toSid}`);
 
         if (!isHalted) {
-          veh.dwellTimer += 0.016;
-          
+          if (veh.dwellTimer < veh.dwellTarget) {
+            veh.dwellTimer += 0.016;
+          }
+
           // Animate machine progress bar for the active vehicle
           if (barEl) {
             const pct = Math.min(100, Math.round((veh.dwellTimer / veh.dwellTarget) * 100));
@@ -684,80 +686,12 @@ class TwinSceneEngine {
           }
 
           if (nodeEl && !nodeEl.classList.contains("status-critical")) {
-            nodeEl.classList.add("in-cycle");
+            if (veh.dwellTimer < veh.dwellTarget) {
+              nodeEl.classList.add("in-cycle");
+            } else {
+              nodeEl.classList.remove("in-cycle");
+            }
           }
-            // Cycle complete -> exit to downstream conveyor or finish line
-            if (veh.dwellTimer >= veh.dwellTarget) {
-              // Use topology downstream_ids to pick next station
-              let nextStation = null;
-              const meta = this.stations[veh.toStation];
-              if (meta && meta.downstream_ids && meta.downstream_ids.length > 0) {
-                if (meta.downstream_ids.length === 1) {
-                  nextStation = meta.downstream_ids[0];
-                } else {
-                  // If parallel branches (e.g. ST03/ST04, ST07/ST08, ST25/ST26), balance queue
-                  nextStation = meta.downstream_ids.reduce((best, curr) => {
-                    const qBest = (stationQueues[best]?.length || 0) + (stationOccupants[best] ? 1 : 0);
-                    const qCurr = (stationQueues[curr]?.length || 0) + (stationOccupants[curr] ? 1 : 0);
-                    return qCurr < qBest ? curr : best;
-                  }, meta.downstream_ids[0]);
-                }
-              }
-
-              if (nextStation) {
-                const nextCap = this.stations[nextStation]?.buffer_capacity_units || 3;
-                const nextQueueCount = stationQueues[nextStation]?.length || 0;
-                const isNextBlocked = (nextQueueCount >= nextCap);
-
-                if (isNextBlocked) {
-                  // Downstream buffer is FULL -> hold in cradle (backpressure blocking)
-                  veh.dwellTimer = veh.dwellTarget;
-                  isHalted = true;
-                  veh.is_blocked = true;
-                  if (nodeEl && !nodeEl.classList.contains("status-critical")) {
-                    nodeEl.classList.remove("in-cycle");
-                  }
-                } else {
-                  if (nodeEl) nodeEl.classList.remove("in-cycle");
-                  if (barEl) barEl.style.width = "0%";
-                  delete stationOccupants[veh.toStation]; // Free cradle lock
-
-                  const edgeExists = Boolean(this.edgePaths && this.edgePaths[`${veh.toStation}->${nextStation}`]);
-                  if (edgeExists) {
-                    veh.fromStation = veh.toStation;
-                    veh.toStation = nextStation;
-                    veh.progress = 0.0;
-                    veh.state = "TRANSIT";
-                    veh.dwellTimer = 0.0;
-                    veh.is_blocked = false;
-                  } else {
-                    veh.progress = 1.0;
-                    veh.state = "DOCK";
-                    veh.dwellTimer = 0.0;
-                    veh.is_blocked = false;
-                  }
-                }
-              } else {
-                // Terminal Station Completed (e.g. ST40 Final Buy-Off & ADAS Calibration)!
-                // Vehicle has completed the manufacturing process.
-                // Release machine cradle lock immediately so queued cars can enter.
-                if (nodeEl) nodeEl.classList.remove("in-cycle");
-                if (barEl) barEl.style.width = "0%";
-                delete stationOccupants[veh.toStation];
-                if (veh.element) {
-                  veh.element.style.transition = "opacity 0.6s ease, transform 0.6s ease";
-                  veh.element.style.opacity = "0";
-                  veh.element.style.transform = "translateX(-60px) scale(0.85)";
-                  const elToRemove = veh.element;
-                  setTimeout(() => {
-                    if (elToRemove && elToRemove.parentNode) {
-                      elToRemove.remove();
-                    }
-                  }, 600);
-                }
-                veh.isCompleted = true;
-              }
-            }  
         }
       } else {
         // TRANSIT: Gliding continuously along conveyor rail with strict FIFO spacing
@@ -778,7 +712,7 @@ class TwinSceneEngine {
         }
 
         if (!isHalted) {
-          veh.progress += (veh.speed || 0.0055);
+          veh.progress += (veh.speed || 0.012);
 
           if (veh.progress >= 1.0) {
             // Cradle is free and vehicle reached cradle -> DOCK into station
@@ -864,9 +798,8 @@ class TwinSceneEngine {
       if (ctEl) ctEl.innerText = `${(st.cycle_time_s || 60).toFixed(1)}s`;
 
       const riskPct = Math.round((st.composite_risk || 0.05) * 100);
-      const isFallback = st.serving_mode && st.serving_mode.startsWith("shadow_fallback");
       if (riskEl) {
-        riskEl.innerText = isFallback ? `⚠ ${riskPct}%` : `${riskPct}%`;
+        riskEl.innerText = `${riskPct}%`;
         riskEl.style.color = riskPct >= 80 ? "var(--status-critical)" : (riskPct >= 60 ? "var(--status-warning)" : "var(--status-nominal)");
       }
 
@@ -893,62 +826,51 @@ class TwinSceneEngine {
       this.fleet.forEach(veh => {
         const vBackend = activeVinMap[veh.vin];
         if (vBackend) {
+          veh.backendCurrentStation = vBackend.current_station;
+          veh.backendPreviousStation = vBackend.previous_station;
+          veh.backendRouteIndex = vBackend.route_index || 1;
+          veh.backendRouteLengthEstimate = vBackend.route_length_estimate || 37;
+          veh.backendRouteLength = vBackend.route_length;
+          veh.backendVisitedStationIds = vBackend.visited_station_ids || [];
+          veh.backendDefectCount = vBackend.defect_count || 0;
           veh.defect_count = vBackend.defect_count || 0;
           veh.route_index = vBackend.route_index || 1;
           veh.route_length_estimate = vBackend.route_length_estimate || 37;
           veh.route_length = vBackend.route_length;
           veh.visited_station_ids = vBackend.visited_station_ids || [];
-          
-          // Store backend truth separately for HUD display (never use animation state for HUD text)
-          veh.backendCurrentStation = vBackend.current_station || veh.toStation;
-          veh.backendPreviousStation = vBackend.previous_station || veh.fromStation;
-          
-          // Reconciliation: converge animation toward backend truth without teleporting
-          if (vBackend.current_station && vBackend.current_station !== veh.toStation) {
-            // Backend says vehicle is at a different station than what we're animating toward.
-            // Two cases:
-            //   (a) Vehicle is DOCKED and backend moved ahead -> start transit to backend station
-            //   (b) Vehicle is mid-TRANSIT to wrong station -> redirect to backend station
+
+          // Target-Driven Smooth Reconciliation
+          // 1. Early-exit: If vehicle is already docked at or animating towards the backend target, do nothing!
+          if (veh.toStation === vBackend.current_station) {
+            // Already correct - 60fps loop animates uninterrupted
+          } else {
+            // 2. The backend station has advanced downstream.
+            const fromSid = veh.state === "DOCK" ? veh.toStation : (veh.fromStation || veh.toStation);
+            const prev = vBackend.previous_station || fromSid;
             
-            // Find the edge from backend's previous station to backend's current station
-            const prev = vBackend.previous_station || veh.toStation;
-            const edgeKey = `${prev}->${vBackend.current_station}`;
-            const edgeExists = Boolean(this.edgePaths && this.edgePaths[edgeKey]);
-            
-            if (veh.state === "DOCK") {
-              // Docked at old station, backend has moved on -> begin transit
-              if (edgeExists) {
-                veh.fromStation = prev;
-                veh.toStation = vBackend.current_station;
-                veh.progress = 0.0;
-                veh.state = "TRANSIT";
-                veh.dwellTimer = 0.0;
-              } else {
-                // No direct edge (skipped station or topology gap) -> snap to backend position
-                veh.fromStation = vBackend.current_station;
-                veh.toStation = vBackend.current_station;
-                veh.progress = 1.0;
-                veh.state = "DOCK";
-                veh.dwellTimer = 0.0;
-              }
+            const edgeDirect = Boolean(this.edgePaths && this.edgePaths[`${fromSid}->${vBackend.current_station}`]);
+            const edgePrev = Boolean(this.edgePaths && this.edgePaths[`${prev}->${vBackend.current_station}`]);
+
+            if (edgeDirect) {
+              veh.fromStation = fromSid;
+              veh.toStation = vBackend.current_station;
+              veh.progress = 0.0;
+              veh.state = "TRANSIT";
+              veh.dwellTimer = 0.0;
+            } else if (edgePrev) {
+              veh.fromStation = prev;
+              veh.toStation = vBackend.current_station;
+              veh.progress = 0.0;
+              veh.state = "TRANSIT";
+              veh.dwellTimer = 0.0;
             } else {
-              // Mid-transit to wrong station.
-              // If backend is >1 station ahead (frontend fell behind), skip to the
-              // station immediately before backend's current, then animate the last hop.
-              if (edgeExists) {
-                veh.fromStation = prev;
-                veh.toStation = vBackend.current_station;
-                veh.progress = 0.0;
-                veh.state = "TRANSIT";
-                veh.dwellTimer = 0.0;
-              } else {
-                // Can't find a direct edge, snap to dock at backend position
-                veh.fromStation = vBackend.current_station;
-                veh.toStation = vBackend.current_station;
-                veh.progress = 1.0;
-                veh.state = "DOCK";
-                veh.dwellTimer = 0.0;
-              }
+              // Genuine Multi-Station Catch-Up Snap (e.g. network reconnect or initial catchup)
+              console.log(`[RECONCILIATION-SNAP] ${veh.vin}: Multi-station catch-up snap to ${vBackend.current_station} (from ${fromSid}, prev=${prev})`);
+              veh.fromStation = vBackend.current_station;
+              veh.toStation = vBackend.current_station;
+              veh.progress = 1.0;
+              veh.state = "DOCK";
+              veh.dwellTimer = 0.0;
             }
           }
 
@@ -979,11 +901,18 @@ class TwinSceneEngine {
               vin: vBackend.vin,
               fromStation: prevSid,
               toStation: curSid,
+              backendCurrentStation: curSid,
+              backendPreviousStation: prevSid,
+              backendRouteIndex: vBackend.route_index || 1,
+              backendRouteLengthEstimate: vBackend.route_length_estimate || 37,
+              backendRouteLength: vBackend.route_length,
+              backendVisitedStationIds: vBackend.visited_station_ids || [],
+              backendDefectCount: vBackend.defect_count || 0,
               progress: hasConveyorEdge ? 0.1 : 1.0,
               state: hasConveyorEdge ? "TRANSIT" : "DOCK",
               dwellTimer: 0.0,
               dwellTarget: 2.5,
-              speed: 0.0055,
+              speed: 0.012,
               defect_count: vBackend.defect_count || 0,
               route_index: vBackend.route_index || 1,
               route_length_estimate: vBackend.route_length_estimate || 37,
@@ -1016,22 +945,25 @@ class TwinSceneEngine {
     }
 
     this.activeHudVin = veh.vin;
-    // HUD text uses backend-authoritative station, not animation state
-    const backendSid = veh.backendCurrentStation || veh.toStation;
-    const backendPrev = veh.backendPreviousStation || veh.fromStation;
-    const currentLoc = veh.state === "DOCK" ? backendSid : `${backendPrev} ➔ ${backendSid}`;
-    const activeSid = backendSid;
-    const stMeta = this.stations[activeSid] || {};
-    const isHalted = Boolean(veh.is_stopped);
-    const defectCount = veh.defect_count || 0;
-    const routeIndex = veh.route_index || 1;
-    const routeEstimate = veh.route_length_estimate || 37;
-    const routeLength = veh.route_length;  // Only set by backend when vehicle reaches terminal station
     
+    // Explicitly read telemetry from true backend fields
+    const backendSid = veh.backendCurrentStation || veh.toStation || "ST01";
+    const backendPrevSid = veh.backendPreviousStation;
+    const stMeta = this.stations[backendSid] || {};
+    const defectCount = veh.backendDefectCount !== undefined ? veh.backendDefectCount : (veh.defect_count || 0);
+    const routeIndex = veh.backendRouteIndex || veh.route_index || 1;
+    const routeEstimate = veh.backendRouteLengthEstimate || veh.route_length_estimate || 37;
+    const routeLength = veh.backendRouteLength || veh.route_length; // Only set by backend when vehicle reaches terminal station
+
+    const currentLoc = backendPrevSid && backendPrevSid !== backendSid
+      ? `${backendPrevSid} ➔ ${backendSid}`
+      : `${backendSid} (Station Operation)`;
+
     const routeDisplay = routeLength
       ? `${routeIndex}/${routeLength} Stations Traversed`
       : `${routeIndex}/${routeEstimate} Stations Traversed`;
 
+    const isHalted = Boolean(veh.is_stopped);
     let statusTag = '🟢 CONVEYOR TRANSIT';
     if (isHalted && this.stationsPayload[veh.toStation]?.is_stopped) statusTag = '🛑 HALTED AT STATION';
     else if (isHalted && veh.queueSlot > 0) statusTag = `⏱️ QUEUED (#${(veh.queueSlot || 0) + 1})`;
@@ -1051,7 +983,7 @@ class TwinSceneEngine {
       </div>
       <div class="hud-detail-row">
         <span>Station Description:</span>
-        <strong>${stMeta.name || activeSid}</strong>
+        <strong>${stMeta.name || backendSid}</strong>
       </div>
       <div class="hud-detail-row">
         <span>Manufacturing Zone:</span>

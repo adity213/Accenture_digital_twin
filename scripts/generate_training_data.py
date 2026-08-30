@@ -118,8 +118,7 @@ def run_one_seed(seed: int, num_ticks: int, horizon: int) -> List[Dict[str, Any]
             spc_res = spc_engine.update_station(
                 sid, actual_ct, target_ct,
                 vibration=ev.get("vibration"),
-                station_type=meta.get("station_type"),
-                sensor_tier=meta.get("sensor_tier")
+                station_type=meta.get("station_type")
             )
             data_conf = conf_engine.compute_data_confidence(
                 sensor_tier=meta["sensor_tier"],

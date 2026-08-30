@@ -83,6 +83,7 @@ window.stationCoords = Object.assign(window.stationCoords || {}, getBaselineFact
 
 document.addEventListener("DOMContentLoaded", async () => {
   sceneEngine = new TwinSceneEngine("nodes-container", "conveyor-rails-svg");
+  window.sceneEngine = sceneEngine;
   await loadStationsTopology();
   initStreaming();
   loadLeadershipData();
