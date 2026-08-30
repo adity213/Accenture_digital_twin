@@ -566,19 +566,28 @@ function updateCockpitDrawer(sid) {
       const row = document.createElement("div");
       row.style.cssText = `display: flex; flex-direction: column;`;
       
+      const badgeColor = pct >= 50 
+        ? "background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;" 
+        : (pct >= 25 ? "background: #fef3c7; color: #b45309; border: 1px solid #fde68a;" : "background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;");
+
+      const borderAccent = (d.z_score >= 2.5) ? "border-left: 3.5px solid #ef4444;" : ((d.z_score >= 1.5) ? "border-left: 3.5px solid #f59e0b;" : "");
+
       const node = document.createElement("div");
-      node.style.cssText = `padding: 8px 10px; border-radius: 6px; background: #ffffff; border: 1px solid var(--border-subtle); position: relative; z-index: 2; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);`;
+      node.style.cssText = `padding: 8px 10px; border-radius: 6px; background: #ffffff; border: 1px solid var(--border-subtle); ${borderAccent} position: relative; z-index: 2; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);`;
       
+      const zScoreText = (d.z_score !== undefined && d.z_score > 0) ? ` (${d.z_score}σ deviation)` : "";
+      const unitText = d.unit ? ` ${d.unit}` : "";
+
       node.innerHTML = `
-        <div style="font-weight: 800; color: #0f172a; margin-bottom: 3px; display: flex; justify-content: space-between; font-size: 0.75rem;">
-          <span>${d.feature.toUpperCase().replace(/_/g, ' ')}</span>
-          <span style="color: #0284c7;">${pct}% Confidence</span>
+        <div style="font-weight: 800; color: #0f172a; margin-bottom: 3px; display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem;">
+          <span>${d.feature.toUpperCase()}</span>
+          <span style="font-size: 0.68rem; font-weight: 800; font-family: var(--font-mono); padding: 1px 6px; border-radius: 4px; ${badgeColor}">${pct}% Risk Weight</span>
         </div>
         <div style="color: #475569; line-height: 1.3; font-size: 0.70rem;">
           ${d.explanation}
         </div>
         <div style="margin-top: 4px; font-size: 0.65rem; color: #64748b; font-family: var(--font-mono);">
-          Evidence: Observed ${parseFloat(d.value).toFixed(2)} vs Baseline ${parseFloat(d.baseline).toFixed(2)}
+          Evidence: Observed ${d.value}${unitText}${zScoreText} vs Baseline ${d.baseline}${unitText}
         </div>
       `;
       
