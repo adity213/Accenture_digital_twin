@@ -48,6 +48,10 @@ class SimulatorAdapter(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def retopologize(self, new_topology: Dict[str, Any]):
+        pass
+
+    @abc.abstractmethod
     def clear_anomalies(self):
         pass
 
@@ -58,6 +62,10 @@ class PythonSimulatorAdapter(SimulatorAdapter):
     """
     def __init__(self, simulator_instance):
         self._sim = simulator_instance
+
+    def retopologize(self, new_topology: Dict[str, Any]):
+        if hasattr(self._sim, "retopologize"):
+            self._sim.retopologize(new_topology)
 
     def step(self) -> Dict[str, Any]:
         return self._sim.step()

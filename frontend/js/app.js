@@ -790,8 +790,14 @@ function setRoiMode(mode) {
   window.currentRoiMode = mode;
   const btnTakt = document.getElementById("roi-mode-btn-takt");
   const btnGross = document.getElementById("roi-mode-btn-gross");
+  const btnTaktTop = document.getElementById("roi-mode-btn-takt-top");
+  const btnGrossTop = document.getElementById("roi-mode-btn-gross-top");
+
   if (btnTakt) btnTakt.classList.toggle("active-play", mode === "takt");
   if (btnGross) btnGross.classList.toggle("active-play", mode === "gross");
+  if (btnTaktTop) btnTaktTop.classList.toggle("active-play", mode === "takt");
+  if (btnGrossTop) btnGrossTop.classList.toggle("active-play", mode === "gross");
+
   renderStationRoiTable(window.cachedStationRois);
 }
 

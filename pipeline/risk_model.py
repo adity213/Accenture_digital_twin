@@ -304,13 +304,16 @@ class RiskScoringModel:
         self,
         features: List[float],
         divergence_threshold: float = 0.45,
-        min_sensor_confidence: float = 0.65
+        min_sensor_confidence: float = 0.65,
+        is_ood: bool = False,
+        ood_reason: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Shadow Mode Router for Risk Model (Phase 25):
-        Evaluates both deterministic baseline and ML model.
-        Monitors prediction divergence and sensor confidence.
-        Routes to ML serving or fails safe to deterministic baseline if divergence/blackout detected.
+        Shadow Mode Router for Risk Model (Phase 25 & Issue 4):
+        Evaluates deterministic baseline, ML model, divergence, sensor confidence,
+        and topology Out-Of-Distribution (OOD) status.
+        Routes to ML serving or fails safe to conservative baseline if divergence, blackout,
+        or topological structural OOD drift is detected.
         """
         base_bn, base_def, base_comp = self.compute_baseline_risk(features)
         sensor_conf = features[6] if len(features) > 6 else 1.0
@@ -324,7 +327,9 @@ class RiskScoringModel:
                 "serving_mode": "baseline_heuristic",
                 "divergence_score": 0.0,
                 "router_fallback_active": False,
-                "sensor_confidence": sensor_conf
+                "sensor_confidence": sensor_conf,
+                "is_ood": is_ood,
+                "ood_reason": ood_reason
             }
             
         X_infer = np.asarray([features], dtype=np.float32)
@@ -333,13 +338,16 @@ class RiskScoringModel:
         ml_comp = max(ml_bn, ml_def)
         
         divergence = abs(ml_comp - base_comp)
-        fallback_triggered = (sensor_conf < min_sensor_confidence) or (divergence > divergence_threshold)
+        fallback_triggered = is_ood or (sensor_conf < min_sensor_confidence) or (divergence > divergence_threshold)
         
         if fallback_triggered:
             final_bn = round(max(ml_bn, base_bn), 3)
             final_def = round(max(ml_def, base_def), 3)
             final_comp = round(max(final_bn, final_def), 3)
-            serving_mode = "shadow_fallback_conservative"
+            if is_ood:
+                serving_mode = "shadow_fallback_ood_conservative"
+            else:
+                serving_mode = "shadow_fallback_conservative"
         else:
             final_bn, final_def, final_comp = round(ml_bn, 3), round(ml_def, 3), round(ml_comp, 3)
             serving_mode = "ml_model"
@@ -362,7 +370,9 @@ class RiskScoringModel:
             "ml_defect_risk": round(ml_def, 3),
             "base_bottleneck_risk": base_bn,
             "base_defect_risk": base_def,
-            "sensor_confidence": sensor_conf
+            "sensor_confidence": sensor_conf,
+            "is_ood": is_ood,
+            "ood_reason": ood_reason
         }
 
     def predict_risk(self, features: List[float]) -> Tuple[float, float, str]:

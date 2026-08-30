@@ -594,8 +594,26 @@ class TwinSceneEngine {
 
   startMotionLoop() {
     if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
+    this.lastFrameTime = performance.now();
+
+    // Issue 5: Handle background tab throttling gracefully
+    if (!this._visibilityListenerAttached) {
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) {
+          // Tab restored: reset timing baseline so vehicles do not teleport
+          this.lastFrameTime = performance.now();
+        }
+      });
+      this._visibilityListenerAttached = true;
+    }
 
     const tick = () => {
+      const now = performance.now();
+      // Clamp frame delta: if tab was throttled, cap delta to max 2 frames (33ms)
+      const rawDt = Math.max(0.0, now - (this.lastFrameTime || now));
+      this.dtScale = Math.min(2.0, Math.max(0.2, rawDt / 16.67));
+      this.lastFrameTime = now;
+
       this.stepFleetMotion();
       this.animFrameId = requestAnimationFrame(tick);
     };
@@ -604,6 +622,7 @@ class TwinSceneEngine {
 
   stepFleetMotion() {
     if (!this.fleet || this.fleet.length === 0) return;
+    const dtFactor = this.dtScale || 1.0;
 
     // Build Station Occupancy & Queue Map for strict FIFO sequential processing
     const stationOccupants = {}; // sid -> vin currently inside machine cradle in DOCK state
@@ -778,7 +797,7 @@ class TwinSceneEngine {
         }
 
         if (!isHalted) {
-          veh.progress += (veh.speed || 0.0055);
+          veh.progress += (veh.speed || 0.0055) * dtFactor;
 
           if (veh.progress >= 1.0) {
             // Cradle is free and vehicle reached cradle -> DOCK into station

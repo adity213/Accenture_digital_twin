@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TwinSphere | Plant Control-Room Digital Twin</title>
-  <link rel="stylesheet" href="css/style.css?v=3.4">
+  <link rel="stylesheet" href="css/style.css?v=8.0">
 </head>
 <body class="blueprint-grid-bg">
   <div class="app-layout">
@@ -114,35 +114,36 @@
         </div>
       </header>
 
-      <!-- HAZARD FAULT INJECTION BAR -->
-      <div class="fault-injection-bar">
-        <div class="hazard-title-wrap">
-          <span class="hazard-stripe-badge">⚡ FAULT INJECTOR</span>
-          <div class="hazard-custom-injector">
-            <span style="font-size: 0.72rem; font-weight: 700; color: #475569; font-family: var(--font-brand);">TARGET:</span>
-            <select id="fault-target-station" class="fault-select" onchange="onFaultStationSelectChange(this.value)">
-              <!-- Populated dynamically ST01 - ST40 -->
-            </select>
-            <span style="font-size: 0.72rem; font-weight: 700; color: #475569; font-family: var(--font-brand);">ANOMALY:</span>
-            <select id="fault-type-select" class="fault-select">
-              <option value="stoppage">⚡ Sudden Stoppage (0 JPH Halt)</option>
-              <option value="drift">📈 Gradual Tool Drift (+15s / 1.5mm/s)</option>
-              <option value="latent_defect">⚠️ Latent Defect (Quality Escape)</option>
-              <option value="sensor_blackout">🔌 Sensor Blackout (Manual Fallback)</option>
-              <option value="energy_waste">🔋 Energy Waste (Idle Power Surge)</option>
-            </select>
-            <button class="fault-btn-primary" onclick="injectCustomFault()" title="Inject selected anomaly into targeted cell">
-              🚨 INJECT FAULT
-            </button>
-            <button class="fault-btn" onclick="clearAllAnomalies()" style="margin-left: 8px; font-weight: 800; color: #0284c7; border-color: #bae6fd;" title="Clear all active anomaly injections across plant">
-              🔄 CLEAR ACTIVE FAULTS
-            </button>
-          </div>
-        </div>
-      </div>
-
       <!-- VIEW 1: FLOOR SUPERVISOR LIVING LINE -->
       <div id="view-floor" class="view-panel active">
+        
+        <!-- HAZARD FAULT INJECTION BAR (FLOOR EXCLUSIVE) -->
+        <div class="fault-injection-bar">
+          <div class="hazard-title-wrap">
+            <span class="hazard-stripe-badge">⚡ FAULT INJECTOR</span>
+            <div class="hazard-custom-injector">
+              <span style="font-size: 0.72rem; font-weight: 700; color: #475569; font-family: var(--font-brand);">TARGET:</span>
+              <select id="fault-target-station" class="fault-select" onchange="onFaultStationSelectChange(this.value)">
+                <!-- Populated dynamically ST01 - ST40 -->
+              </select>
+              <span style="font-size: 0.72rem; font-weight: 700; color: #475569; font-family: var(--font-brand);">ANOMALY:</span>
+              <select id="fault-type-select" class="fault-select">
+                <option value="stoppage">⚡ Sudden Stoppage (0 JPH Halt)</option>
+                <option value="drift">📈 Gradual Tool Drift (+15s / 1.5mm/s)</option>
+                <option value="latent_defect">⚠️ Latent Defect (Quality Escape)</option>
+                <option value="sensor_blackout">🔌 Sensor Blackout (Manual Fallback)</option>
+                <option value="energy_waste">🔋 Energy Waste (Idle Power Surge)</option>
+              </select>
+              <button class="fault-btn-primary" onclick="injectCustomFault()" title="Inject selected anomaly into targeted cell">
+                🚨 INJECT FAULT
+              </button>
+              <button class="fault-btn" onclick="clearAllAnomalies()" style="margin-left: 8px; font-weight: 800; color: #0284c7; border-color: #bae6fd;" title="Clear all active anomaly injections across plant">
+                🔄 CLEAR ACTIVE FAULTS
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="workspace-floor">
           
           <!-- 40-STATION LIVING LINE HOUSING -->
@@ -355,6 +356,25 @@
 
       <!-- VIEW 2: LEADERSHIP ANALYTICS -->
       <div id="view-leadership" class="view-panel">
+        
+        <!-- LEADERSHIP EXECUTIVE CONTROLS STRIP -->
+        <div class="view-subbar leadership-subbar">
+          <div class="subbar-left">
+            <span class="subbar-pill-badge" style="background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;">💼 EXECUTIVE VALUATION</span>
+            <span style="font-size: 0.75rem; font-weight: 700; color: #475569;">Financial Model:</span>
+            <div style="display: inline-flex; gap: 4px; margin-left: 4px;">
+              <button id="roi-mode-btn-takt-top" class="hmi-btn active-play" style="height: 24px; font-size: 0.68rem; padding: 2px 8px;" onclick="setRoiMode('takt')">⚡ Takt Economics</button>
+              <button id="roi-mode-btn-gross-top" class="hmi-btn" style="height: 24px; font-size: 0.68rem; padding: 2px 8px;" onclick="setRoiMode('gross')">🏛️ Gross CapEx Baseline</button>
+            </div>
+          </div>
+          <div class="subbar-right">
+            <span class="subbar-stat">Target Takt: <strong>65.5s</strong></span>
+            <span class="subbar-stat">Line Cadence: <strong>55.0 JPH</strong></span>
+            <span class="subbar-stat">Vehicle Gross Margin: <strong>$9,200/u</strong></span>
+            <button class="hmi-btn" style="height: 24px; font-size: 0.68rem; margin-left: 6px;" onclick="loadLeadershipData()">🔄 REFRESH P&L</button>
+          </div>
+        </div>
+
         <div class="leadership-screen" style="display: block;">
 
           <!-- SENIOR LEADERSHIP EXECUTIVE FINANCIALS & UNIT ECONOMICS (PHASE 5) -->
@@ -426,6 +446,22 @@
 
       <!-- VIEW X: PLANT MANAGER -->
       <div id="view-plant-manager" class="view-panel">
+        
+        <!-- PLANT OPERATIONS & TRACEABILITY STRIP -->
+        <div class="view-subbar plant-subbar">
+          <div class="subbar-left">
+            <span class="subbar-pill-badge" style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;">🏭 OPERATIONS & TRACEABILITY</span>
+            <span style="font-size: 0.75rem; font-weight: 700; color: #475569;">Lookup VIN:</span>
+            <input id="quick-genealogy-input" placeholder="VIN-2026-01042" style="height: 24px; width: 140px; font-size: 0.74rem; font-family: var(--font-mono); padding: 2px 6px; border: 1px solid var(--border-subtle); border-radius: 4px;">
+            <button class="hmi-btn active-play" style="height: 24px; font-size: 0.68rem;" onclick="document.getElementById('genealogy-input').value = document.getElementById('quick-genealogy-input').value || 'VIN-2026-01042'; traceGenealogy();">🔍 TRACE VEHICLE</button>
+          </div>
+          <div class="subbar-right">
+            <span class="subbar-stat">Target Yield: <strong>&gt;98.5%</strong></span>
+            <span class="subbar-stat">SPC Alert Band: <strong>|z| &gt; 3.0σ</strong></span>
+            <span class="subbar-stat">ISO Vibration Spec: <strong>4.5 mm/s</strong></span>
+          </div>
+        </div>
+
         <div class="leadership-screen">
 
           <div class="scada-lead-panel">
@@ -526,6 +562,21 @@
 
       <!-- VIEW 3: WEEKLY TRENDS & LINE BALANCING -->
       <div id="view-weekly" class="view-panel">
+        
+        <!-- 7-DAY ANALYTICS & WHAT-IF STRIP -->
+        <div class="view-subbar weekly-subbar">
+          <div class="subbar-left">
+            <span class="subbar-pill-badge" style="background: #fef3c7; color: #92400e; border: 1px solid #fde68a;">📈 7-DAY ANALYTICS & WHAT-IF</span>
+            <span style="font-size: 0.75rem; font-weight: 700; color: #475569;">Line Balancing Target:</span>
+            <span id="quick-whatif-jph-badge" style="font-family: var(--font-mono); font-size: 0.75rem; font-weight: 800; color: #0284c7; background: #e0f2fe; padding: 2px 6px; border-radius: 4px;">55 JPH (65.5s Takt)</span>
+          </div>
+          <div class="subbar-right">
+            <span class="subbar-stat">Historical Window: <strong>10,080 Ticks</strong></span>
+            <span class="subbar-stat">Thermal Threshold: <strong>&lt; 55°C</strong></span>
+            <span class="subbar-stat">Zone Balance: <strong>Body 91% • Paint 89% • Assy 94%</strong></span>
+          </div>
+        </div>
+
         <div class="leadership-screen">
           <div class="scada-lead-panel">
             <div class="lead-panel-title">7-Day Zone OEE Trajectory</div>
@@ -607,6 +658,21 @@
 
       <!-- VIEW 4: TOPOLOGY EDITOR -->
       <div id="view-topology" class="view-panel">
+        
+        <!-- DAG TOPOLOGY ARCHITECTURE STRIP -->
+        <div class="view-subbar topology-subbar">
+          <div class="subbar-left">
+            <span class="subbar-pill-badge" style="background: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff;">📐 DAG TOPOLOGY DESIGNER</span>
+            <span style="font-size: 0.75rem; font-weight: 700; color: #475569;">Live State:</span>
+            <span style="font-size: 0.72rem; color: #15803d; font-weight: 700; background: #dcfce7; padding: 2px 6px; border-radius: 4px;">⚡ Hot-Reload Active (In-Flight Fleet Retained)</span>
+          </div>
+          <div class="subbar-right">
+            <span class="subbar-stat" id="topo-subbar-counts">40 Nodes // 42 Edges</span>
+            <button class="hmi-btn active-play" style="height: 24px; font-size: 0.68rem;" onclick="applyTopology()">⚡ APPLY LAYOUT</button>
+            <button class="fault-btn" style="height: 24px; font-size: 0.68rem; margin-left: 4px;" onclick="resetEditorToDefault()">🔄 RESET DEFAULT</button>
+          </div>
+        </div>
+
         <div class="schematic-toolbar">
           <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
             <span style="font-weight: 800; color: #0f172a; font-family: var(--font-brand); font-size: 0.85rem;">
@@ -860,8 +926,8 @@
 
   </div>
 
-  <script src="js/twin_scene.js?v=7.0"></script>
-  <script src="js/topology_editor.js?v=7.0"></script>
-  <script src="js/app.js?v=7.0"></script>
+  <script src="js/twin_scene.js?v=8.0"></script>
+  <script src="js/topology_editor.js?v=8.0"></script>
+  <script src="js/app.js?v=8.0"></script>
 </body>
 </html>

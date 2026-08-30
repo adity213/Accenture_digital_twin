@@ -31,7 +31,7 @@ from pipeline.propagation import GraphPropagationEngine
 from pipeline.recommender import RecommendationEngine
 from api.ws import ConnectionManager
 from api.schemas import SimulatorControlRequest, OverrideRequest, TopologyUpdateRequest, AssignmentRequest, InterventionRequest
-from simulator.ot_adapter import PythonSimulatorAdapter
+from simulator.ot_adapter import create_ot_adapter, PythonSimulatorAdapter
 
 assignment_store = AssignmentStore()
 
@@ -82,8 +82,9 @@ topology = build_line_topology(seed=42)
 stations_meta = topology["stations"]
 db = TwinStore()
 _raw_sim = LineSimulator(seed=42, custom_topology=topology)
-simulator = PythonSimulatorAdapter(_raw_sim)
-simulator._sim.current_tick = db.get_max_tick()
+simulator = create_ot_adapter(raw_simulator=_raw_sim)
+if hasattr(simulator, "_sim"):
+    simulator._sim.current_tick = db.get_max_tick()
 spc_engine = SPCEngine(lambda_ewma=0.3, z_threshold=3.0)
 virtual_sensor_engine = VirtualSensorEngine(stations_meta)
 confidence_engine = ConfidenceEngine(w1=0.5, w2=0.3, w3=0.2)
@@ -91,6 +92,14 @@ risk_model = load_or_init_risk_model()
 propagation_engine = GraphPropagationEngine(topology)
 recommender_engine = RecommendationEngine(stations_meta)
 ws_manager = ConnectionManager()
+
+# Baseline Trained Topology Snapshot & OOD Status Tracking (Issue 4)
+TRAINED_TOPOLOGY_STATIONS = set(topology["stations"].keys())
+TRAINED_TOPOLOGY_EDGES = set(
+    tuple(e) if isinstance(e, (list, tuple)) else (str(e.get("from", "")), str(e.get("to", "")))
+    for e in topology["edges"]
+)
+ood_station_status: Dict[str, str] = {}
 
 # Background Simulation Loop State
 is_sim_running = True
@@ -218,7 +227,13 @@ def process_simulation_tick() -> Dict[str, Any]:
             zone=meta.get("zone", "Body"),
             station_type=meta.get("station_type") or meta.get("type", "RoboticWeld")
         )
-        routing_res = risk_model.predict_risk_with_routing(feats)
+        is_ood_station = sid in ood_station_status
+        ood_reason_str = ood_station_status.get(sid)
+        routing_res = risk_model.predict_risk_with_routing(
+            feats,
+            is_ood=is_ood_station,
+            ood_reason=ood_reason_str
+        )
         bn_risk = routing_res["bottleneck_risk"]
         def_risk = routing_res["defect_risk"]
         risk_level = routing_res["risk_level"]
@@ -263,6 +278,8 @@ def process_simulation_tick() -> Dict[str, Any]:
             "composite_risk": comp_risk,
             "risk_level": risk_level,
             "serving_mode": serving_mode,
+            "is_ood": is_ood_station,
+            "ood_reason": ood_reason_str,
             "is_stopped": ev.get("is_stopped", False),
             "is_blackout": is_blackout,
             "is_virtual_sensing": is_blackout or (ev.get("cycle_time_s") is None),
@@ -1013,6 +1030,14 @@ async def control_simulator(req: SimulatorControlRequest):
     else:
         raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
 
+@app.get("/api/topology")
+def get_topology():
+    return {
+        "stations": stations_meta,
+        "edges": topology["edges"],
+        "metadata": topology.get("metadata", {"total_stations": len(stations_meta)})
+    }
+
 @app.post("/api/topology/apply")
 def apply_topology(req: TopologyUpdateRequest):
     global topology, stations_meta, simulator, spc_engine, virtual_sensor_engine
@@ -1072,26 +1097,32 @@ def apply_topology(req: TopologyUpdateRequest):
             }
         }
         
-        # Check compatibility with trained model
-        old_station_set = set(stations_meta.keys())
-        new_station_set = set(normalized_stations.keys())
-        model_status = "active"
-        if old_station_set != new_station_set:
-            model_status = "retraining_required"
-            # Keep using the trained model if possible, but flag the status
+        # Issue 4: Compute per-station OOD status against trained baseline snapshot
+        ood_station_status.clear()
+        for sid, st in normalized_stations.items():
+            if sid not in TRAINED_TOPOLOGY_STATIONS:
+                ood_station_status[sid] = "Un-trained station identifier"
+            else:
+                cur_local_edges = {
+                    (u, v) for u, v in normalized_edges if str(u) == sid or str(v) == sid
+                }
+                base_local_edges = {
+                    (u, v) for u, v in TRAINED_TOPOLOGY_EDGES if str(u) == sid or str(v) == sid
+                }
+                if cur_local_edges != base_local_edges:
+                    ood_station_status[sid] = "Topological edge permutation / parallel branch"
+
+        model_status = "active" if not ood_station_status else "shadow_fallback_ood_active"
             
         topology = new_topology
         stations_meta = topology["stations"]
         
-        # Completely re-instantiate the physics and pipeline models for the new DAG layout
-        _raw_sim = LineSimulator(seed=42, custom_topology=topology)
-        simulator = PythonSimulatorAdapter(_raw_sim)
-        spc_engine = SPCEngine(lambda_ewma=0.3, z_threshold=3.0)
+        # Issue 2: Hot-reload simulator DAG topology while strictly preserving in-flight vehicles & wear state
+        simulator.retopologize(topology)
         virtual_sensor_engine = VirtualSensorEngine(stations_meta)
         confidence_engine = ConfidenceEngine(w1=0.5, w2=0.3, w3=0.2)
-        risk_model = load_or_init_risk_model()
         propagation_engine = GraphPropagationEngine(topology)
-        recommender_engine = RecommendationEngine(stations_meta)
+        recommender_engine.stations_meta = stations_meta
         
         # Check parallel branch balance (Bonus P0c)
         warnings = []
@@ -1102,7 +1133,6 @@ def apply_topology(req: TopologyUpdateRequest):
                 if len(set(lengths)) > 1:
                     warnings.append(f"Branch at {sid} has unbalanced downstream hop-counts ({lengths})")
                     
-        cumulative_downtime_avoided_min = 0.0
         latest_payload = process_simulation_tick()
         
         return {
@@ -1110,6 +1140,8 @@ def apply_topology(req: TopologyUpdateRequest):
             "station_count": len(stations_meta),
             "edges_count": len(normalized_edges),
             "model_status": model_status,
+            "ood_stations_count": len(ood_station_status),
+            "ood_stations": list(ood_station_status.keys()),
             "warnings": warnings
         }
     finally:
@@ -1119,35 +1151,34 @@ def apply_topology(req: TopologyUpdateRequest):
 def reset_topology():
     global topology, stations_meta, simulator, spc_engine, virtual_sensor_engine
     global confidence_engine, risk_model, propagation_engine, recommender_engine
-    global latest_payload, cumulative_downtime_avoided_min, is_sim_running
+    global latest_payload, cumulative_downtime_avoided_min, is_sim_running, ood_station_status
     
     was_running = is_sim_running
     is_sim_running = False
     
     try:
-        topology = default_topology()
-        stations_meta = load_stations_metadata()
+        topology = build_line_topology(seed=42)
+        stations_meta = topology["stations"]
+        ood_station_status.clear()
         
-        # Completely re-instantiate the baseline physics and ML models
-        _raw_sim = LineSimulator(seed=42, custom_topology=topology)
-        simulator = PythonSimulatorAdapter(_raw_sim)
-        spc_engine = SPCEngine(lambda_ewma=0.3, z_threshold=3.0)
+        # Hot-reload back to baseline topology while preserving in-flight vehicles
+        simulator.retopologize(topology)
         virtual_sensor_engine = VirtualSensorEngine(stations_meta)
         confidence_engine = ConfidenceEngine(w1=0.5, w2=0.3, w3=0.2)
-        risk_model = load_or_init_risk_model()
         propagation_engine = GraphPropagationEngine(topology)
-        recommender_engine = RecommendationEngine(stations_meta)
+        recommender_engine.stations_meta = stations_meta
         
-        cumulative_downtime_avoided_min = 0.0
         latest_payload = process_simulation_tick()
         
         return {
             "status": "TOPOLOGY_RESET",
             "station_count": len(stations_meta),
             "edges_count": len(topology["edges"]),
-            "model_status": "active"
+            "model_status": "active",
+            "ood_stations_count": 0
         }
     finally:
+        is_sim_running = was_running
         is_sim_running = was_running
 
 @app.get("/api/model/scenario-validation")

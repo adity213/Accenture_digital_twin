@@ -878,11 +878,63 @@ body {
   color: var(--text-primary);
   border-radius: var(--radius-xs);
   cursor: pointer;
+}
+
+/* Page Specific Contextual Subbars */
+.view-subbar {
+  height: 46px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  gap: 12px;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.subbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.subbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.subbar-pill-badge {
+  font-family: var(--font-brand);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  transition: all 0.12s ease;
+  gap: 4px;
   white-space: nowrap;
+}
+
+.subbar-stat {
+  font-size: 0.72rem;
+  color: #64748b;
+  font-family: var(--font-mono);
+  background: #f8fafc;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+.subbar-stat strong {
+  color: #0f172a;
 }
 
 .fault-btn:hover {
