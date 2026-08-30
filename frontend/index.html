@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TwinSphere | Plant Control-Room Digital Twin</title>
-  <link rel="stylesheet" href="css/style.css?v=9.3">
+  <link rel="stylesheet" href="css/style.css?v=9.4">
 </head>
 <body class="blueprint-grid-bg">
   <div class="app-layout">
@@ -93,22 +93,6 @@
           </div>
         </div>
 
-        <!-- HMI Simulation Controller -->
-        <div class="sim-ctrl-box">
-          <div class="sim-btn-group">
-            <button id="btn-run" class="hmi-btn active-play" onclick="controlSim('run')">▶ RUN</button>
-            <button id="btn-hold" class="hmi-btn" onclick="controlSim('pause')">⏸ HOLD</button>
-            <button id="btn-step" class="hmi-btn" onclick="controlSim('step')">⏭ STEP</button>
-          </div>
-          
-          <div class="speed-selector-strip">
-            <button class="speed-tick selected" onclick="setSpeed(1, this)">1X</button>
-            <button class="speed-tick" onclick="setSpeed(2, this)">2X</button>
-            <button class="speed-tick" onclick="setSpeed(5, this)">5X</button>
-            <button class="speed-tick" onclick="setSpeed(10, this)">10X</button>
-          </div>
-        </div>
-
         <div style="font-family: var(--font-mono); font-size: 0.8rem; font-weight: 800; color: var(--text-primary);" id="sim-clock">
           SHIFT 1 // TICK 0142
         </div>
@@ -117,7 +101,7 @@
       <!-- VIEW 1: FLOOR SUPERVISOR LIVING LINE -->
       <div id="view-floor" class="view-panel active">
         
-        <!-- HAZARD FAULT INJECTION BAR (FLOOR EXCLUSIVE) -->
+        <!-- HAZARD FAULT INJECTION & SIMULATION CONTROL BAR (FLOOR EXCLUSIVE) -->
         <div class="fault-injection-bar">
           <div class="hazard-title-wrap">
             <span class="hazard-stripe-badge">⚡ FAULT INJECTOR</span>
@@ -140,6 +124,22 @@
               <button class="fault-btn" onclick="clearAllAnomalies()" style="margin-left: 8px; font-weight: 800; color: #0284c7; border-color: #bae6fd;" title="Clear all active anomaly injections across plant">
                 🔄 CLEAR ACTIVE FAULTS
               </button>
+            </div>
+          </div>
+
+          <!-- Floor-Exclusive Simulation Playback & Speed Controller -->
+          <div class="sim-ctrl-box" style="margin-left: auto;">
+            <div class="sim-btn-group">
+              <button id="btn-run" class="hmi-btn active-play" onclick="controlSim('run')">▶ RUN</button>
+              <button id="btn-hold" class="hmi-btn" onclick="controlSim('pause')">⏸ HOLD</button>
+              <button id="btn-step" class="hmi-btn" onclick="controlSim('step')">⏭ STEP</button>
+            </div>
+            
+            <div class="speed-selector-strip">
+              <button class="speed-tick selected" onclick="setSpeed(1, this)">1X</button>
+              <button class="speed-tick" onclick="setSpeed(2, this)">2X</button>
+              <button class="speed-tick" onclick="setSpeed(5, this)">5X</button>
+              <button class="speed-tick" onclick="setSpeed(10, this)">10X</button>
             </div>
           </div>
         </div>
@@ -980,8 +980,8 @@
 
   </div>
 
-  <script src="js/twin_scene.js?v=9.3"></script>
-  <script src="js/topology_editor.js?v=9.3"></script>
-  <script src="js/app.js?v=9.3"></script>
+  <script src="js/twin_scene.js?v=9.4"></script>
+  <script src="js/topology_editor.js?v=9.4"></script>
+  <script src="js/app.js?v=9.4"></script>
 </body>
 </html>
