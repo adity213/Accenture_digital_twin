@@ -1941,302 +1941,60 @@ body {
   color: var(--status-nominal);
 }
 
-/* ==================== LEADERSHIP & WEEKLY ==================== */
-.view-panel { display: none; }
-.view-panel.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-
-.leadership-screen {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 16px;
-  padding: 16px 24px;
-  overflow: hidden;
-}
-
-.scada-lead-panel {
-  background: #ffffff;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  box-shadow: var(--shadow-card);
-  overflow: hidden;
-}
-
-.lead-panel-title {
-  font-family: var(--font-brand);
-  font-size: 1.2rem;
-  font-weight: 800;
-  color: #0f172a;
-}
-
-.lead-panel-sub {
-  font-size: 0.76rem;
-  color: var(--text-secondary);
-  margin-top: 2px;
-}
-
-.thermal-heatmap-grid {
-  margin-top: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-  overflow-y: auto;
-}
-
-.thm-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.thm-sid {
-  width: 44px;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-}
-
-.thm-cell {
-  width: 18px;
-  height: 16px;
-  border-radius: 3px;
-  background: #e2e8f0;
-}
-
-.countdown-timer-title {
-  font-family: var(--font-brand);
-  font-size: 0.76rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #92400e;
-  display: flex;
-  justify-content: space-between;
-}
-
-.vin-trace-schematic {
-  margin-top: 16px;
-  padding: 12px;
-  background: #f8fafc;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  display: flex;
-  flex-direction: column;
-}
-
-.vin-trail-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 10px;
-}
-
-.vin-tick-node {
-  padding: 4px 6px;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 700;
-  border-radius: 3px;
-  border: 1px solid var(--border-subtle);
-  background: #ffffff;
-  color: var(--text-secondary);
-}
-
-.vin-tick-node.passed {
-  border-color: #86efac;
-  background: #dcfce7;
-  color: #166534;
-}
-
-.vin-tick-node.failed {
-  border-color: #fca5a5;
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.countdown-items-wrap {
-  margin-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  max-height: 100px;
-  overflow-y: auto;
-}
-
-.countdown-row {
-  display: flex;
-  justify-content: space-between;
-  font-family: var(--font-mono);
-  font-size: 0.76rem;
-  padding: 2px 0;
-  border-bottom: 1px dashed #fcd34d;
-  color: #b91c1c;
-}
-
-/* AI Action Recommendation */
-.ai-recommendation-panel {
-  background: #0f172a;
-  color: #ffffff;
-  border-radius: var(--radius-sm);
-  padding: 14px;
-  box-shadow: var(--shadow-card);
-}
-
-.ai-rec-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.ai-rec-conf {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.15);
-  padding: 2px 7px;
-  border-radius: var(--radius-full);
-}
-
-.ai-rec-title {
-  font-family: var(--font-brand);
-  font-size: 0.98rem;
-  font-weight: 800;
-  margin-top: 5px;
-}
-
-.ai-rec-body {
-  font-size: 0.78rem;
-  color: #cbd5e1;
-  line-height: 1.4;
-  margin-top: 5px;
-}
-
-.ai-rec-impact {
-  font-family: var(--font-mono);
-  font-size: 0.76rem;
-  font-weight: 700;
-  color: #34d399;
-  margin-top: 8px;
-  border-top: 1px solid #334155;
-  padding-top: 6px;
-}
-
-/* ==================== BOTTOM KPI STRIP ==================== */
-.kpi-instrument-strip {
-  height: 62px;
-  background: #ffffff;
-  border-top: 1px solid var(--border-subtle);
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-  padding: 8px 24px;
-  z-index: 40;
-  box-shadow: 0 -2px 10px rgba(15, 23, 42, 0.04);
-}
-
-.kpi-gauge-tile {
-  background: #f8fafc;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 4px 14px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.kpi-gauge-meta {
-  display: flex;
-  flex-direction: column;
-}
-
-.kpi-gauge-lbl {
-  font-family: var(--font-brand);
-  font-size: 0.7rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-secondary);
-}
-
-.kpi-gauge-val {
-  font-family: var(--font-brand);
-  font-size: 1.45rem;
-  font-weight: 800;
-  color: #0f172a;
-}
-
-.kpi-gauge-sub {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--status-nominal);
-}
-
-/* ==================== LEADERSHIP & WEEKLY ==================== */
-.view-panel { display: none; }
-.view-panel.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-
-  margin-top: 14px;
-  padding: 14px;
-  background: #f8fafc;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-}/* ==========================================================================
-   LEADERSHIP & TREND ANALYTICS SCREENS
+/* ==========================================================================
+   LEADERSHIP & PLANT MANAGER ANALYTICS SCREENS
    ========================================================================== */
+.view-panel { display: none; }
+.view-panel.active { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+
 .leadership-screen {
+  flex: 1;
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
+  grid-template-columns: 1.25fr 1fr;
   gap: 16px;
-  padding: 16px;
-  height: 100%;
+  padding: 16px 20px 48px 20px;
+  overflow-y: auto !important;
+  overflow-x: hidden;
   box-sizing: border-box;
-  overflow-y: auto;
   background: var(--bg-canvas);
+  height: 100%;
 }
 
 .scada-lead-panel {
-  background: var(--bg-surface);
+  background: #ffffff;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  padding: 18px;
-  box-shadow: var(--shadow-sm);
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  min-height: 480px;
+  box-shadow: var(--shadow-sm);
+  min-height: auto;
 }
 
 .lead-panel-title {
   font-family: var(--font-brand);
   font-size: 1.05rem;
   font-weight: 800;
-  color: var(--text-primary);
+  color: #0f172a;
   letter-spacing: -0.01em;
 }
 
 .lead-panel-sub {
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   color: var(--text-secondary);
-  margin-top: 3px;
+  margin-top: 2px;
   font-weight: 500;
 }
 
 /* Thermal Heatmap Grid */
 .thermal-heatmap-grid {
-  margin-top: 14px;
-  flex: 1;
-  max-height: 520px;
+  margin-top: 10px;
+  max-height: 280px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 10px;
+  gap: 2px;
+  padding: 8px;
   background: #f8fafc;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
