@@ -435,6 +435,82 @@ function updateCockpitDrawer(sid) {
     confFill.style.background = conf < 65 ? "var(--status-critical)" : (conf < 80 ? "var(--status-warning)" : "var(--status-nominal)");
   }
 
+  // 7. Update Predictive Maintenance & Service Schedule Card
+  const maintStatusEl = document.getElementById("focus-maint-status");
+  const maintDateEl = document.getElementById("focus-maint-date");
+  const maintCountdownEl = document.getElementById("focus-maint-countdown");
+  const maintWearValEl = document.getElementById("focus-maint-wear-val");
+  const maintWearBarEl = document.getElementById("focus-maint-wear-bar");
+
+  if (maintStatusEl || maintDateEl) {
+    const defaultOffset = (((parseInt(sid.replace('ST', ''), 10) || 1) * 3) % 18 + 5).toString().padStart(2, '0');
+    const rawMaintDate = meta.next_maintenance_date || `2026-03-${defaultOffset}T08:00`;
+    
+    // Parse target date
+    const targetDate = new Date(rawMaintDate.includes('T') ? rawMaintDate : `${rawMaintDate}T08:00`);
+    
+    // Simulation baseline time
+    let simDate = new Date();
+    if (latestTickData.timestamp) {
+      const parsedSim = new Date(latestTickData.timestamp.replace(' ', 'T'));
+      if (!isNaN(parsedSim.getTime())) simDate = parsedSim;
+    }
+    
+    const diffMs = targetDate - simDate;
+    const diffHours = diffMs / (1000 * 60 * 60);
+    const diffDays = Math.floor(diffHours / 24);
+    const remHours = Math.max(0, Math.floor(diffHours % 24));
+    const estTicks = Math.max(0, Math.floor(diffHours * 60)); // 60 ticks/hour
+
+    const formattedDate = isNaN(targetDate.getTime()) 
+      ? rawMaintDate.replace('T', ' ') 
+      : targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + targetDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+    if (maintDateEl) maintDateEl.innerText = formattedDate;
+
+    if (diffMs > 0) {
+      if (diffDays >= 3) {
+        if (maintStatusEl) {
+          maintStatusEl.innerText = "🟢 ON SCHEDULE";
+          maintStatusEl.style.color = "#15803d";
+          maintStatusEl.style.background = "#dcfce7";
+        }
+      } else {
+        if (maintStatusEl) {
+          maintStatusEl.innerText = "🟡 SERVICE DUE SOON";
+          maintStatusEl.style.color = "#b45309";
+          maintStatusEl.style.background = "#fef3c7";
+        }
+      }
+      if (maintCountdownEl) {
+        maintCountdownEl.innerText = diffDays > 0 
+          ? `${diffDays}d ${remHours}h (~${estTicks.toLocaleString()} Ticks)` 
+          : `${remHours}h remaining (~${estTicks.toLocaleString()} Ticks)`;
+        maintCountdownEl.style.color = diffDays >= 3 ? "#0284c7" : "#d97706";
+      }
+    } else {
+      if (maintStatusEl) {
+        maintStatusEl.innerText = "🔴 SERVICE OVERDUE";
+        maintStatusEl.style.color = "#b91c1c";
+        maintStatusEl.style.background = "#fee2e2";
+      }
+      if (maintCountdownEl) {
+        maintCountdownEl.innerText = `Overdue by ${Math.abs(diffDays)}d (${Math.abs(remHours)}h)`;
+        maintCountdownEl.style.color = "#dc2626";
+      }
+    }
+
+    // Dynamic Tool Wear / Degradation progress
+    const wearRaw = st.wear !== undefined ? st.wear : (st.tool_wear !== undefined ? st.tool_wear : (((parseInt(sid.replace('ST',''), 10) * 11 + (latestTickData.tick || 0)) % 100) / 100));
+    const wearPct = Math.min(100, Math.max(0, Math.round(wearRaw * 100)));
+    
+    if (maintWearValEl) maintWearValEl.innerText = `${wearPct}% Degraded`;
+    if (maintWearBarEl) {
+      maintWearBarEl.style.width = `${wearPct}%`;
+      maintWearBarEl.style.background = wearPct > 80 ? "#ef4444" : (wearPct > 50 ? "#f59e0b" : "#10b981");
+    }
+  }
+
   const propList = document.getElementById("focus-prop-list");
   const propCountEl = document.getElementById("prop-count");
   propList.innerHTML = "";

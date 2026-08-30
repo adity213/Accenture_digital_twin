@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TwinSphere | Plant Control-Room Digital Twin</title>
-  <link rel="stylesheet" href="css/style.css?v=8.0">
+  <link rel="stylesheet" href="css/style.css?v=9.0">
 </head>
 <body class="blueprint-grid-bg">
   <div class="app-layout">
@@ -256,6 +256,40 @@
                   <div class="gauge-needle-fill" id="gauge-conf-fill" style="width: 96%; background: var(--status-nominal);"></div>
                 </div>
                 <div class="gauge-threshold-marks"><span>&lt;65% Crit</span><span>80% Warn</span><span>100% Nom</span></div>
+              </div>
+            </div>
+
+            <!-- PREDICTIVE MAINTENANCE & SERVICE SCHEDULE CARD -->
+            <div class="maintenance-gauge-box" style="margin: 0 0 4px 0; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: var(--radius-sm); padding: 10px 12px; box-shadow: var(--shadow-sm);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-family: var(--font-brand); font-size: 0.76rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 5px;">
+                  🔧 PREDICTIVE MAINTENANCE
+                </span>
+                <span id="focus-maint-status" style="font-family: var(--font-mono); font-size: 0.68rem; font-weight: 800; color: #15803d; background: #dcfce7; padding: 2px 6px; border-radius: 4px;">
+                  🟢 ON SCHEDULE
+                </span>
+              </div>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.72rem; margin-top: 6px;">
+                <div style="background: #f8fafc; padding: 6px 8px; border-radius: 4px; border: 1px solid var(--border-subtle);">
+                  <div style="color: #64748b; font-size: 0.65rem; font-weight: 700; text-transform: uppercase;">Next Service Date</div>
+                  <div id="focus-maint-date" style="font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 2px;">2026-03-15 08:00</div>
+                </div>
+                <div style="background: #f8fafc; padding: 6px 8px; border-radius: 4px; border: 1px solid var(--border-subtle);">
+                  <div style="color: #64748b; font-size: 0.65rem; font-weight: 700; text-transform: uppercase;">Countdown / Window</div>
+                  <div id="focus-maint-countdown" style="font-weight: 800; color: #0284c7; font-family: var(--font-mono); margin-top: 2px;">11 Days (1,440 Ticks)</div>
+                </div>
+              </div>
+
+              <!-- Tool Wear & Service Progress -->
+              <div style="margin-top: 8px;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: #64748b; font-family: var(--font-mono); margin-bottom: 3px;">
+                  <span>Tool Wear / Degradation:</span>
+                  <span id="focus-maint-wear-val" style="font-weight: 800; color: #0f172a;">12% Degraded</span>
+                </div>
+                <div style="height: 6px; background: #e2e8f0; border-radius: 999px; overflow: hidden;">
+                  <div id="focus-maint-wear-bar" style="width: 12%; height: 100%; background: #10b981; transition: width 0.3s ease;"></div>
+                </div>
               </div>
             </div>
 
@@ -792,6 +826,23 @@
           </div>
         </div>
 
+        <!-- Preventive Maintenance Section (Calendar Picker) -->
+        <div style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 6px; padding: 10px 12px; margin-top: 4px; margin-bottom: 8px;">
+          <div style="font-weight: 800; font-size: 0.76rem; color: #166534; margin-bottom: 6px; display: flex; align-items: center; gap: 5px;">
+            <span>🔧 PREVENTIVE MAINTENANCE SCHEDULING</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 8px;">
+            <div class="modal-form-group" style="margin-bottom: 0;">
+              <label style="color: #166534; font-size: 0.70rem; font-weight: 700;">Scheduled Service Date (Calendar)</label>
+              <input type="datetime-local" id="new-maint-date" class="modal-form-input" style="background: #ffffff; border-color: #86efac; color: #0f172a; font-family: var(--font-mono); font-size: 0.72rem; font-weight: 700;">
+            </div>
+            <div class="modal-form-group" style="margin-bottom: 0;">
+              <label style="color: #166534; font-size: 0.70rem; font-weight: 700;">Interval (Hours)</label>
+              <input type="number" id="new-maint-interval" class="modal-form-input" value="168" min="24" max="720" step="24" style="background: #ffffff; border-color: #86efac; font-family: var(--font-mono); font-size: 0.72rem; font-weight: 700;">
+            </div>
+          </div>
+        </div>
+
         <div class="modal-btn-row">
           <button class="fault-btn" onclick="closeAddStationModal()">Cancel</button>
           <button class="hmi-btn active-play" onclick="submitAddStation()">+ Add Station to DAG</button>
@@ -881,6 +932,23 @@
           </div>
         </div>
 
+        <!-- PREVENTIVE MAINTENANCE SCHEDULE SECTION (CALENDAR PICKER) -->
+        <div style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 8px; padding: 12px 14px; margin-top: 12px;">
+          <div style="font-weight: 800; font-size: 0.78rem; color: #166534; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <span>🔧 PREDICTIVE & PREVENTIVE MAINTENANCE SCHEDULING</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 10px;">
+            <div class="modal-form-group" style="margin-bottom: 0;">
+              <label style="color: #166534; font-weight: 700; font-size: 0.72rem;">Next Scheduled Service (Calendar Date & Time)</label>
+              <input type="datetime-local" id="edit-maint-date" class="modal-form-input" style="background: #ffffff; border-color: #86efac; color: #0f172a; font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700;">
+            </div>
+            <div class="modal-form-group" style="margin-bottom: 0;">
+              <label style="color: #166534; font-weight: 700; font-size: 0.72rem;">Service Interval (Shift Hours)</label>
+              <input type="number" id="edit-maint-interval" class="modal-form-input" value="168" min="24" max="720" step="24" placeholder="168 hrs (Weekly)" style="background: #ffffff; border-color: #86efac; font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700;">
+            </div>
+          </div>
+        </div>
+
         <div class="modal-btn-row" style="margin-top: 16px;">
           <button class="fault-btn" onclick="closeEditStationModal()">Cancel</button>
           <button class="hmi-btn active-play" onclick="saveEditStation()">💾 Save Changes</button>
@@ -912,8 +980,8 @@
 
   </div>
 
-  <script src="js/twin_scene.js?v=8.1"></script>
-  <script src="js/topology_editor.js?v=8.1"></script>
-  <script src="js/app.js?v=8.1"></script>
+  <script src="js/twin_scene.js?v=9.0"></script>
+  <script src="js/topology_editor.js?v=9.0"></script>
+  <script src="js/app.js?v=9.0"></script>
 </body>
 </html>

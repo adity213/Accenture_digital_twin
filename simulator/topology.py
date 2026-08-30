@@ -98,6 +98,13 @@ def build_line_topology(seed: int = RANDOM_SEED) -> Dict[str, Any]:
         sid = st["id"]
         tier = "manual" if sid in manual_station_ids else "rich"
         cap = random.randint(5, 15)
+        
+        # Realistic staggered preventive maintenance schedule (5 to 22 days from sim epoch)
+        station_num = int(sid[2:]) if sid[2:].isdigit() else 1
+        day_offset = (station_num * 3) % 18 + 5
+        maint_date = f"2026-03-{day_offset:02d}T08:00"
+        maint_interval = 168 if tier == "rich" else 336  # Weekly (168h) or Bi-weekly (336h)
+
         stations[sid] = {
             "station_id": sid,
             "name": st["name"],
@@ -107,6 +114,8 @@ def build_line_topology(seed: int = RANDOM_SEED) -> Dict[str, Any]:
             "target_cycle_time_s": st["target_cycle_time"],
             "power_base_kw": st["power_base_kw"],
             "buffer_capacity_units": cap,
+            "next_maintenance_date": maint_date,
+            "maintenance_interval_hours": maint_interval,
             "upstream_ids": upstream_map[sid],
             "downstream_ids": downstream_map[sid]
         }

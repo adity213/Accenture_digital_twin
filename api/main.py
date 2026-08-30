@@ -1072,6 +1072,9 @@ def apply_topology(req: TopologyUpdateRequest):
             power_kw = float(st.get("power_base_kw") or 28.0) if tier == "rich" else None
             cap = int(st.get("buffer_capacity_units") or 8)
             
+            maint_date = st.get("next_maintenance_date") or f"2026-03-{((int(sid_str[2:]) if sid_str[2:].isdigit() else 1) * 3) % 18 + 5:02d}T08:00"
+            maint_interval = int(st.get("maintenance_interval_hours") or (168 if tier == "rich" else 336))
+
             normalized_stations[sid_str] = {
                 "id": sid_str,
                 "station_id": sid_str,
@@ -1084,6 +1087,8 @@ def apply_topology(req: TopologyUpdateRequest):
                 "target_cycle_time": target_ct,
                 "power_base_kw": power_kw,
                 "buffer_capacity_units": cap,
+                "next_maintenance_date": maint_date,
+                "maintenance_interval_hours": maint_interval,
                 "upstream_ids": upstream_map.get(sid_str, []),
                 "downstream_ids": downstream_map.get(sid_str, [])
             }
