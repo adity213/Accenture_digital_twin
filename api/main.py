@@ -460,13 +460,13 @@ def get_esg_metrics():
 @app.get("/api/esg/vin_passport/{vin}")
 def get_vin_passport(vin: str):
     """Returns the Scope-2 Digital Product Carbon Passport for a given VIN."""
-    return energy_optimizer.get_vin_passport(vin)
+    return energy_optimizer.get_vin_passport(vin, stations_meta)
 
 @app.post("/api/esg/toggle_load_shift")
 def toggle_load_shift(body: Dict[str, Any] = None):
     """Toggles automated peak-tariff thermal load shifting."""
     active = body.get("active", True) if body else True
-    return energy_optimizer.toggle_load_shift(active)
+    return energy_optimizer.toggle_load_shift(active, stations_meta)
 
 @app.get("/api/risk/{station_id}/drivers")
 def get_risk_drivers(station_id: str):
