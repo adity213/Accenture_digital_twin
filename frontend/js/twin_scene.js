@@ -699,30 +699,44 @@ class TwinSceneEngine {
   stepFleetMotion() {
     if (!this.fleet || this.fleet.length === 0) return;
 
-    // Read Ground Truth Machine Cradle Occupancy and Queue Buffers directly from telemetry
+    // 1. Build authoritative cradle occupants & buffer queues for this frame
     const processingVinMap = {}; // sid -> vin occupying cradle
     const queuedVinsMap = {};    // sid -> array of waiting vins
     const stationPayload = this.stationsPayload || {};
 
+    // Seed from backend telemetry if present
     Object.keys(stationPayload).forEach(sid => {
       const st = stationPayload[sid];
       if (st.processing_vin) {
         processingVinMap[sid] = st.processing_vin;
       }
       if (Array.isArray(st.queued_vins) && st.queued_vins.length > 0) {
-        queuedVinsMap[sid] = st.queued_vins;
+        queuedVinsMap[sid] = [...st.queued_vins];
       }
     });
 
-    // Auto-admit lead vehicle into unoccupied cradles so all stations with active vehicles cycle properly
+    // Deterministically assign every active vehicle on the floor to a machine cradle or distinct queue slot
+    // For each station, 1st vehicle claims the cradle; subsequent vehicles are assigned FIFO queue buffer slots
+    const stationVehicles = {};
     this.fleet.forEach(v => {
       const sid = v.backendCurrentStation;
-      if (sid && !processingVinMap[sid]) {
-        const qList = queuedVinsMap[sid] || [];
-        if (qList.length === 0 || qList[0] === v.vin) {
-          processingVinMap[sid] = v.vin;
-        }
+      if (sid) {
+        if (!stationVehicles[sid]) stationVehicles[sid] = [];
+        stationVehicles[sid].push(v);
       }
+    });
+
+    Object.keys(stationVehicles).forEach(sid => {
+      const vList = stationVehicles[sid];
+      if (!processingVinMap[sid] && vList.length > 0) {
+        processingVinMap[sid] = vList[0].vin;
+      }
+      if (!queuedVinsMap[sid]) queuedVinsMap[sid] = [];
+      vList.forEach(v => {
+        if (v.vin !== processingVinMap[sid] && !queuedVinsMap[sid].includes(v.vin)) {
+          queuedVinsMap[sid].push(v.vin);
+        }
+      });
     });
 
     // Reset station dwell progress bars and in-cycle glow for stations with no processing vehicle
@@ -753,7 +767,7 @@ class TwinSceneEngine {
       if (veh.animHops && veh.animHops.length > 0) {
         const numHops = veh.animHops.length;
         const elapsed = now - (veh.animStartTime || now);
-        const duration = Math.max(150, veh.animDuration || this.measuredBackendInterval || 4500);
+        const duration = Math.max(150, veh.animDuration || this.measuredBackendInterval || 10000);
         u = Math.max(0.0, Math.min(1.0, elapsed / duration));
 
         const hopFraction = 1.0 / numHops;
@@ -772,12 +786,12 @@ class TwinSceneEngine {
       const toState = stationPayload[targetSid] || {};
 
       // Dynamic station-proportional transit vs dwell allocation
-      // Conveyor transit is smooth and continuous (40-50% of interval), remaining 50-60% is in-station dwell
+      // At 10s base cadence: transit is ~3.0-3.5s smooth cruise, remaining 6.5-7.0s is machine dwell
       const stMeta = this.stations ? this.stations[targetSid] : null;
       const liveCt = toState.is_stopped
         ? (stMeta?.target_cycle_time_s || 55.0) * 4.5
         : (toState.cycle_time_s || stMeta?.target_cycle_time_s || 55.0);
-      const transitAlpha = Math.max(0.28, Math.min(0.50, 24.0 / Math.max(20.0, liveCt)));
+      const transitAlpha = Math.max(0.25, Math.min(0.40, 20.0 / Math.max(20.0, liveCt)));
 
       const isDestStopped = Boolean(toState.is_stopped);
       const isOriginStopped = Boolean(fromState.is_stopped);
@@ -822,7 +836,7 @@ class TwinSceneEngine {
             const maxT = Math.max(0.05, Math.min(0.85, 1.0 - (targetDist / (bezierLength + 144))));
             pos = this.getConveyorTrackPosition(fromSid, targetSid, easedProg * maxT);
           } else {
-            pos = this.getConveyorTrackPosition(fromSid, targetSid, easedProg * 0.85);
+            pos = this.getConveyorTrackPosition(fromSid, targetSid, easedProg);
           }
 
           if (barEl && !isStationProcessing) {
@@ -854,9 +868,9 @@ class TwinSceneEngine {
             pos = this.getStationQueuePosition(targetSid, effectiveQueueIndex, fromSid);
             isHalted = true;
           } else {
-            veh.state = "TRANSIT";
-            veh.queueSlot = -1;
-            pos = veh.lastPos || this.getConveyorTrackPosition(fromSid, targetSid, 0.85);
+            veh.state = "DOCK";
+            veh.queueSlot = 0;
+            pos = cradlePos;
           }
         }
 
@@ -876,9 +890,9 @@ class TwinSceneEngine {
             pos = this.getStationQueuePosition(veh.backendCurrentStation, effectiveQueueIndex, veh.backendPreviousStation);
             isHalted = true;
           } else {
-            veh.state = "TRANSIT";
-            veh.queueSlot = -1;
-            pos = veh.lastPos || this.getConveyorTrackPosition(veh.fromStation, veh.toStation, 0.85);
+            veh.state = "DOCK";
+            veh.queueSlot = 0;
+            pos = cradlePos;
           }
         }
       } else {
@@ -891,7 +905,7 @@ class TwinSceneEngine {
           veh.queueSlot = 0;
 
           const elapsed = now - (veh.animStartTime || now);
-          const duration = Math.max(150, veh.animDuration || this.measuredBackendInterval || 4500);
+          const duration = Math.max(150, veh.animDuration || this.measuredBackendInterval || 10000);
           const dwellFraction = Math.max(0.0, Math.min(1.0, elapsed / duration));
 
           if (!isDestStopped) {
@@ -910,9 +924,9 @@ class TwinSceneEngine {
           pos = this.getStationQueuePosition(targetSid, effectiveQueueIndex, fromSid);
           isHalted = true;
         } else {
-          veh.state = "TRANSIT";
-          veh.queueSlot = -1;
-          pos = veh.lastPos || this.getConveyorTrackPosition(fromSid, targetSid, 0.85);
+          veh.state = "DOCK";
+          veh.queueSlot = 0;
+          pos = cradlePos;
         }
       }
 
