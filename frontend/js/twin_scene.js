@@ -614,13 +614,19 @@ class TwinSceneEngine {
       return { x: cradlePos.x - offset, y: cradlePos.y };
     }
 
-    // Position along the real upstream SVG conveyor curve entering toSid (scaled for up to 14 slots)
-    const qProgress = Math.max(0.04, 0.82 - (queueIndex * 0.058));
-    const basePos = this.getConveyorTrackPosition(fromSid, toSid, qProgress);
-    if (queueIndex >= 13) {
-      return { x: basePos.x - ((queueIndex - 13) * 18), y: basePos.y };
+    // Calculate dynamic spacing based on the physical pixel length of the conveyor track
+    const pFrom = window.stationCoords[fromSid];
+    let trackLength = 200; // default fallback
+    if (pFrom && pTo) {
+      trackLength = Math.sqrt(Math.pow(pTo.x - pFrom.x, 2) + Math.pow(pTo.y - pFrom.y, 2));
     }
-    return basePos;
+    
+    // Ensure each 54px-wide car gets at least ~40px of physical space
+    const spacingDecrement = Math.max(0.015, Math.min(0.1, 40 / trackLength));
+    
+    // Position along the real upstream SVG conveyor curve entering toSid
+    const qProgress = Math.max(0.04, 0.82 - (queueIndex * spacingDecrement));
+    return this.getConveyorTrackPosition(fromSid, toSid, qProgress);
   }
 
   startMotionLoop() {
@@ -754,11 +760,11 @@ class TwinSceneEngine {
             pos = this.getStationQueuePosition(targetSid, queueIndex, fromSid);
             isHalted = true;
           } else {
-            // Cradle is occupied by another vehicle -> hold at approach slot
-            veh.state = "QUEUE";
+            // Vehicle not yet confirmed by backend tick — hold at cradle (most likely mid-transition)
+            veh.state = "DOCK";
+            veh.progress = 1.0;
             veh.queueSlot = 0;
-            pos = this.getStationQueuePosition(targetSid, 0, fromSid);
-            isHalted = true;
+            pos = cradlePos;
           }
         }
 
@@ -778,10 +784,11 @@ class TwinSceneEngine {
             pos = this.getStationQueuePosition(veh.backendCurrentStation, queueIndex, veh.backendPreviousStation);
             isHalted = true;
           } else {
-            veh.state = "QUEUE";
+            // Vehicle not yet confirmed by backend tick — hold at cradle
+            veh.state = "DOCK";
+            veh.progress = 1.0;
             veh.queueSlot = 0;
-            pos = this.getStationQueuePosition(veh.backendCurrentStation, 0, veh.backendPreviousStation);
-            isHalted = true;
+            pos = cradlePos;
           }
         }
       } else {
@@ -813,11 +820,11 @@ class TwinSceneEngine {
           pos = this.getStationQueuePosition(targetSid, queueIndex, fromSid);
           isHalted = true;
         } else {
-          // Station cradle occupied by another vehicle -> queue behind
-          veh.state = "QUEUE";
+          // Vehicle not yet confirmed by backend tick — hold at cradle
+          veh.state = "DOCK";
+          veh.progress = 1.0;
           veh.queueSlot = 0;
-          pos = this.getStationQueuePosition(targetSid, 0, fromSid);
-          isHalted = true;
+          pos = cradlePos;
         }
       }
 
