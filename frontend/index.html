@@ -572,18 +572,36 @@
 
           <div class="scada-lead-panel">
             <div class="lead-panel-title">What-If Line Balancing Simulator</div>
-            <div class="lead-panel-sub">Simulate takt rate adjustments, bottleneck bottlenecks & buffer starvation</div>
+            <div class="lead-panel-sub">Simulate takt rate adjustments, bottleneck dynamics & buffer backpressure</div>
             
-            <div style="margin-top: 16px; background: #f8fafc; padding: 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+            <!-- Live Computed Line Capacity Banner -->
+            <div id="whatif-capacity-banner" style="margin-top: 14px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--radius-sm); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #1e40af;">Physical Line Capacity</div>
+                <div id="whatif-capacity-text" style="font-size: 0.85rem; font-weight: 800; color: #0f172a; font-family: var(--font-brand); margin-top: 2px;">
+                  Line Capacity: <span style="color: var(--brand-blue);">45 JPH</span> (Bottleneck: ST17 - E-Coat Curing Oven)
+                </div>
+              </div>
+              <button id="btn-balance-capacity" onclick="balanceToCapacity()" style="background: var(--brand-blue); color: #ffffff; border: none; padding: 6px 12px; border-radius: var(--radius-sm); font-size: 0.74rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                ⚡ Balance to Capacity
+              </button>
+            </div>
+
+            <!-- Over-Capacity Real-World Queuing Warning Banner -->
+            <div id="whatif-capacity-warning" style="display: none; margin-top: 10px; background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius-sm); padding: 10px 12px; font-size: 0.76rem; color: #92400e; line-height: 1.4;">
+              <!-- Dynamic warning content injected by JS -->
+            </div>
+
+            <div style="margin-top: 14px; background: #f8fafc; padding: 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
               <div style="display: flex; justify-content: space-between; font-weight: 800; font-size: 0.84rem; color: #0f172a; font-family: var(--font-brand);">
                 <span id="slider-target-val">Target Output: 55 JPH</span>
                 <span id="slider-takt-val" style="color: var(--brand-blue); font-family: var(--font-mono); font-weight: 800;">Required Takt: 65.5s</span>
               </div>
-              <input type="range" id="whatif-jph-slider" min="40" max="75" value="55" step="1" style="width: 100%; margin-top: 10px; accent-color: var(--brand-blue); cursor: pointer;" oninput="updateLineBalancing(this.value)">
+              <input type="range" id="whatif-jph-slider" min="20" max="100" value="55" step="1" style="width: 100%; margin-top: 10px; accent-color: var(--brand-blue); cursor: pointer;" oninput="updateLineBalancing(this.value)">
               <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); font-family: var(--font-mono); margin-top: 4px;">
-                <span>40 JPH (90.0s)</span>
-                <span>55 JPH (65.5s Nominal)</span>
-                <span>75 JPH (48.0s High Speed)</span>
+                <span>20 JPH (Low Rate)</span>
+                <span id="slider-cap-marker" style="font-weight: 800; color: #1e40af;">45 JPH (Line Capacity Limit)</span>
+                <span>100 JPH (Stress Ingress)</span>
               </div>
             </div>
 

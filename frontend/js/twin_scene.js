@@ -649,10 +649,12 @@ class TwinSceneEngine {
       });
     });
 
-    // 3. Step motion with strict FIFO spacing and sequential cradle entry
+    // 3. Step motion with real backend cadence-derived interpolation
+    const now = performance.now();
+
     this.fleet.forEach((veh) => {
-      const fromSid = veh.fromStation;
-      const toSid = veh.toStation;
+      const fromSid = veh.fromStation || veh.backendCurrentStation || "ST01";
+      const toSid = veh.toStation || veh.backendCurrentStation || "ST01";
 
       const fromState = this.stationsPayload[fromSid] || {};
       const toState = this.stationsPayload[toSid] || {};
@@ -664,76 +666,84 @@ class TwinSceneEngine {
       let pos = { x: 100, y: 100 };
 
       const pTo = window.stationCoords[toSid] || { x: 100, y: 170 };
+      const barEl = document.getElementById(`s-bar-${toSid}`);
+      const nodeEl = document.getElementById(`station-node-${toSid}`);
 
-      if (veh.state === "DOCK") {
-        // Vehicle is physically inside the station machine cradle
-        pos = { x: pTo.x + 72, y: pTo.y + 60 };
-        isHalted = isDestStopped;
+      if (veh.animHops && veh.animHops.length > 0) {
+        const numHops = veh.animHops.length;
+        const elapsed = now - (veh.animStartTime || now);
+        const duration = Math.max(150, veh.animDuration || this.measuredBackendInterval || 1500);
+        const u = Math.max(0.0, Math.min(1.0, elapsed / duration));
 
-        const barEl = document.getElementById(`s-bar-${toSid}`);
-        const nodeEl = document.getElementById(`station-node-${toSid}`);
+        const hopFraction = 1.0 / numHops;
+        const currentHopIndex = Math.min(numHops - 1, Math.floor(u / hopFraction));
+        const currentHop = veh.animHops[currentHopIndex];
+        const localU = (u - (currentHopIndex * hopFraction)) / hopFraction; // [0.0, 1.0] within this hop
 
-        if (!isHalted) {
-          if (veh.dwellTimer < veh.dwellTarget) {
-            veh.dwellTimer += 0.016;
+        veh.fromStation = currentHop.from;
+        veh.toStation = currentHop.to;
+        const hopPTo = window.stationCoords[currentHop.to] || { x: 100, y: 170 };
+        const hopBarEl = document.getElementById(`s-bar-${currentHop.to}`);
+        const hopNodeEl = document.getElementById(`station-node-${currentHop.to}`);
+
+        // Proportionate hop split: Conveyor transit (60%) vs Machine Cradle Dwell (40%)
+        const transitAlpha = 0.60;
+        if (localU <= transitAlpha) {
+          // In Transit along conveyor curve
+          const transitProg = localU / transitAlpha;
+          veh.state = "TRANSIT";
+          veh.progress = transitProg;
+          pos = this.getConveyorTrackPosition(currentHop.from, currentHop.to, transitProg);
+
+          if (hopBarEl) {
+            hopBarEl.style.width = "0%";
           }
-
-          // Animate machine progress bar for the active vehicle
-          if (barEl) {
-            const pct = Math.min(100, Math.round((veh.dwellTimer / veh.dwellTarget) * 100));
-            barEl.style.width = `${pct}%`;
-            barEl.style.backgroundColor = (veh.defect_count > 0) ? "#ef4444" : "#10b981";
-          }
-
-          if (nodeEl && !nodeEl.classList.contains("status-critical")) {
-            if (veh.dwellTimer < veh.dwellTarget) {
-              nodeEl.classList.add("in-cycle");
-            } else {
-              nodeEl.classList.remove("in-cycle");
-            }
-          }
-        }
-      } else {
-        // TRANSIT: Gliding continuously along conveyor rail with strict FIFO spacing
-        const isCradleOccupied = Boolean(stationOccupants[toSid] && stationOccupants[toSid] !== veh.vin);
-        const qSlot = veh.queueSlot || 0;
-
-        // Space vehicles cleanly along the conveyor link (exit port at 0.12, entrance port at 0.88)
-        // Slot 0 waits at 0.78, Slot 1 at 0.58, Slot 2 at 0.38, Slot 3 at 0.18
-        const maxAllowedProgress = (isDestStopped || isCradleOccupied || qSlot > 0)
-          ? Math.max(0.18, 0.78 - (qSlot * 0.20))
-          : 1.0;
-
-        if (isOriginStopped && veh.progress <= 0.12) {
-          isHalted = true;
-        } else if (veh.progress >= maxAllowedProgress) {
-          isHalted = isDestStopped || isCradleOccupied || (qSlot > 0);
-          veh.progress = maxAllowedProgress;
-        }
-
-        if (!isHalted) {
-          veh.progress += (veh.speed || 0.012);
-
-          if (veh.progress >= 1.0) {
-            // Cradle is free and vehicle reached cradle -> DOCK into station
-            veh.progress = 1.0;
-            veh.state = "DOCK";
-            veh.dwellTimer = 0.0;
-            veh.is_blocked = false;
-
-            // Scale dwellTarget proportionally to station's actual cycle time
-            const stPayload = this.stationsPayload[toSid] || {};
-            const stMeta = this.stations[toSid] || {};
-            const cycleSec = stPayload.target_cycle_time_s || stMeta.target_cycle_time_s || 55;
-            veh.dwellTarget = Math.max(0.8, Math.min(3.5, cycleSec / 40.0));
-
-            pos = { x: pTo.x + 72, y: pTo.y + 60 };
-            stationOccupants[toSid] = veh.vin; // Claim machine cradle lock immediately
-          } else {
-            pos = this.getConveyorTrackPosition(veh.fromStation, veh.toStation, veh.progress);
+          if (hopNodeEl && !hopNodeEl.classList.contains("status-critical")) {
+            hopNodeEl.classList.remove("in-cycle");
           }
         } else {
-          pos = this.getConveyorTrackPosition(veh.fromStation, veh.toStation, veh.progress);
+          // In Machine Cradle Dwell
+          const dwellProg = (localU - transitAlpha) / (1.0 - transitAlpha);
+          veh.state = "DOCK";
+          veh.progress = 1.0;
+          pos = { x: hopPTo.x + 72, y: hopPTo.y + 60 };
+
+          if (hopBarEl) {
+            hopBarEl.style.width = `${Math.min(100, Math.round(dwellProg * 100))}%`;
+            hopBarEl.style.backgroundColor = (veh.defect_count > 0) ? "#ef4444" : "#10b981";
+          }
+          if (hopNodeEl && !hopNodeEl.classList.contains("status-critical")) {
+            hopNodeEl.classList.add("in-cycle");
+          }
+        }
+
+        if (u >= 1.0) {
+          // Completed all hops in this backend interval
+          veh.animHops = [];
+          veh.fromStation = veh.backendCurrentStation;
+          veh.toStation = veh.backendCurrentStation;
+          veh.state = "DOCK";
+          veh.progress = 1.0;
+          pos = { x: pTo.x + 72, y: pTo.y + 60 };
+        }
+      } else {
+        // Vehicle is docked / in-cycle / queued at backend station
+        pos = { x: pTo.x + 72, y: pTo.y + 60 };
+        veh.state = "DOCK";
+        veh.progress = 1.0;
+
+        const elapsed = now - (veh.animStartTime || now);
+        const duration = Math.max(150, veh.animDuration || this.measuredBackendInterval || 1500);
+        const dwellFraction = Math.max(0.0, Math.min(1.0, elapsed / duration));
+
+        if (!isDestStopped) {
+          if (barEl) {
+            barEl.style.width = `${Math.min(100, Math.round(dwellFraction * 100))}%`;
+            barEl.style.backgroundColor = (veh.defect_count > 0) ? "#ef4444" : "#10b981";
+          }
+          if (nodeEl && !nodeEl.classList.contains("status-critical")) {
+            nodeEl.classList.add("in-cycle");
+          }
         }
       }
 
@@ -788,36 +798,29 @@ class TwinSceneEngine {
     if (!stationsPayload) return;
     this.stationsPayload = stationsPayload;
 
-    // Update Station Cards Telemetry & Stoppages
-    Object.keys(stationsPayload).forEach((sid) => {
+    const now = performance.now();
+    const measuredInterval = this.lastBackendUpdateAt ? Math.max(150, now - this.lastBackendUpdateAt) : 1500;
+    this.measuredBackendInterval = measuredInterval;
+    this.lastBackendUpdateAt = now;
+
+    // Update station node visual states
+    Object.keys(stationsPayload).forEach(sid => {
       const st = stationsPayload[sid];
       const node = document.getElementById(`station-node-${sid}`);
-      const ctEl = document.getElementById(`s-ct-${sid}`);
-      const riskEl = document.getElementById(`s-risk-${sid}`);
-
-      if (ctEl) ctEl.innerText = `${(st.cycle_time_s || 60).toFixed(1)}s`;
-
-      const riskPct = Math.round((st.composite_risk || 0.05) * 100);
-      if (riskEl) {
-        riskEl.innerText = `${riskPct}%`;
-        riskEl.style.color = riskPct >= 80 ? "var(--status-critical)" : (riskPct >= 60 ? "var(--status-warning)" : "var(--status-nominal)");
-      }
-
       if (node) {
-        node.classList.remove("status-warning", "status-critical", "status-power-trip");
-        if (st.is_blackout) {
-          node.classList.add("status-power-trip");
-          node.classList.remove("in-cycle");
+        node.classList.remove("status-nominal", "status-warning", "status-critical", "in-cycle");
+        const riskPct = st.risk_score ? (st.risk_score * 100) : (st.risk_level === 'CRITICAL' ? 95 : (st.risk_level === 'WARNING' ? 65 : 20));
+        if (riskPct < 60 && !st.is_stopped) {
+          node.classList.add("status-nominal");
         } else if (riskPct >= 80 || st.is_stopped) {
           node.classList.add("status-critical");
-          node.classList.remove("in-cycle");
         } else if (riskPct >= 60) {
           node.classList.add("status-warning");
         }
       }
     });
 
-    // 1:1 Synchronize Fleet by VIN
+    // 1:1 Synchronize Fleet by VIN using measured backend cadence interpolation
     if (Array.isArray(vehiclesPayload) && vehiclesPayload.length > 0) {
       const activeVinMap = {};
       vehiclesPayload.forEach(v => { activeVinMap[v.vin] = v; });
@@ -826,52 +829,63 @@ class TwinSceneEngine {
       this.fleet.forEach(veh => {
         const vBackend = activeVinMap[veh.vin];
         if (vBackend) {
-          veh.backendCurrentStation = vBackend.current_station;
+          const prevBackendStation = veh.backendCurrentStation || veh.toStation || "ST01";
+          const newBackendStation = vBackend.current_station || "ST01";
+          const prevVisited = veh.backendVisitedStationIds || [];
+          const newVisited = vBackend.visited_station_ids || [];
+
+          veh.backendCurrentStation = newBackendStation;
           veh.backendPreviousStation = vBackend.previous_station;
           veh.backendRouteIndex = vBackend.route_index || 1;
           veh.backendRouteLengthEstimate = vBackend.route_length_estimate || 37;
           veh.backendRouteLength = vBackend.route_length;
-          veh.backendVisitedStationIds = vBackend.visited_station_ids || [];
+          veh.backendVisitedStationIds = newVisited;
           veh.backendDefectCount = vBackend.defect_count || 0;
           veh.defect_count = vBackend.defect_count || 0;
           veh.route_index = vBackend.route_index || 1;
           veh.route_length_estimate = vBackend.route_length_estimate || 37;
           veh.route_length = vBackend.route_length;
-          veh.visited_station_ids = vBackend.visited_station_ids || [];
+          veh.visited_station_ids = newVisited;
 
-          // Target-Driven Smooth Reconciliation
-          // 1. Early-exit: If vehicle is already docked at or animating towards the backend target, do nothing!
-          if (veh.toStation === vBackend.current_station) {
-            // Already correct - 60fps loop animates uninterrupted
-          } else {
-            // 2. The backend station has advanced downstream.
-            const fromSid = veh.state === "DOCK" ? veh.toStation : (veh.fromStation || veh.toStation);
-            const prev = vBackend.previous_station || fromSid;
-            
-            const edgeDirect = Boolean(this.edgePaths && this.edgePaths[`${fromSid}->${vBackend.current_station}`]);
-            const edgePrev = Boolean(this.edgePaths && this.edgePaths[`${prev}->${vBackend.current_station}`]);
-
-            if (edgeDirect) {
-              veh.fromStation = fromSid;
-              veh.toStation = vBackend.current_station;
-              veh.progress = 0.0;
-              veh.state = "TRANSIT";
-              veh.dwellTimer = 0.0;
-            } else if (edgePrev) {
-              veh.fromStation = prev;
-              veh.toStation = vBackend.current_station;
-              veh.progress = 0.0;
-              veh.state = "TRANSIT";
-              veh.dwellTimer = 0.0;
-            } else {
-              // Genuine Multi-Station Catch-Up Snap (e.g. network reconnect or initial catchup)
-              console.log(`[RECONCILIATION-SNAP] ${veh.vin}: Multi-station catch-up snap to ${vBackend.current_station} (from ${fromSid}, prev=${prev})`);
-              veh.fromStation = vBackend.current_station;
-              veh.toStation = vBackend.current_station;
-              veh.progress = 1.0;
-              veh.state = "DOCK";
-              veh.dwellTimer = 0.0;
+          // Determine station hops advanced during this measured backend interval
+          if (newBackendStation !== prevBackendStation || newVisited.length > prevVisited.length) {
+            let hops = [];
+            // If full visited trace is available, extract sequential station hops
+            if (newVisited.length > 0) {
+              const startIdx = Math.max(0, newVisited.indexOf(prevBackendStation));
+              const endIdx = newVisited.indexOf(newBackendStation);
+              if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+                for (let i = startIdx; i < endIdx; i++) {
+                  hops.push({ from: newVisited[i], to: newVisited[i + 1] });
+                }
+              }
             }
+            if (hops.length === 0) {
+              const fromSid = veh.state === "DOCK" ? veh.toStation : (veh.fromStation || veh.toStation);
+              const prevSid = vBackend.previous_station || fromSid;
+              hops = [{ from: prevSid, to: newBackendStation }];
+            }
+
+            // Ensure legibility floor (at least 150ms per hop, compressed within measured interval)
+            const minHopDuration = 150; // ms
+            const effectiveInterval = Math.max(measuredInterval, hops.length * minHopDuration);
+
+            veh.animHops = hops;
+            veh.animStartTime = now;
+            veh.animDuration = effectiveInterval;
+            veh.fromStation = hops[0].from;
+            veh.toStation = hops[0].to;
+            veh.progress = 0.0;
+            veh.state = "TRANSIT";
+          } else {
+            // Vehicle remained at current station (docked/in-cycle/blocked/halted)
+            veh.animHops = [];
+            veh.animStartTime = now;
+            veh.animDuration = measuredInterval;
+            veh.fromStation = newBackendStation;
+            veh.toStation = newBackendStation;
+            veh.progress = 1.0;
+            veh.state = "DOCK";
           }
 
           if (this.activeHudVin === veh.vin && this.hudElement && this.hudElement.style.display !== "none") {
@@ -908,6 +922,9 @@ class TwinSceneEngine {
               backendRouteLength: vBackend.route_length,
               backendVisitedStationIds: vBackend.visited_station_ids || [],
               backendDefectCount: vBackend.defect_count || 0,
+              animHops: hasConveyorEdge ? [{ from: prevSid, to: curSid }] : [],
+              animStartTime: now,
+              animDuration: measuredInterval,
               progress: hasConveyorEdge ? 0.1 : 1.0,
               state: hasConveyorEdge ? "TRANSIT" : "DOCK",
               dwellTimer: 0.0,

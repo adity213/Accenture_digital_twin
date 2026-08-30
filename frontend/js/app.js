@@ -1118,6 +1118,67 @@ async function traceGenealogy() {
   }
 }
 
+function calculateLineCapacity(metaObj = stationsMeta) {
+  const sids = Object.keys(metaObj).length > 0 
+    ? Object.keys(metaObj) 
+    : Array.from({ length: 40 }, (_, i) => `ST${(i + 1).toString().padStart(2, '0')}`);
+
+  let minJph = Infinity;
+  let maxCt = -Infinity;
+  let bottleneckSid = "ST17";
+  let bottleneckName = "E-Coat Curing Oven";
+  let bottleneckZone = "Paint";
+
+  const stationCapacities = [];
+
+  sids.forEach(sid => {
+    const meta = metaObj[sid] || {};
+    const ct = meta.target_cycle_time_s || 60.0;
+    const jph = 3600.0 / ct;
+    stationCapacities.push({
+      sid: sid,
+      name: meta.name || sid,
+      zone: meta.zone || "Body",
+      ct: ct,
+      jph: jph
+    });
+
+    if (jph < minJph) {
+      minJph = jph;
+      maxCt = ct;
+      bottleneckSid = sid;
+      bottleneckName = meta.name || sid;
+      bottleneckZone = meta.zone || "Body";
+    }
+  });
+
+  const maxJphRounded = Math.floor(minJph);
+
+  // Near bottlenecks within 10% of min capacity (jph <= minJph * 1.10)
+  const nearBottlenecks = stationCapacities
+    .filter(s => s.jph <= minJph * 1.10)
+    .sort((a, b) => a.jph - b.jph);
+
+  return {
+    maxJph: maxJphRounded,
+    exactMaxJph: minJph,
+    bottleneckSid: bottleneckSid,
+    bottleneckName: bottleneckName,
+    bottleneckZone: bottleneckZone,
+    bottleneckCt: maxCt,
+    nearBottlenecks: nearBottlenecks
+  };
+}
+
+function balanceToCapacity() {
+  const cap = calculateLineCapacity(stationsMeta);
+  const slider = document.getElementById("whatif-jph-slider");
+  if (slider) {
+    slider.value = cap.maxJph;
+  }
+  updateLineBalancing(cap.maxJph);
+}
+
 function updateLineBalancing(jphVal) {
   const jph = parseInt(jphVal, 10) || 55;
   const taktSec = (3600.0 / jph);
@@ -1126,6 +1187,44 @@ function updateLineBalancing(jphVal) {
   const taktLbl = document.getElementById("slider-takt-val");
   if (jphLbl) jphLbl.innerText = `Target Output: ${jph} JPH`;
   if (taktLbl) taktLbl.innerText = `Required Takt: ${taktSec.toFixed(1)}s`;
+
+  // Compute live line capacity and bottleneck
+  const cap = calculateLineCapacity(stationsMeta);
+
+  // Update capacity banner
+  const capText = document.getElementById("whatif-capacity-text");
+  if (capText) {
+    capText.innerHTML = `Line Capacity: <span style="color: var(--brand-blue);">${cap.maxJph} JPH</span> (Bottleneck: ${cap.bottleneckSid} - ${cap.bottleneckName} @ ${cap.bottleneckCt.toFixed(1)}s CT)`;
+  }
+  const capMarker = document.getElementById("slider-cap-marker");
+  if (capMarker) {
+    capMarker.innerText = `${cap.maxJph} JPH (Line Capacity Limit)`;
+  }
+
+  // Over-Capacity Warning Handling
+  const warnEl = document.getElementById("whatif-capacity-warning");
+  if (warnEl) {
+    if (jph > cap.maxJph) {
+      const nearList = cap.nearBottlenecks.map(nb => `${nb.sid} (${nb.name}: ${nb.ct.toFixed(0)}s / ${Math.round(nb.jph)} JPH)`).join(", ");
+      warnEl.style.display = "block";
+      warnEl.innerHTML = `
+        <div style="display: flex; align-items: flex-start; gap: 8px;">
+          <span style="font-size: 1.1rem; line-height: 1;">⚠️</span>
+          <div>
+            <strong>OVER-CAPACITY PRODUCTION WARNING:</strong> Target ingress rate of <strong>${jph} JPH</strong> (${(jph/60).toFixed(2)} veh/min) exceeds physical line throughput limit of <strong>${cap.maxJph} JPH</strong> (${(cap.maxJph/60).toFixed(2)} veh/min).
+            <div style="margin-top: 4px; color: #78350f;">
+              Primary constraint is <strong>${cap.bottleneckSid} (${cap.bottleneckName})</strong> in ${cap.bottleneckZone} Zone with a cycle time of ${cap.bottleneckCt.toFixed(1)}s. Upstream buffers will accumulate growing queue backpressure during sustained production runs.
+            </div>
+            <div style="margin-top: 4px; font-size: 0.72rem; color: #a16207;">
+              <strong>Active throughput bottlenecks within 10% margin:</strong> ${nearList}
+            </div>
+          </div>
+        </div>
+      `;
+    } else {
+      warnEl.style.display = "none";
+    }
+  }
 
   // Send JPH update to backend simulator
   if (window._jphDebounceTimer) clearTimeout(window._jphDebounceTimer);
