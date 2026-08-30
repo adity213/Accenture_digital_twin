@@ -659,36 +659,22 @@
       <!-- VIEW 4: TOPOLOGY EDITOR -->
       <div id="view-topology" class="view-panel">
         
-        <!-- DAG TOPOLOGY ARCHITECTURE STRIP -->
-        <div class="view-subbar topology-subbar">
-          <div class="subbar-left">
-            <span class="subbar-pill-badge" style="background: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff;">📐 DAG TOPOLOGY DESIGNER</span>
-            <span style="font-size: 0.75rem; font-weight: 700; color: #475569;">Live State:</span>
-            <span style="font-size: 0.72rem; color: #15803d; font-weight: 700; background: #dcfce7; padding: 2px 6px; border-radius: 4px;">⚡ Hot-Reload Active (In-Flight Fleet Retained)</span>
-          </div>
-          <div class="subbar-right">
-            <span class="subbar-stat" id="topo-subbar-counts">40 Nodes // 42 Edges</span>
-            <button class="hmi-btn active-play" style="height: 24px; font-size: 0.68rem;" onclick="applyTopology()">⚡ APPLY LAYOUT</button>
-            <button class="fault-btn" style="height: 24px; font-size: 0.68rem; margin-left: 4px;" onclick="resetEditorToDefault()">🔄 RESET DEFAULT</button>
-          </div>
-        </div>
-
-        <div class="schematic-toolbar">
-          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-            <span style="font-weight: 800; color: #0f172a; font-family: var(--font-brand); font-size: 0.85rem;">
-              PLANT MANAGER // DYNAMIC DAG TOPOLOGY EDITOR
-            </span>
+        <!-- SINGLE UNIFIED TOPOLOGY ACTION BAR -->
+        <div class="view-subbar topology-subbar" style="background: #ffffff; padding: 0 16px;">
+          <div class="subbar-left" style="gap: 8px;">
+            <span class="subbar-pill-badge" style="background: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff;">📐 DAG DESIGNER</span>
             <span class="plant-tag" id="editor-station-count">40 STATIONS // 42 FLOW EDGES</span>
+            <span style="font-size: 0.70rem; color: #15803d; font-weight: 700; background: #dcfce7; padding: 2px 6px; border-radius: 4px; white-space: nowrap;">⚡ Hot-Reload Active</span>
             <span id="editor-mode-indicator" class="editor-status-pill" style="display: none;"></span>
           </div>
-          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            <button id="btn-undo" class="hmi-btn" onclick="undo()" title="Undo last layout action (Ctrl+Z)" disabled>↩ UNDO</button>
-            <button id="btn-redo" class="hmi-btn" onclick="redo()" title="Redo last layout action (Ctrl+Y)" disabled>↪ REDO</button>
-            <button class="hmi-btn" onclick="showAddStationModal()" title="Add a new custom machine or QC cell">+ ADD STATION</button>
-            <button class="hmi-btn" onclick="autoArrangeLayout()" title="Auto-align stations in clean zone lanes">📐 AUTO-ARRANGE</button>
-            <button class="hmi-btn" onclick="showConnectionsModal()" title="View and manage conveyor connections">🔗 CONNECTIONS</button>
-            <button class="hmi-btn" onclick="resetEditorToDefault()" title="Reset to standard 40-station topology">RESET DEFAULT</button>
-            <button class="hmi-btn active-play" onclick="applyTopology()" title="Apply layout to physics simulation & reboot twin">⚡ APPLY LAYOUT (REBOOT TWIN)</button>
+          <div class="subbar-right" style="gap: 6px;">
+            <button id="btn-undo" class="hmi-btn" style="height: 26px; font-size: 0.68rem; padding: 0 8px;" onclick="undo()" title="Undo last layout action (Ctrl+Z)" disabled>↩ UNDO</button>
+            <button id="btn-redo" class="hmi-btn" style="height: 26px; font-size: 0.68rem; padding: 0 8px;" onclick="redo()" title="Redo last layout action (Ctrl+Y)" disabled>↪ REDO</button>
+            <button class="hmi-btn" style="height: 26px; font-size: 0.68rem; padding: 0 8px;" onclick="showAddStationModal()" title="Add a new custom machine or QC cell">+ ADD STATION</button>
+            <button class="hmi-btn" style="height: 26px; font-size: 0.68rem; padding: 0 8px;" onclick="autoArrangeLayout()" title="Auto-align stations in clean zone lanes">📐 AUTO-ARRANGE</button>
+            <button class="hmi-btn" style="height: 26px; font-size: 0.68rem; padding: 0 8px;" onclick="showConnectionsModal()" title="View and manage conveyor connections">🔗 CONNECTIONS</button>
+            <button class="fault-btn" style="height: 26px; font-size: 0.68rem; padding: 0 8px;" onclick="resetEditorToDefault()" title="Reset to standard 40-station topology">🔄 RESET DEFAULT</button>
+            <button class="hmi-btn active-play" style="height: 26px; font-size: 0.68rem; padding: 0 10px;" onclick="applyTopology()" title="Apply layout to live physics simulation">⚡ APPLY LAYOUT</button>
           </div>
         </div>
 
@@ -926,8 +912,8 @@
 
   </div>
 
-  <script src="js/twin_scene.js?v=8.0"></script>
-  <script src="js/topology_editor.js?v=8.0"></script>
-  <script src="js/app.js?v=8.0"></script>
+  <script src="js/twin_scene.js?v=8.1"></script>
+  <script src="js/topology_editor.js?v=8.1"></script>
+  <script src="js/app.js?v=8.1"></script>
 </body>
 </html>
