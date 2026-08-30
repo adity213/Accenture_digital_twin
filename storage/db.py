@@ -130,6 +130,14 @@ class TwinStore:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_recommendations_status_tick ON recommendations(status, tick DESC);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_ground_truth_tick ON ground_truth_anomalies(tick DESC);")
             
+            # Migration check: ensure recently added columns exist in telemetry table
+            cursor.execute("PRAGMA table_info(telemetry);")
+            existing_cols = {col[1] for col in cursor.fetchall()}
+            if "is_blackout" not in existing_cols:
+                cursor.execute("ALTER TABLE telemetry ADD COLUMN is_blackout INTEGER DEFAULT 0;")
+            if "is_stopped" not in existing_cols:
+                cursor.execute("ALTER TABLE telemetry ADD COLUMN is_stopped INTEGER DEFAULT 0;")
+
             conn.commit()
 
     def store_stations(self, stations: Dict[str, Any]):

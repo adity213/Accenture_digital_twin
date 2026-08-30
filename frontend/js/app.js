@@ -259,6 +259,23 @@ function handleTickUpdate(payload) {
     if (savEl) savEl.innerText = `${(k.total_downtime_avoided_hours || 14.8).toFixed(1)} hrs`;
     const leadSav = document.getElementById("lead-downtime-val");
     if (leadSav) leadSav.innerText = `${(k.total_downtime_avoided_hours || 14.8).toFixed(1)} hrs`;
+
+    // Option 1: Andon Ingress Lock Indicator
+    const andonPill = document.getElementById("andon-status-pill");
+    const andonText = document.getElementById("andon-status-text");
+    const isAndon = Boolean(k.andon_ingress_locked);
+    if (andonPill) {
+      if (isAndon) {
+        andonPill.style.display = "inline-flex";
+        if (andonText) {
+          const reason = k.andon_reason ? ` // ${k.andon_reason}` : "";
+          andonText.innerText = `🛑 ANDON LOCK: INGRESS HALTED${reason}`;
+          andonPill.title = k.andon_reason || "Line ingress halted due to active issue on assembly line";
+        }
+      } else {
+        andonPill.style.display = "none";
+      }
+    }
   }
 
   const clockEl = document.getElementById("sim-clock");

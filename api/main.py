@@ -328,7 +328,9 @@ def process_simulation_tick() -> Dict[str, Any]:
             "active_anomalies_count": active_risk_alerts_count,
             "jobs_per_hour": jobs_per_hour,
             "total_downtime_avoided_hours": round(cumulative_downtime_avoided_min / 60.0, 2),
-            "total_cost_savings_usd": round(total_savings_usd, 0)
+            "total_cost_savings_usd": round(total_savings_usd, 0),
+            "andon_ingress_locked": bool(tick_result.get("andon_ingress_locked", False)),
+            "andon_reason": tick_result.get("andon_reason", None)
         }
     }
     return payload

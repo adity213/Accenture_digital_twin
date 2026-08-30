@@ -688,9 +688,6 @@ class TwinSceneEngine {
           }
             // Cycle complete -> exit to downstream conveyor or finish line
             if (veh.dwellTimer >= veh.dwellTarget) {
-              if (nodeEl) nodeEl.classList.remove("in-cycle");
-              if (barEl) barEl.style.width = "0%";
-
               // Use topology downstream_ids to pick next station
               let nextStation = null;
               const meta = this.stations[veh.toStation];
@@ -708,22 +705,44 @@ class TwinSceneEngine {
               }
 
               if (nextStation) {
-                const edgeExists = Boolean(this.edgePaths && this.edgePaths[`${veh.toStation}->${nextStation}`]);
-                if (edgeExists) {
-                  veh.fromStation = veh.toStation;
-                  veh.toStation = nextStation;
-                  veh.progress = 0.0;
-                  veh.state = "TRANSIT";
-                  veh.dwellTimer = 0.0;
+                const nextCap = this.stations[nextStation]?.buffer_capacity_units || 3;
+                const nextQueueCount = stationQueues[nextStation]?.length || 0;
+                const isNextBlocked = (nextQueueCount >= nextCap);
+
+                if (isNextBlocked) {
+                  // Downstream buffer is FULL -> hold in cradle (backpressure blocking)
+                  veh.dwellTimer = veh.dwellTarget;
+                  isHalted = true;
+                  veh.is_blocked = true;
+                  if (nodeEl && !nodeEl.classList.contains("status-critical")) {
+                    nodeEl.classList.remove("in-cycle");
+                  }
                 } else {
-                  veh.progress = 1.0;
-                  veh.state = "DOCK";
-                  veh.dwellTimer = 0.0;
+                  if (nodeEl) nodeEl.classList.remove("in-cycle");
+                  if (barEl) barEl.style.width = "0%";
+                  delete stationOccupants[veh.toStation]; // Free cradle lock
+
+                  const edgeExists = Boolean(this.edgePaths && this.edgePaths[`${veh.toStation}->${nextStation}`]);
+                  if (edgeExists) {
+                    veh.fromStation = veh.toStation;
+                    veh.toStation = nextStation;
+                    veh.progress = 0.0;
+                    veh.state = "TRANSIT";
+                    veh.dwellTimer = 0.0;
+                    veh.is_blocked = false;
+                  } else {
+                    veh.progress = 1.0;
+                    veh.state = "DOCK";
+                    veh.dwellTimer = 0.0;
+                    veh.is_blocked = false;
+                  }
                 }
               } else {
                 // Terminal Station Completed (e.g. ST40 Final Buy-Off & ADAS Calibration)!
                 // Vehicle has completed the manufacturing process.
                 // Release machine cradle lock immediately so queued cars can enter.
+                if (nodeEl) nodeEl.classList.remove("in-cycle");
+                if (barEl) barEl.style.width = "0%";
                 delete stationOccupants[veh.toStation];
                 if (veh.element) {
                   veh.element.style.transition = "opacity 0.6s ease, transform 0.6s ease";
@@ -741,23 +760,15 @@ class TwinSceneEngine {
             }  
         }
       } else {
-        // TRANSIT: Gliding continuously along conveyor rail
+        // TRANSIT: Gliding continuously along conveyor rail with strict FIFO spacing
         const isCradleOccupied = Boolean(stationOccupants[toSid] && stationOccupants[toSid] !== veh.vin);
         const qSlot = veh.queueSlot || 0;
 
-        // Calculate max allowable progress along conveyor based on station state & FIFO queue slot
-        let maxAllowedProgress = 1.0;
-
-        if (isDestStopped) {
-          // Machine is broken: vehicles queue cleanly before entrance on conveyor track
-          maxAllowedProgress = Math.max(0.15, 0.70 - (qSlot * 0.22));
-        } else if (isCradleOccupied) {
-          // Machine is actively processing preceding vehicle: wait in neat FIFO queue along incoming rail
-          maxAllowedProgress = Math.max(0.15, 0.70 - (qSlot * 0.22));
-        } else if (qSlot > 0) {
-          // Preceding vehicle is entering cradle: stay spaced behind it
-          maxAllowedProgress = Math.max(0.15, 0.70 - (qSlot * 0.22));
-        }
+        // Space vehicles cleanly along the conveyor link (exit port at 0.12, entrance port at 0.88)
+        // Slot 0 waits at 0.78, Slot 1 at 0.58, Slot 2 at 0.38, Slot 3 at 0.18
+        const maxAllowedProgress = (isDestStopped || isCradleOccupied || qSlot > 0)
+          ? Math.max(0.18, 0.78 - (qSlot * 0.20))
+          : 1.0;
 
         if (isOriginStopped && veh.progress <= 0.12) {
           isHalted = true;
@@ -774,10 +785,9 @@ class TwinSceneEngine {
             veh.progress = 1.0;
             veh.state = "DOCK";
             veh.dwellTimer = 0.0;
+            veh.is_blocked = false;
 
             // Scale dwellTarget proportionally to station's actual cycle time
-            // Typical cycle times: 40-70s for most stations, 100-200s for ovens/baths
-            // Map to visual dwell: ~1.0s minimum, ~3.5s for heavy process stations
             const stPayload = this.stationsPayload[toSid] || {};
             const stMeta = this.stations[toSid] || {};
             const cycleSec = stPayload.target_cycle_time_s || stMeta.target_cycle_time_s || 55;
@@ -801,13 +811,16 @@ class TwinSceneEngine {
         el.style.top = `${pos.y}px`;
 
         const isDocked = (veh.state === "DOCK");
+        const isBlocked = Boolean(veh.is_blocked);
         el.classList.toggle("in-station", isDocked);
-        el.classList.toggle("halted", isHalted && isDestStopped);
+        el.classList.toggle("halted", isHalted && (isDestStopped || isBlocked));
 
         const badgeEl = el.querySelector(".vehicle-carrier-badge");
         if (badgeEl) {
           if (isDestStopped && isHalted) {
             badgeEl.innerText = `🛑 STOPPED (${toSid})`;
+          } else if (isBlocked) {
+            badgeEl.innerText = `⏸️ BLOCKED (${toSid})`;
           } else if (isDocked) {
             badgeEl.innerText = `⚙️ ${toSid}`;
           } else if (isHalted && !isDestStopped) {

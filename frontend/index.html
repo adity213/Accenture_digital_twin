@@ -87,6 +87,10 @@
             <div class="status-pulse-dot"></div>
             <span id="scada-ws-status-text">SCADA WS STREAM ACTIVE</span>
           </div>
+          <div class="andon-status-pill" id="andon-status-pill" style="display: none; background: rgba(239, 68, 68, 0.18); border: 1px solid #ef4444; color: #fca5a5; padding: 4px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; align-items: center; gap: 6px; box-shadow: 0 0 10px rgba(239,68,68,0.3);">
+            <span class="status-pulse-dot" style="background: #ef4444; box-shadow: 0 0 8px #ef4444;"></span>
+            <span id="andon-status-text">🛑 ANDON: INGRESS HALTED</span>
+          </div>
         </div>
 
         <!-- HMI Simulation Controller -->
@@ -851,8 +855,8 @@
 
   </div>
 
-  <script src="js/twin_scene.js?v=6.1"></script>
-  <script src="js/topology_editor.js?v=5.4"></script>
-  <script src="js/app.js?v=5.4"></script>
+  <script src="js/twin_scene.js?v=6.2"></script>
+  <script src="js/topology_editor.js?v=6.2"></script>
+  <script src="js/app.js?v=6.2"></script>
 </body>
 </html>

@@ -144,9 +144,29 @@ class LineSimulator:
         ground_truth: List[Dict[str, Any]] = []
         updated_genealogy_records: List[Dict[str, Any]] = []
         
-        # 1. Vehicle Ingress at ST01 (Paced cleanly: max active vehicles on the line tied to JPH)
-        spawn_prob = min(0.6, max(0.15, self.target_jph / 90.0))
-        if self.rng.random() < spawn_prob and len(self.active_vehicles) < int(self.target_jph) and len(self.station_buffers["ST01"]) == 0:
+        # Check for active issues across the line (Option 1: Andon Safety Ingress Lock)
+        active_anom_list = list(self.anomaly_mgr.active_anomalies.values())
+        is_andon_active = len(active_anom_list) > 0
+        andon_reasons = [f"{a.anomaly_type}@{a.station_id}" for a in active_anom_list]
+        self.andon_ingress_locked = is_andon_active
+        self.andon_reason = ", ".join(andon_reasons) if andon_reasons else None
+
+        # 1. Vehicle Ingress at ST01 (Option 1: Andon Hard Ingress Lock on Issue)
+        st01_cap = self.stations["ST01"]["buffer_capacity_units"]
+        max_line_wip = sum(1 + s["buffer_capacity_units"] for s in self.stations.values())
+        
+        # When an issue is active, spawn probability is hard locked to 0.0
+        if is_andon_active:
+            spawn_prob = 0.0
+        else:
+            spawn_prob = min(0.6, max(0.15, self.target_jph / 90.0))
+
+        if (
+            not is_andon_active
+            and self.rng.random() < spawn_prob 
+            and len(self.active_vehicles) < min(int(self.target_jph), max_line_wip)
+            and len(self.station_buffers["ST01"]) < st01_cap
+        ):
             self.vehicle_counter += 1
             vin = f"VIN-2026-{self.vehicle_counter:05d}"
             veh_info = {
@@ -371,6 +391,14 @@ class LineSimulator:
             required_dwell = max(1, math.ceil(actual_ct / 55.0))
             dwell_prog = round(min(1.0, self.station_dwell_ticks[sid] / max(1, required_dwell)), 2) if current_vin else 0.0
 
+            downstreams = s.get("downstream_ids", [])
+            is_blocked = bool(
+                current_vin and not is_stopped
+                and self.station_dwell_ticks[sid] >= required_dwell
+                and downstreams
+                and not any(len(self.station_buffers[d]) < self.stations[d]["buffer_capacity_units"] for d in downstreams)
+            )
+
             # Telemetry Event Record
             if is_blackout:
                 event = {
@@ -396,7 +424,8 @@ class LineSimulator:
                     "shift_index": shift_index,
                     "is_night_shift": is_night_shift,
                     "is_blackout": True,
-                    "is_stopped": False
+                    "is_stopped": False,
+                    "is_blocked": False
                 }
             else:
                 event = {
@@ -422,23 +451,33 @@ class LineSimulator:
                     "shift_index": shift_index,
                     "is_night_shift": is_night_shift,
                     "is_blackout": False,
-                    "is_stopped": is_stopped
+                    "is_stopped": is_stopped,
+                    "is_blocked": is_blocked
                 }
             tick_telemetry.append(event)
 
-            # Check if current station finished its dwell cycle
+            # Check if current station finished its dwell cycle and is ready to dispatch
             if current_vin and not is_stopped and self.station_dwell_ticks[sid] >= required_dwell:
                 dispatched_this_tick[sid] = current_vin
 
-        # Phase 2: Dispatch completed vehicles downstream (cleanly isolated from pickup)
+        # Phase 2: Dispatch completed vehicles downstream (strict Blocking-After-Service protocol)
         for sid, vin in dispatched_this_tick.items():
             s = self.stations[sid]
             downstreams = s["downstream_ids"]
             
             if downstreams:
-                # Pick downstream with smallest queue buffer (load balancing)
-                target_down = min(downstreams, key=lambda d: len(self.station_buffers.get(d, [])))
-                if len(self.station_buffers[target_down]) < self.stations[target_down]["buffer_capacity_units"]:
+                # Find available downstream stations with space in their buffer
+                available_downstreams = [
+                    d for d in downstreams 
+                    if len(self.station_buffers[d]) < self.stations[d]["buffer_capacity_units"]
+                ]
+                
+                if available_downstreams:
+                    # Pick available downstream with lowest buffer fill ratio / count (load balancing)
+                    target_down = min(
+                        available_downstreams, 
+                        key=lambda d: (len(self.station_buffers[d]) / max(1, self.stations[d]["buffer_capacity_units"]), len(self.station_buffers[d]))
+                    )
                     self.station_buffers[target_down].append(vin)
                     if vin in self.active_vehicles:
                         self.active_vehicles[vin]["current_station"] = target_down
@@ -449,6 +488,15 @@ class LineSimulator:
                             "defect_flag": False
                         })
                         updated_genealogy_records.append(dict(self.active_vehicles[vin]))
+                    
+                    # Successfully transferred downstream: free cradle
+                    self.station_processing[sid] = None
+                    self.station_dwell_ticks[sid] = 0
+                else:
+                    # BACKPRESSURE / BLOCKED: All downstream buffers are full!
+                    # Station remains blocked with the vehicle in the cradle.
+                    # Dwell ticks stay capped so it can immediately transfer once space frees up.
+                    self.station_dwell_ticks[sid] = required_dwell
             else:
                 # Terminal Station (ST40 Buy-Off) Completed!
                 if vin in self.active_vehicles:
@@ -458,8 +506,9 @@ class LineSimulator:
                     self.completed_vehicles.append(v_rec)
                     updated_genealogy_records.append(v_rec)
 
-            self.station_processing[sid] = None
-            self.station_dwell_ticks[sid] = 0
+                # Successfully completed and exited line: free cradle
+                self.station_processing[sid] = None
+                self.station_dwell_ticks[sid] = 0
 
         # Phase 3: Admit next queued vehicle into empty cradles
         for sid in self.stations.keys():
@@ -473,5 +522,7 @@ class LineSimulator:
             "events": tick_telemetry,
             "ground_truth": ground_truth,
             "buffers": dict(self.buffers),
-            "genealogy_records": updated_genealogy_records
+            "genealogy_records": updated_genealogy_records,
+            "andon_ingress_locked": is_andon_active,
+            "andon_reason": self.andon_reason
         }

@@ -86,6 +86,17 @@ class PythonSimulatorAdapter(SimulatorAdapter):
     def shortest_path_to_sink(self) -> Dict[str, int]:
         return self._sim.shortest_path_to_sink
 
+    @property
+    def stations(self) -> Dict[str, Any]:
+        return getattr(self._sim, "stations", {})
+
+    @property
+    def anomaly_mgr(self):
+        return getattr(self._sim, "anomaly_mgr", None)
+
+    def __getattr__(self, name: str):
+        return getattr(self._sim, name)
+
     def inject_anomaly(self, anomaly_type: str, station_id: str, duration_ticks: int = 60) -> str:
         cur = self._sim.current_tick
         atype = anomaly_type.lower()
