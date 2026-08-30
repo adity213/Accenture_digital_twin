@@ -55,5 +55,8 @@ class OpcUaAdapter(SimulatorAdapter):
         logger.error("Cannot inject simulated anomalies into a physical OPC UA stream.")
         return "ERROR_PHYSICAL_SYSTEM"
 
+    def retopologize(self, new_topology: Dict[str, Any]):
+        logger.info("OpcUaAdapter: Received new line topology configuration.")
+
     def clear_anomalies(self):
         pass

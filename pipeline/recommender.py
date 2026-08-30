@@ -102,10 +102,17 @@ class RecommendationEngine:
                 self.station_anomaly_ticks[sid] = 0
             elapsed_anomaly_ticks = self.station_anomaly_ticks.get(sid, 1)
 
+            # Physical cascade delay calculation based on station buffer capacity & cycle time
+            buf_cap = meta.get("buffer_capacity_units", 4)
+            st_ct = float(target_ct or 60.0)
+            downstream_count = len(impacted) if impacted else 3
+            station_cascade_sec = (buf_cap * st_ct) + (downstream_count * (st_ct * 0.4))
+            effective_impact_sec = min(1200.0, max(210.0, nearest_impact_sec if nearest_impact_sec != 900.0 else station_cascade_sec))
+            dt_avoided = round(effective_impact_sec / 60.0, 1)
+
             # Rule 1: Sudden Stoppage / Extreme Bottleneck -> Dynamic Parallel Reroute
             if risk >= 0.80 or ct >= 120.0 or is_stopped:
-                dt_avoided = round(max(5.0, nearest_impact_sec / 60.0), 1)
-                cars_saved = len(impacted) * 4
+                cars_saved = max(2, round(dt_avoided * (60.0 / st_ct)))
                 sop = get_tiered_sop(
                     station_type=stype,
                     anomaly_type="sudden_stoppage",
@@ -122,7 +129,7 @@ class RecommendationEngine:
                     "title": f"Reroute flow around {meta.get('name', sid)}",
                     "recommended_action": f"Downtime imminent. Divert 50% incoming assemblies to parallel lane.",
                     "rationale": f"Cycle time hit {ct:.1f}s. Starvation cascades to {len(impacted)} stations in under 15 minutes.",
-                    "expected_impact": f"Prevent {dt_avoided:.0f}m line stoppage",
+                    "expected_impact": f"Prevent {dt_avoided:.1f}m line stoppage",
                     "downtime_avoided_min": dt_avoided,
                     "vehicles_protected": cars_saved,
                     "cost_savings_usd": round(dt_avoided * DOWNTIME_COST_PER_MIN, 0),
@@ -133,7 +140,7 @@ class RecommendationEngine:
 
             # Rule 2: Gradual Drift -> Preventive Tool Calibration
             elif risk >= 0.60 or spc.get("ewma_drift_flag") or (ct > target_ct * 1.15):
-                dt_avoided = round(max(5.0, nearest_impact_sec / 60.0), 1)
+                drift_dt_avoided = round(max(3.0, dt_avoided * 0.65), 1)
                 sop = get_tiered_sop(
                     station_type=stype,
                     anomaly_type="gradual_drift",
@@ -150,10 +157,10 @@ class RecommendationEngine:
                     "title": f"Recalibrate tool geometry at {meta.get('name', sid)}",
                     "recommended_action": "Tool is drifting. Recalibrate tip/motor during the next shift break.",
                     "rationale": f"Cycle time is {max(0.0, ct - target_ct):.1f}s above target. EWMA drift confirmed.",
-                    "expected_impact": f"Prevent {dt_avoided:.0f}m stoppage and weld defects",
-                    "downtime_avoided_min": dt_avoided,
-                    "vehicles_protected": 2,
-                    "cost_savings_usd": round(dt_avoided * DOWNTIME_COST_PER_MIN, 0),
+                    "expected_impact": f"Prevent {drift_dt_avoided:.1f}m stoppage and weld defects",
+                    "downtime_avoided_min": drift_dt_avoided,
+                    "vehicles_protected": max(1, round(drift_dt_avoided * (60.0 / st_ct))),
+                    "cost_savings_usd": round(drift_dt_avoided * DOWNTIME_COST_PER_MIN, 0),
                     "confidence": round(min(0.98, conf_val / 100.0), 2),
                     "status": "ACTIVE",
                     "sop": sop
@@ -162,6 +169,7 @@ class RecommendationEngine:
             # Rule 3: Vibration ISO 10816 Limit Breach -> Robot Servo & Bearing Overhaul
             elif (state.get("vibration") is not None and state.get("vibration") > 4.5) or state.get("iso_vibration_alarm"):
                 vib_val = state.get("vibration") or 4.6
+                vib_dt_avoided = round(max(4.0, dt_avoided * 0.85), 1)
                 sop = get_tiered_sop(
                     station_type=stype,
                     anomaly_type="sudden_stoppage",
@@ -178,11 +186,11 @@ class RecommendationEngine:
                     "title": f"Inspect robot servos at {meta.get('name', sid)}",
                     "recommended_action": f"Vibration hit {vib_val:.2f} mm/s (ISO limit 4.5). Check bearings and mount anchors immediately.",
                     "rationale": f"Vibration exceeds Class I/II safety limits. Imminent bearing seizure.",
-                    "expected_impact": "Prevent spindle seizure and 35m unplanned downtime",
-                    "downtime_avoided_min": 35.0,
-                    "vehicles_protected": 6,
-                    "cost_savings_usd": round(35.0 * DOWNTIME_COST_PER_MIN, 0),
-                    "confidence": 0.95,
+                    "expected_impact": f"Avoid {vib_dt_avoided:.1f}m unplanned robot spindle failure",
+                    "downtime_avoided_min": vib_dt_avoided,
+                    "vehicles_protected": max(2, round(vib_dt_avoided * (60.0 / st_ct))),
+                    "cost_savings_usd": round(vib_dt_avoided * DOWNTIME_COST_PER_MIN, 0),
+                    "confidence": round(min(0.99, conf_val / 100.0), 2),
                     "status": "ACTIVE",
                     "sop": sop
                 })

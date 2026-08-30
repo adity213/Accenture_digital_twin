@@ -777,6 +777,15 @@ function showAddStationModal() {
   const sidInput = document.getElementById("new-sid");
   if (sidInput) sidInput.value = nextSid;
 
+  const maintDateInput = document.getElementById("new-maint-date");
+  if (maintDateInput) {
+    const now = new Date();
+    now.setDate(now.getDate() + 7);
+    now.setHours(8, 0, 0, 0);
+    const isoStr = now.toISOString().slice(0, 16);
+    maintDateInput.value = isoStr;
+  }
+
   const modal = document.getElementById("add-station-modal");
   if (modal) modal.style.display = "flex";
 }
@@ -806,6 +815,8 @@ function submitAddStation() {
   const tier = document.getElementById("new-tier")?.value || "rich";
   const buffer = parseInt(document.getElementById("new-buffer")?.value || 8, 10);
   const power = parseFloat(document.getElementById("new-power")?.value || 28.0);
+  const maintDate = document.getElementById("new-maint-date")?.value || "2026-03-15T08:00";
+  const maintInterval = parseInt(document.getElementById("new-maint-interval")?.value || 168, 10);
 
   if (!sid || !name) {
     alert("Please provide both Station ID and Station Name.");
@@ -833,6 +844,8 @@ function submitAddStation() {
     buffer_capacity_units: buffer,
     sensor_tier: tier,
     power_base_kw: tier === "rich" ? power : null,
+    next_maintenance_date: maintDate,
+    maintenance_interval_hours: maintInterval,
     upstream_ids: [],
     downstream_ids: [],
     metadata: { manufacturer: "Custom Industrial Station" }
@@ -964,6 +977,17 @@ function openEditStationModal(sid) {
   if (bufferInput) bufferInput.value = meta.buffer_capacity_units || 8;
   if (powerInput) powerInput.value = meta.power_base_kw || 28.0;
 
+  // Maintenance Schedule & Calendar Population
+  const maintDateInput = document.getElementById("edit-maint-date");
+  const maintIntervalInput = document.getElementById("edit-maint-interval");
+  if (maintDateInput) {
+    const dayOffset = (((parseInt(sid.replace('ST',''), 10) || 1) * 3) % 18 + 5).toString().padStart(2, '0');
+    maintDateInput.value = meta.next_maintenance_date || `2026-03-${dayOffset}T08:00`;
+  }
+  if (maintIntervalInput) {
+    maintIntervalInput.value = meta.maintenance_interval_hours || (meta.sensor_tier === "rich" ? 168 : 336);
+  }
+
   // Render symbol picker
   renderAssetSymbolGrid(currentType);
 
@@ -1001,6 +1025,8 @@ function saveEditStation() {
   const tier = document.getElementById("edit-tier")?.value || "rich";
   const buffer = parseInt(document.getElementById("edit-buffer")?.value || 8, 10);
   const power = parseFloat(document.getElementById("edit-power")?.value || 28.0);
+  const maintDate = document.getElementById("edit-maint-date")?.value || "2026-03-15T08:00";
+  const maintInterval = parseInt(document.getElementById("edit-maint-interval")?.value || 168, 10);
 
   if (!name) {
     alert("Please provide a valid Station Name.");
@@ -1025,12 +1051,14 @@ function saveEditStation() {
   editorStations[sid].target_cycle_time_s = ct;
   editorStations[sid].buffer_capacity_units = buffer;
   editorStations[sid].power_base_kw = (tier === "rich") ? power : null;
+  editorStations[sid].next_maintenance_date = maintDate;
+  editorStations[sid].maintenance_interval_hours = maintInterval;
 
   closeEditStationModal();
   renderEditorCanvas();
 
   const assetInfo = getAssetSymbolInfo(type);
-  showToast(`✅ Updated ${sid} (${name}) with ${assetInfo.icon} ${assetInfo.label}! (Ctrl+Z to undo)`, 3500);
+  showToast(`✅ Updated ${sid} (${name}) with scheduled service: ${maintDate.replace('T', ' ')}!`, 3500);
 }
 
 /**

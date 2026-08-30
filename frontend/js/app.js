@@ -436,6 +436,82 @@ function updateCockpitDrawer(sid) {
     confFill.style.background = conf < 65 ? "var(--status-critical)" : (conf < 80 ? "var(--status-warning)" : "var(--status-nominal)");
   }
 
+  // 7. Update Predictive Maintenance & Service Schedule Card
+  const maintStatusEl = document.getElementById("focus-maint-status");
+  const maintDateEl = document.getElementById("focus-maint-date");
+  const maintCountdownEl = document.getElementById("focus-maint-countdown");
+  const maintWearValEl = document.getElementById("focus-maint-wear-val");
+  const maintWearBarEl = document.getElementById("focus-maint-wear-bar");
+
+  if (maintStatusEl || maintDateEl) {
+    const defaultOffset = (((parseInt(sid.replace('ST', ''), 10) || 1) * 3) % 18 + 5).toString().padStart(2, '0');
+    const rawMaintDate = meta.next_maintenance_date || `2026-03-${defaultOffset}T08:00`;
+    
+    // Parse target date
+    const targetDate = new Date(rawMaintDate.includes('T') ? rawMaintDate : `${rawMaintDate}T08:00`);
+    
+    // Simulation baseline time
+    let simDate = new Date();
+    if (latestTickData.timestamp) {
+      const parsedSim = new Date(latestTickData.timestamp.replace(' ', 'T'));
+      if (!isNaN(parsedSim.getTime())) simDate = parsedSim;
+    }
+    
+    const diffMs = targetDate - simDate;
+    const diffHours = diffMs / (1000 * 60 * 60);
+    const diffDays = Math.floor(diffHours / 24);
+    const remHours = Math.max(0, Math.floor(diffHours % 24));
+    const estTicks = Math.max(0, Math.floor(diffHours * 60)); // 60 ticks/hour
+
+    const formattedDate = isNaN(targetDate.getTime()) 
+      ? rawMaintDate.replace('T', ' ') 
+      : targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + targetDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+    if (maintDateEl) maintDateEl.innerText = formattedDate;
+
+    if (diffMs > 0) {
+      if (diffDays >= 3) {
+        if (maintStatusEl) {
+          maintStatusEl.innerText = "🟢 ON SCHEDULE";
+          maintStatusEl.style.color = "#15803d";
+          maintStatusEl.style.background = "#dcfce7";
+        }
+      } else {
+        if (maintStatusEl) {
+          maintStatusEl.innerText = "🟡 SERVICE DUE SOON";
+          maintStatusEl.style.color = "#b45309";
+          maintStatusEl.style.background = "#fef3c7";
+        }
+      }
+      if (maintCountdownEl) {
+        maintCountdownEl.innerText = diffDays > 0 
+          ? `${diffDays}d ${remHours}h (~${estTicks.toLocaleString()} Ticks)` 
+          : `${remHours}h remaining (~${estTicks.toLocaleString()} Ticks)`;
+        maintCountdownEl.style.color = diffDays >= 3 ? "#0284c7" : "#d97706";
+      }
+    } else {
+      if (maintStatusEl) {
+        maintStatusEl.innerText = "🔴 SERVICE OVERDUE";
+        maintStatusEl.style.color = "#b91c1c";
+        maintStatusEl.style.background = "#fee2e2";
+      }
+      if (maintCountdownEl) {
+        maintCountdownEl.innerText = `Overdue by ${Math.abs(diffDays)}d (${Math.abs(remHours)}h)`;
+        maintCountdownEl.style.color = "#dc2626";
+      }
+    }
+
+    // Dynamic Tool Wear / Degradation progress
+    const wearRaw = st.wear !== undefined ? st.wear : (st.tool_wear !== undefined ? st.tool_wear : (((parseInt(sid.replace('ST',''), 10) * 11 + (latestTickData.tick || 0)) % 100) / 100));
+    const wearPct = Math.min(100, Math.max(0, Math.round(wearRaw * 100)));
+    
+    if (maintWearValEl) maintWearValEl.innerText = `${wearPct}% Degraded`;
+    if (maintWearBarEl) {
+      maintWearBarEl.style.width = `${wearPct}%`;
+      maintWearBarEl.style.background = wearPct > 80 ? "#ef4444" : (wearPct > 50 ? "#f59e0b" : "#10b981");
+    }
+  }
+
   const propList = document.getElementById("focus-prop-list");
   const propCountEl = document.getElementById("prop-count");
   propList.innerHTML = "";
@@ -784,6 +860,24 @@ function injectFocusedFault(atype) {
   injectAnomaly(atype, selectedStationId);
 }
 
+window.currentRoiMode = "takt";
+window.cachedStationRois = [];
+
+function setRoiMode(mode) {
+  window.currentRoiMode = mode;
+  const btnTakt = document.getElementById("roi-mode-btn-takt");
+  const btnGross = document.getElementById("roi-mode-btn-gross");
+  const btnTaktTop = document.getElementById("roi-mode-btn-takt-top");
+  const btnGrossTop = document.getElementById("roi-mode-btn-gross-top");
+
+  if (btnTakt) btnTakt.classList.toggle("active-play", mode === "takt");
+  if (btnGross) btnGross.classList.toggle("active-play", mode === "gross");
+  if (btnTaktTop) btnTaktTop.classList.toggle("active-play", mode === "takt");
+  if (btnGrossTop) btnGrossTop.classList.toggle("active-play", mode === "gross");
+
+  renderStationRoiTable(window.cachedStationRois);
+}
+
 async function loadLeadershipData() {
   try {
     const res = await fetch("/api/leadership/summary");
@@ -802,6 +896,16 @@ async function loadLeadershipData() {
       const savEl = document.getElementById("lead-savings-usd");
       if (savEl) savEl.innerText = `$${(savVal / 1000000.0).toFixed(2)} M`;
 
+      // First-Principles Takt Value Shield
+      const tvlEl = document.getElementById("lead-tvl-usd");
+      const tvlSub = document.getElementById("lead-tvl-sub");
+      if (f.takt_economics) {
+        const tvlVal = f.takt_economics.total_tvl_avoided_usd || 0;
+        const units = f.takt_economics.total_units_protected || 0;
+        if (tvlEl) tvlEl.innerText = `$${(tvlVal / 1000000.0).toFixed(2)} M`;
+        if (tvlSub) tvlSub.innerText = `${units.toFixed(1)} Units Protected ($9.2k Margin)`;
+      }
+
       const jphEl = document.getElementById("lead-jph-comp");
       if (jphEl && f.jph_targets) {
         const act = f.jph_targets.line_jph_actual || 55.4;
@@ -809,7 +913,8 @@ async function loadLeadershipData() {
         jphEl.innerText = `${act.toFixed(1)} / ${tgt.toFixed(1)} JPH`;
       }
 
-      renderStationRoiTable(f.station_roi || []);
+      window.cachedStationRois = f.station_roi || [];
+      renderStationRoiTable(window.cachedStationRois);
     }
 
     renderThermalHeatmap(data.heatmap || []);
@@ -845,40 +950,97 @@ async function loadLeadershipData() {
 }
 
 function renderStationRoiTable(stationRois) {
+  const thead = document.getElementById("lead-station-roi-thead");
   const tbody = document.getElementById("lead-station-roi-tbody");
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  if (stationRois.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="padding: 12px; text-align: center; color: #94a3b8;">No station financial telemetry logged yet.</td></tr>`;
+  const isTaktMode = (window.currentRoiMode === "takt");
+
+  if (thead) {
+    if (isTaktMode) {
+      thead.innerHTML = `
+        <tr style="background: #f0fdf4; color: #166534; position: sticky; top: 0; z-index: 1; border-bottom: 2px solid #bbf7d0;">
+          <th style="padding: 8px 10px;">Station</th>
+          <th style="padding: 8px 10px;">Station Capex</th>
+          <th style="padding: 8px 10px;">Takt Delay Saved</th>
+          <th style="padding: 8px 10px;">Units Protected</th>
+          <th style="padding: 8px 10px;">Takt Value ($9.2k/u)</th>
+          <th style="padding: 8px 10px;">Quality Shield</th>
+          <th style="padding: 8px 10px;">Takt Payback</th>
+          <th style="padding: 8px 10px;">⚡ Takt ROI</th>
+        </tr>
+      `;
+    } else {
+      thead.innerHTML = `
+        <tr style="background: #f1f5f9; color: #475569; position: sticky; top: 0; z-index: 1; border-bottom: 2px solid #cbd5e1;">
+          <th style="padding: 8px 10px;">Station</th>
+          <th style="padding: 8px 10px;">Category</th>
+          <th style="padding: 8px 10px;">Station Capex</th>
+          <th style="padding: 8px 10px;">Downtime Avoided</th>
+          <th style="padding: 8px 10px;">Attributed Savings</th>
+          <th style="padding: 8px 10px;">Payback Period</th>
+          <th style="padding: 8px 10px;">CapEx ROI</th>
+        </tr>
+      `;
+    }
+  }
+
+  if (!stationRois || stationRois.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="padding: 12px; text-align: center; color: #94a3b8;">No station financial telemetry logged yet.</td></tr>`;
     return;
   }
 
-  // Sort: active savings stations first, then by station ID
-  const sorted = [...stationRois].sort((a, b) => (b.attributed_savings_usd || 0) - (a.attributed_savings_usd || 0));
+  // Sort: active savings stations first
+  const sorted = [...stationRois].sort((a, b) => {
+    const valB = isTaktMode ? (b.net_value_created_usd || 0) : (b.attributed_savings_usd || 0);
+    const valA = isTaktMode ? (a.net_value_created_usd || 0) : (a.attributed_savings_usd || 0);
+    return valB - valA;
+  });
 
   sorted.forEach(s => {
     const tr = document.createElement("tr");
-    const hasSavings = (s.attributed_savings_usd || 0) > 0;
-    tr.style.cssText = `border-bottom: 1px solid #f1f5f9; background: ${hasSavings ? '#f0fdf4' : 'transparent'}; transition: background 0.2s ease;`;
+    const hasSavings = (s.attributed_savings_usd || 0) > 0 || (s.net_value_created_usd || 0) > 0;
+    tr.style.cssText = `border-bottom: 1px solid #f1f5f9; background: ${hasSavings ? (isTaktMode ? '#f0fdf4' : '#f8fafc') : 'transparent'}; transition: background 0.2s ease;`;
 
-    const roiBadge = hasSavings 
-      ? `<span style="font-weight: 800; color: #15803d; background: #dcfce7; padding: 2px 6px; border-radius: 4px;">+${s.roi_pct}%</span>`
-      : `<span style="color: #94a3b8;">Nominal</span>`;
+    if (isTaktMode) {
+      const roiBadge = hasSavings 
+        ? `<span style="font-weight: 800; color: #15803d; background: #dcfce7; padding: 2px 6px; border-radius: 4px;">+${(s.first_principles_roi_pct || 0).toFixed(1)}%</span>`
+        : `<span style="color: #94a3b8; font-weight: 500;">0.0%</span>`;
 
-    const paybackBadge = hasSavings
-      ? `<span style="color: #0284c7; font-weight: 700;">${s.payback_period_days} shift-days</span>`
-      : `<span style="color: #94a3b8;">Zero downtime</span>`;
+      const paybackBadge = hasSavings && s.takt_payback_days
+        ? `<span style="color: #0284c7; font-weight: 700;">${s.takt_payback_days} shift-days</span>`
+        : `<span style="color: #94a3b8; font-weight: 400;">In-Spec Baseline</span>`;
 
-    tr.innerHTML = `
-      <td style="padding: 8px 10px; font-weight: 700; color: #0f172a;">${s.station_id} <span style="font-weight: 400; color: #64748b;">(${s.station_name})</span></td>
-      <td style="padding: 8px 10px; color: #475569;">${s.station_type}</td>
-      <td style="padding: 8px 10px; color: #0f172a;">$${(s.capex_usd || 0).toLocaleString()}</td>
-      <td style="padding: 8px 10px; font-weight: ${hasSavings ? '700' : '400'}; color: ${hasSavings ? '#b91c1c' : '#64748b'};">${s.downtime_avoided_min || 0} min</td>
-      <td style="padding: 8px 10px; font-weight: 700; color: ${hasSavings ? '#15803d' : '#64748b'};">$${(s.attributed_savings_usd || 0).toLocaleString()}</td>
-      <td style="padding: 8px 10px;">${paybackBadge}</td>
-      <td style="padding: 8px 10px;">${roiBadge}</td>
-    `;
+      tr.innerHTML = `
+        <td style="padding: 7px 10px; font-weight: 700; color: #0f172a;">${s.station_id} <span style="font-weight: 400; color: #64748b; font-size: 0.68rem;">(${s.station_name})</span></td>
+        <td style="padding: 7px 10px; color: #0f172a;">$${(s.capex_usd || 0).toLocaleString()}</td>
+        <td style="padding: 7px 10px; font-weight: ${hasSavings ? '700' : '400'}; color: ${hasSavings ? '#b91c1c' : '#64748b'};">${s.downtime_avoided_min || 0} min</td>
+        <td style="padding: 7px 10px; font-weight: 700; color: ${hasSavings ? '#0284c7' : '#64748b'};">${(s.units_protected_count || 0).toFixed(1)} units</td>
+        <td style="padding: 7px 10px; font-weight: 700; color: ${hasSavings ? '#15803d' : '#64748b'};">$${Math.round(s.tvl_avoided_usd || 0).toLocaleString()}</td>
+        <td style="padding: 7px 10px; color: #64748b;">$${Math.round(s.quality_savings_usd || 0).toLocaleString()}</td>
+        <td style="padding: 7px 10px;">${paybackBadge}</td>
+        <td style="padding: 7px 10px;">${roiBadge}</td>
+      `;
+    } else {
+      const roiBadge = hasSavings 
+        ? `<span style="font-weight: 800; color: #15803d; background: #dcfce7; padding: 2px 6px; border-radius: 4px;">+${(s.roi_pct || 0).toFixed(1)}%</span>`
+        : `<span style="color: #94a3b8; font-weight: 500;">0.0%</span>`;
+
+      const paybackBadge = hasSavings && s.payback_period_days
+        ? `<span style="color: #0284c7; font-weight: 700;">${s.payback_period_days} shift-days</span>`
+        : `<span style="color: #94a3b8; font-weight: 400;">In-Spec Baseline</span>`;
+
+      tr.innerHTML = `
+        <td style="padding: 7px 10px; font-weight: 700; color: #0f172a;">${s.station_id} <span style="font-weight: 400; color: #64748b;">(${s.station_name})</span></td>
+        <td style="padding: 7px 10px; color: #475569;">${s.station_type}</td>
+        <td style="padding: 7px 10px; color: #0f172a;">$${(s.capex_usd || 0).toLocaleString()}</td>
+        <td style="padding: 7px 10px; font-weight: ${hasSavings ? '700' : '400'}; color: ${hasSavings ? '#b91c1c' : '#64748b'};">${s.downtime_avoided_min || 0} min</td>
+        <td style="padding: 7px 10px; font-weight: 700; color: ${hasSavings ? '#15803d' : '#64748b'};">$${(s.attributed_savings_usd || 0).toLocaleString()}</td>
+        <td style="padding: 7px 10px;">${paybackBadge}</td>
+        <td style="padding: 7px 10px;">${roiBadge}</td>
+      `;
+    }
     tbody.appendChild(tr);
   });
 }

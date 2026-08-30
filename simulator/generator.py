@@ -133,6 +133,53 @@ class LineSimulator:
                     
         return {k: int(v) if v != float('inf') else 1 for k, v in dists.items()}
 
+    def retopologize(self, new_topology: Dict[str, Any]):
+        """
+        Hot-reloads the assembly line DAG topology without destroying in-flight vehicle states,
+        buffer FIFO queues, wear degradation, or simulation tick clocks (Issue 2).
+        """
+        self.topology = new_topology
+        self.stations = new_topology["stations"]
+        self.edges = new_topology["edges"]
+        self.shortest_path_to_sink = self._compute_shortest_paths_to_sink()
+
+        # Synchronize per-station state containers
+        for sid, s in self.stations.items():
+            cap = s.get("buffer_capacity_units", 4)
+            if sid not in self.station_buffers:
+                # Newly added station
+                self.buffers[sid] = 0
+                self.station_buffers[sid] = deque(maxlen=cap)
+                self.station_processing[sid] = None
+                self.station_dwell_ticks[sid] = 0
+                self.load_state[sid] = 0.0
+                self.wear_state[sid] = 0.0
+            else:
+                # Existing station: adjust deque capacity while preserving in-flight vehicles
+                existing_items = list(self.station_buffers[sid])
+                self.station_buffers[sid] = deque(existing_items, maxlen=cap)
+                self.buffers[sid] = len(self.station_buffers[sid])
+
+        # Clean up removed stations gracefully (if any)
+        removed_sids = set(self.station_buffers.keys()) - set(self.stations.keys())
+        for r_sid in removed_sids:
+            orphaned = []
+            if self.station_processing.get(r_sid):
+                orphaned.append(self.station_processing[r_sid])
+                self.station_processing[r_sid] = None
+            orphaned.extend(list(self.station_buffers.get(r_sid, [])))
+            self.station_buffers.pop(r_sid, None)
+            self.buffers.pop(r_sid, None)
+            self.station_dwell_ticks.pop(r_sid, None)
+            self.load_state.pop(r_sid, None)
+            self.wear_state.pop(r_sid, None)
+            
+            first_sid = list(self.stations.keys())[0] if self.stations else None
+            for vin in orphaned:
+                if vin in self.active_vehicles and first_sid:
+                    self.active_vehicles[vin]["current_station"] = first_sid
+                    self.station_buffers[first_sid].append(vin)
+
     def get_simulated_time(self) -> str:
         sim_dt = self.start_time + timedelta(minutes=self.current_tick)
         return sim_dt.strftime("%Y-%m-%d %H:%M:%S")
