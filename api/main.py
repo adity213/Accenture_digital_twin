@@ -1213,7 +1213,6 @@ def reset_topology():
         }
     finally:
         is_sim_running = was_running
-        is_sim_running = was_running
 
 @app.get("/api/model/scenario-validation")
 def get_scenario_validation_results():

@@ -19,11 +19,17 @@ def build_line_topology(seed: int = RANDOM_SEED) -> Dict[str, Any]:
         {"id": "ST02", "name": "Floor Pan Robotic Weld", "zone": "Body", "type": "RoboticWeld", "target_cycle_time": 55.0, "power_base_kw": 32.0},
         {"id": "ST03", "name": "Side Panel Outer - LH", "zone": "Body", "type": "RoboticWeld", "target_cycle_time": 58.0, "power_base_kw": 28.0},
         {"id": "ST04", "name": "Side Panel Outer - RH", "zone": "Body", "type": "RoboticWeld", "target_cycle_time": 58.0, "power_base_kw": 28.0},
-        {"id": "ST05", "name": "Roof Assembly & Laser Brazing", "zone": "Body", "type": "LaserBrazing", "target_cycle_time": 52.0, "power_base_kw": 35.0},
+        # MERGE POINT: ST05 fed by parallel ST03 (58s) + ST04 (58s).
+        # Branches alternate arrivals (not simultaneous), avg interarrival ~29s.
+        # CT=52s handles merge drain while not overwhelming downstream ST06 (65s).
+        # Buffer=14 absorbs burst arrivals during anomaly recovery.
+        {"id": "ST05", "name": "Roof Assembly & Laser Brazing", "zone": "Body", "type": "LaserBrazing", "target_cycle_time": 52.0, "power_base_kw": 35.0, "buffer_capacity": 14},
         {"id": "ST06", "name": "Framing Main Station", "zone": "Body", "type": "MainFraming", "target_cycle_time": 65.0, "power_base_kw": 40.0},
         {"id": "ST07", "name": "Respot Welding Line A", "zone": "Body", "type": "RespotWeld", "target_cycle_time": 62.0, "power_base_kw": 30.0},
         {"id": "ST08", "name": "Respot Welding Line B", "zone": "Body", "type": "RespotWeld", "target_cycle_time": 62.0, "power_base_kw": 30.0},
-        {"id": "ST09", "name": "Structural Sealer & Adhesive", "zone": "Body", "type": "Dispensing", "target_cycle_time": 50.0, "power_base_kw": 12.0},
+        # MERGE POINT: ST09 fed by parallel ST07 (62s) + ST08 (62s).
+        # CT=42s handles alternating merge while not overwhelming downstream ST10 (54s).
+        {"id": "ST09", "name": "Structural Sealer & Adhesive", "zone": "Body", "type": "Dispensing", "target_cycle_time": 42.0, "power_base_kw": 12.0, "buffer_capacity": 14},
         {"id": "ST10", "name": "Door Hanging & Alignment", "zone": "Body", "type": "Fitting", "target_cycle_time": 54.0, "power_base_kw": 15.0},
         {"id": "ST11", "name": "Hood & Tailgate Mounting", "zone": "Body", "type": "Fitting", "target_cycle_time": 52.0, "power_base_kw": 14.0},
         {"id": "ST12", "name": "Body Geometry CMM Scan", "zone": "Body", "type": "QualityScan", "target_cycle_time": 48.0, "power_base_kw": 22.0},
@@ -45,7 +51,9 @@ def build_line_topology(seed: int = RANDOM_SEED) -> Dict[str, Any]:
         {"id": "ST24", "name": "Wire Harness Routing", "zone": "Assembly", "type": "ManualWiring", "target_cycle_time": 65.0, "power_base_kw": 7.5},
         {"id": "ST25", "name": "Cockpit / IP Module Marriage", "zone": "Assembly", "type": "ModuleMarriage", "target_cycle_time": 62.0, "power_base_kw": 22.0},
         {"id": "ST26", "name": "Front Suspension Assembly", "zone": "Assembly", "type": "MechanicalTorque", "target_cycle_time": 58.0, "power_base_kw": 20.0},
-        {"id": "ST27", "name": "Rear Axle & Brake Lines", "zone": "Assembly", "type": "MechanicalTorque", "target_cycle_time": 60.0, "power_base_kw": 21.0},
+        # MERGE POINT: ST27 fed by parallel ST25 (62s) + ST26 (58s).
+        # CT=48s handles alternating merge while not overwhelming downstream ST28 (70s).
+        {"id": "ST27", "name": "Rear Axle & Brake Lines", "zone": "Assembly", "type": "MechanicalTorque", "target_cycle_time": 48.0, "power_base_kw": 21.0, "buffer_capacity": 14},
         {"id": "ST28", "name": "Drivetrain & Battery Marriage", "zone": "Assembly", "type": "AutomatedMarriage", "target_cycle_time": 70.0, "power_base_kw": 50.0},
         {"id": "ST29", "name": "Exhaust & Undercarriage Bolting", "zone": "Assembly", "type": "RoboticTorque", "target_cycle_time": 55.0, "power_base_kw": 24.0},
         {"id": "ST30", "name": "Windshield Robotic Glazing", "zone": "Assembly", "type": "RoboticUrethane", "target_cycle_time": 50.0, "power_base_kw": 26.0},
@@ -97,7 +105,7 @@ def build_line_topology(seed: int = RANDOM_SEED) -> Dict[str, Any]:
     for st in stations_data:
         sid = st["id"]
         tier = "manual" if sid in manual_station_ids else "rich"
-        cap = random.randint(5, 15)
+        cap = st.get("buffer_capacity", random.randint(8, 12))
         
         # Realistic staggered preventive maintenance schedule (5 to 22 days from sim epoch)
         station_num = int(sid[2:]) if sid[2:].isdigit() else 1
