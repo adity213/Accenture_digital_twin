@@ -537,11 +537,15 @@ class LineSimulator:
                 ]
                 
                 if available_downstreams:
-                    # Pick available downstream with lowest buffer fill ratio / count (load balancing)
-                    target_down = min(
-                        available_downstreams, 
-                        key=lambda d: (len(self.station_buffers[d]) / max(1, self.stations[d]["buffer_capacity_units"]), len(self.station_buffers[d]))
-                    )
+                    # Pick available downstream with lowest total occupancy (buffer queue + active cradle processing)
+                    def _station_occupancy_score(d):
+                        q_len = len(self.station_buffers[d])
+                        in_proc = 1 if self.station_processing.get(d) is not None else 0
+                        total = q_len + in_proc
+                        cap = max(1, self.stations[d]["buffer_capacity_units"])
+                        return (total / cap, total)
+
+                    target_down = min(available_downstreams, key=_station_occupancy_score)
                     self.station_buffers[target_down].append(vin)
                     if vin in self.active_vehicles:
                         self.active_vehicles[vin]["current_station"] = target_down

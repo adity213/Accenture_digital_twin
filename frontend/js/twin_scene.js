@@ -454,17 +454,18 @@ class TwinSceneEngine {
     if (!this.edges || this.edges.length === 0) return;
 
     if (Array.isArray(activeVehicles) && activeVehicles.length > 0) {
-      activeVehicles.forEach((vData, i) => {
+      activeVehicles.forEach((vData) => {
         const curSid = vData.current_station || "ST01";
         const prevSid = vData.previous_station || (this.stations[curSid]?.upstream_ids?.[0]) || curSid;
-        const hasConveyorEdge = Boolean(prevSid && prevSid !== curSid && this.edgePaths && this.edgePaths[`${prevSid}->${curSid}`]);
 
         const veh = {
           vin: vData.vin,
           fromStation: prevSid,
           toStation: curSid,
-          progress: hasConveyorEdge ? (0.2 + (i * 0.15) % 0.6) : 1.0,
-          state: hasConveyorEdge ? "TRANSIT" : "DOCK",
+          backendCurrentStation: curSid,
+          backendPreviousStation: prevSid,
+          progress: 1.0,
+          state: "DOCK",
           dwellTimer: 0.0,
           dwellTarget: 2.5,
           speed: 0.012,
@@ -986,12 +987,14 @@ class TwinSceneEngine {
       // If fleet has room, introduce new backend vehicles
       const MAX_FLEET_RENDER = 150;
       if (this.fleet.length < Math.min(MAX_FLEET_RENDER, vehiclesPayload.length)) {
+        const isInitialHydration = (this.fleet.length === 0);
         const currentFleetVins = new Set(this.fleet.map(f => f.vin));
         vehiclesPayload.forEach(vBackend => {
           if (!currentFleetVins.has(vBackend.vin) && this.fleet.length < MAX_FLEET_RENDER) {
             const curSid = vBackend.current_station || "ST01";
             const prevSid = vBackend.previous_station || (this.stations[curSid]?.upstream_ids?.[0]) || curSid;
             const hasConveyorEdge = Boolean(prevSid && prevSid !== curSid && this.edgePaths && this.edgePaths[`${prevSid}->${curSid}`]);
+            const shouldAnimate = !isInitialHydration && hasConveyorEdge && (curSid === "ST01" || curSid === "ST02");
 
             const newVeh = {
               vin: vBackend.vin,
@@ -1004,11 +1007,11 @@ class TwinSceneEngine {
               backendRouteLength: vBackend.route_length,
               backendVisitedStationIds: vBackend.visited_station_ids || [],
               backendDefectCount: vBackend.defect_count || 0,
-              animHops: hasConveyorEdge ? [{ from: prevSid, to: curSid }] : [],
+              animHops: shouldAnimate ? [{ from: prevSid, to: curSid }] : [],
               animStartTime: now,
               animDuration: measuredInterval,
-              progress: hasConveyorEdge ? 0.1 : 1.0,
-              state: hasConveyorEdge ? "TRANSIT" : "DOCK",
+              progress: shouldAnimate ? 0.1 : 1.0,
+              state: shouldAnimate ? "TRANSIT" : "DOCK",
               dwellTimer: 0.0,
               dwellTarget: 2.5,
               speed: 0.012,
