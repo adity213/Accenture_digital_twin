@@ -35,5 +35,15 @@
       "ST04",
       "ST14"
     ]
+  },
+  {
+    "worker_id": "12345",
+    "worker_name": "Bihari ADI",
+    "assigned_station_ids": [
+      "ST01",
+      "ST03",
+      "ST08",
+      "ST13"
+    ]
   }
 ]

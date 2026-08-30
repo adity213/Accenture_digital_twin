@@ -300,6 +300,73 @@ function handleTickUpdate(payload) {
     }
   }
 
+  // 4. ESG Real-Time Carbon & Grid Tariff Updates
+  if (payload.esg) {
+    const esg = payload.esg;
+    const tariffBadge = document.getElementById("esg-tariff-badge");
+    if (tariffBadge && esg.tariff) {
+      tariffBadge.innerText = esg.tariff.badge;
+      tariffBadge.style.color = esg.tariff.color;
+      tariffBadge.style.background = esg.tariff.tier === 'ON_PEAK' ? '#fee2e2' : (esg.tariff.tier === 'OFF_PEAK' ? '#dcfce7' : '#fef3c7');
+    }
+
+    const pwrEl = document.getElementById("esg-plant-power");
+    if (pwrEl) pwrEl.innerText = `${esg.plant_power_kw} kW`;
+
+    const costEl = document.getElementById("esg-cost-rate");
+    if (costEl && esg.instant_cost_rate_usd_per_hr !== undefined) {
+      costEl.innerText = `$${esg.instant_cost_rate_usd_per_hr.toFixed(2)} / hr`;
+    }
+
+    const intensityEl = document.getElementById("esg-grid-intensity");
+    if (intensityEl && esg.tariff) {
+      intensityEl.innerText = `${esg.tariff.carbon_intensity_g_per_kwh} g CO₂e/kWh`;
+    }
+
+    const avgCarbonEl = document.getElementById("esg-avg-vin-carbon");
+    if (avgCarbonEl) avgCarbonEl.innerText = `${esg.avg_carbon_per_vin_kg.toFixed(1)} kg`;
+
+    const deltaEl = document.getElementById("esg-carbon-delta");
+    if (deltaEl) {
+      deltaEl.innerText = `${esg.carbon_delta_pct > 0 ? '+' : ''}${esg.carbon_delta_pct}% vs OEM Base`;
+      deltaEl.style.color = esg.carbon_delta_pct <= 0 ? '#15803d' : '#b91c1c';
+      deltaEl.style.background = esg.carbon_delta_pct <= 0 ? '#dcfce7' : '#fee2e2';
+    }
+
+    const carbonRateEl = document.getElementById("esg-carbon-rate");
+    if (carbonRateEl) carbonRateEl.innerText = `${esg.instant_carbon_rate_kg_per_hr.toFixed(1)} kg/hr`;
+
+    const shiftCo2El = document.getElementById("esg-shift-co2");
+    if (shiftCo2El) shiftCo2El.innerText = `${(esg.instant_carbon_rate_kg_per_hr * 3.2).toFixed(1)} kg CO₂e`;
+
+    const flexLoadEl = document.getElementById("esg-flex-load");
+    if (flexLoadEl) flexLoadEl.innerText = `${esg.flexible_load_kw} kW (ST15, ST16, ST17, ST39)`;
+
+    const savingsProjEl = document.getElementById("esg-savings-projected");
+    if (savingsProjEl) savingsProjEl.innerText = `$${esg.monthly_esg_savings_projected_usd.toLocaleString()}/yr`;
+
+    const co2AbateEl = document.getElementById("esg-co2-abatement");
+    if (co2AbateEl) co2AbateEl.innerText = `${esg.annual_co2_abatement_tons} T`;
+
+    const loadPill = document.getElementById("load-shift-status-pill");
+    const loadBtn = document.getElementById("btn-toggle-load-shift");
+    if (loadPill && loadBtn) {
+      if (esg.load_shift_active) {
+        loadPill.innerText = "ACTIVE (SAVING $184K/YR)";
+        loadPill.style.background = "#dcfce7";
+        loadPill.style.color = "#15803d";
+        loadBtn.innerText = "🛑 DISENGAGE PEAK LOAD SHIFT";
+        loadBtn.className = "fault-btn";
+      } else {
+        loadPill.innerText = "STANDBY";
+        loadPill.style.background = "#e0f2fe";
+        loadPill.style.color = "#0369a1";
+        loadBtn.innerText = "⚡ ENGAGE PEAK LOAD SHIFT";
+        loadBtn.className = "fault-btn-primary";
+      }
+    }
+  }
+
   if (currentView === "operator") {
     renderOperatorView();
   }
@@ -321,7 +388,13 @@ function selectStation(sid) {
   selectedStationId = sid;
   if (sceneEngine) sceneEngine.selectedId = sid;
 
-  document.querySelectorAll(".station-schematic-node").forEach(n => n.classList.remove("selected"));
+  document.querySelectorAll(".station-schematic-node").forEach(n => {
+    n.classList.remove("selected");
+    // If selecting a different cell, reset previous focus magnification
+    if (n.id !== `station-node-${sid}`) {
+      n.classList.remove("operator-focus-spotlight");
+    }
+  });
   const node = document.getElementById(`station-node-${sid}`);
   if (node) node.classList.add("selected");
 
@@ -332,6 +405,56 @@ function selectStation(sid) {
 
   updateCockpitDrawer(sid);
 }
+
+function focusStationOnFloor(sid) {
+  if (!sid) return;
+
+  // 1. Switch to floor supervisor view
+  switchView("floor");
+
+  // 2. Select station & populate cockpit drawer
+  selectStation(sid);
+
+  // 3. Clear previous focus spotlights and enlarge targeted assembly cell
+  document.querySelectorAll(".station-schematic-node").forEach(n => {
+    n.classList.remove("operator-focus-spotlight");
+  });
+
+  setTimeout(() => {
+    const node = document.getElementById(`station-node-${sid}`);
+    if (node) {
+      node.classList.add("operator-focus-spotlight");
+
+      // Smoothly scroll and center the enlarged assembly station in viewport
+      const viewport = document.getElementById("schematic-viewport");
+      if (viewport) {
+        const nodeLeft = node.offsetLeft;
+        const nodeTop = node.offsetTop;
+        const targetScrollLeft = Math.max(0, nodeLeft - viewport.clientWidth / 2 + node.offsetWidth / 2);
+        const targetScrollTop = Math.max(0, nodeTop - viewport.clientHeight / 2 + node.offsetHeight / 2);
+
+        viewport.scrollTo({
+          left: targetScrollLeft,
+          top: targetScrollTop,
+          behavior: "smooth"
+        });
+      }
+    }
+  }, 100);
+}
+window.focusStationOnFloor = focusStationOnFloor;
+
+// Global listener: Reset enlarged station back to standard shape when clicking anywhere outside
+document.addEventListener("click", (e) => {
+  const spotlightNodes = document.querySelectorAll(".station-schematic-node.operator-focus-spotlight");
+  if (spotlightNodes.length === 0) return;
+
+  spotlightNodes.forEach(node => {
+    if (!node.contains(e.target) && !e.target.closest("#view-operator")) {
+      node.classList.remove("operator-focus-spotlight");
+    }
+  });
+});
 
 function updateCockpitDrawer(sid) {
   const meta = stationsMeta[sid];
@@ -567,19 +690,28 @@ function updateCockpitDrawer(sid) {
       const row = document.createElement("div");
       row.style.cssText = `display: flex; flex-direction: column;`;
       
+      const badgeColor = pct >= 50 
+        ? "background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;" 
+        : (pct >= 25 ? "background: #fef3c7; color: #b45309; border: 1px solid #fde68a;" : "background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;");
+
+      const borderAccent = (d.z_score >= 2.5) ? "border-left: 3.5px solid #ef4444;" : ((d.z_score >= 1.5) ? "border-left: 3.5px solid #f59e0b;" : "");
+
       const node = document.createElement("div");
-      node.style.cssText = `padding: 8px 10px; border-radius: 6px; background: #ffffff; border: 1px solid var(--border-subtle); position: relative; z-index: 2; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);`;
+      node.style.cssText = `padding: 8px 10px; border-radius: 6px; background: #ffffff; border: 1px solid var(--border-subtle); ${borderAccent} position: relative; z-index: 2; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);`;
       
+      const zScoreText = (d.z_score !== undefined && d.z_score > 0) ? ` (${d.z_score}σ deviation)` : "";
+      const unitText = d.unit ? ` ${d.unit}` : "";
+
       node.innerHTML = `
-        <div style="font-weight: 800; color: #0f172a; margin-bottom: 3px; display: flex; justify-content: space-between; font-size: 0.75rem;">
-          <span>${d.feature.toUpperCase().replace(/_/g, ' ')}</span>
-          <span style="color: #0284c7;">${pct}% Confidence</span>
+        <div style="font-weight: 800; color: #0f172a; margin-bottom: 3px; display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem;">
+          <span>${d.feature.toUpperCase()}</span>
+          <span style="font-size: 0.68rem; font-weight: 800; font-family: var(--font-mono); padding: 1px 6px; border-radius: 4px; ${badgeColor}">${pct}% Risk Weight</span>
         </div>
         <div style="color: #475569; line-height: 1.3; font-size: 0.70rem;">
           ${d.explanation}
         </div>
         <div style="margin-top: 4px; font-size: 0.65rem; color: #64748b; font-family: var(--font-mono);">
-          Evidence: Observed ${parseFloat(d.value).toFixed(2)} vs Baseline ${parseFloat(d.baseline).toFixed(2)}
+          Evidence: Observed ${d.value}${unitText}${zScoreText} vs Baseline ${d.baseline}${unitText}
         </div>
       `;
       
@@ -1275,10 +1407,61 @@ async function traceGenealogy() {
       Defects Flagged: <strong style="color: ${isPassed ? 'var(--status-nominal)' : 'var(--status-critical)'};">${defectCount}</strong> • 
       Quality Status: <strong style="color: ${isPassed ? 'var(--status-nominal)' : 'var(--status-critical)'}; text-transform: uppercase;">${data.status || (isPassed ? 'PASSED FINAL BUY-OFF' : 'FLAGGED_REWORK')}</strong>
     `;
+
+    // Fetch and populate Scope-2 Product Carbon Passport for this VIN
+    try {
+      const pRes = await fetch(`/api/esg/vin_passport/${vin}`);
+      if (pRes.ok) {
+        const passport = await pRes.json();
+        const kwhEl = document.getElementById("passport-kwh");
+        const carbEl = document.getElementById("passport-carbon");
+        const paintEl = document.getElementById("passport-paint");
+        const otherEl = document.getElementById("passport-other");
+        if (kwhEl) kwhEl.innerText = `${passport.total_kwh} kWh`;
+        if (carbEl) carbEl.innerText = `${passport.total_carbon_kg} kg CO₂e`;
+        if (paintEl && passport.zone_breakdown && passport.zone_breakdown.Paint) {
+          paintEl.innerText = `${passport.zone_breakdown.Paint.carbon_kg} kg`;
+        }
+        if (otherEl && passport.zone_breakdown) {
+          const bodyC = (passport.zone_breakdown.Body ? passport.zone_breakdown.Body.carbon_kg : 0);
+          const assyC = (passport.zone_breakdown.Assembly ? passport.zone_breakdown.Assembly.carbon_kg : 0);
+          otherEl.innerText = `${(bodyC + assyC).toFixed(1)} kg`;
+        }
+      }
+    } catch (e) {
+      console.warn("Error loading VIN carbon passport:", e);
+    }
   } catch (err) {
     resultEl.innerHTML = `<span style="color: var(--status-critical);">Failed to trace ${vin}: ${err.message}</span>`;
   }
 }
+
+async function toggleEsgLoadShift() {
+  try {
+    const isCurrentlyActive = (latestTickData && latestTickData.esg) ? Boolean(latestTickData.esg.load_shift_active) : false;
+    const nextState = !isCurrentlyActive;
+    
+    const res = await fetch("/api/esg/toggle_load_shift", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active: nextState })
+    });
+    const data = await res.json();
+    
+    if (nextState) {
+      if (typeof showToast === "function") {
+        showToast("🌿 Peak-Tariff Thermal Load Shifting ENGAGED! Thermal ovens (ST17) & chemical tanks throttled during on-peak window. Projected monthly savings: $184,500.", 5000);
+      }
+    } else {
+      if (typeof showToast === "function") {
+        showToast("⚡ Standard dispatch resumed. Peak thermal load shifting disengaged.", 3000);
+      }
+    }
+  } catch (err) {
+    console.error("Failed to toggle ESG load shift:", err);
+  }
+}
+window.toggleEsgLoadShift = toggleEsgLoadShift;
 
 function calculateLineCapacity(metaObj = stationsMeta) {
   const sids = Object.keys(metaObj).length > 0 
@@ -1614,6 +1797,83 @@ function onOperatorWorkerChange(workerId) {
   renderOperatorView();
 }
 
+function getStationWorkInstruction(meta) {
+  const sid = meta.station_id || "";
+  const type = meta.station_type || "";
+
+  // 1-to-1 Tool-Specific Standard Operating Procedures & Machine Specs
+  const toolInstructions = {
+    "ST01": "Fixture Clamping Unit: Clamping pressure 6.2 bar. Verify cross-member locator pin seating and weld gun tip dresser clearance.",
+    "ST02": "ABB 6-Axis Spot Gun: Inspect spot-weld nugget diameter (≥5.2mm) across 48 floor pan resistance points.",
+    "ST03": "KUKA KR Quantec Robot: Verify LH B-pillar clamping alignment and check spot weld electrode cap wear count (<400 welds).",
+    "ST04": "KUKA KR Quantec Robot: Verify RH B-pillar clamping alignment and check spot weld electrode cap wear count (<400 welds).",
+    "ST05": "Trumpf Solid-State Laser: Set wire feed 3.2 m/min, shielding gas flow 18 L/min; verify zero pore defect along roof ditch.",
+    "ST06": "Comau Open-Gate Geo-Framing: Verify body framing dimensional tolerance (X/Y/Z ±0.8mm) before 6-robot tack weld.",
+    "ST07": "Fanuc R-2000iC Heavy Spot: Perform 62 non-geo respot welds; verify tip force 3.8 kN and current 12.4 kA.",
+    "ST08": "Fanuc R-2000iC Heavy Spot: Perform 58 underbody reinforcement welds; check water cooling flow rate (>4.0 L/min).",
+    "ST09": "Nordson EFD Extrusion Gun: Verify epoxy bead width 6.0 ± 1.0mm; check nozzle heater temp 45°C.",
+    "ST10": "Atlas Copco Tensor Reversible Nutrunner: Torque M8 hinge bolts to 45 N·m ± 2; verify 3.5 ± 0.5mm perimeter gap.",
+    "ST11": "Pneumatic Assist Arm: Set latch striker alignment; torque mounting bolts to 28 N·m; verify flushness ±0.6mm.",
+    "ST12": "Hexagon Optical CMM: Execute 3D blue-light laser triangulation scan; verify 128 GD&T points within ±0.75mm.",
+    "ST13": "Orbital Air Sander (P320 Grit): Hand-finish roof joint brazing and inspect skin panels for dings under inspection lighting.",
+    "ST14": "Automated Power & Free Conveyor: Verify carrier lock latch engagement and optical interlock clearance.",
+    "ST15": "Alkaline Spray/Dip Cascade: Check degreasing bath pH 10.5–11.5 and titanium phosphate coating weight (2.2 g/m²).",
+    "ST16": "Cathodic Electrodeposition: Maintain 280V rectifiers, bath temp 28.5°C, conductivity 1450 µS/cm for 20µm primer coat.",
+    "ST17": "Natural Gas Radiant Tunnel: Verify metal peak temperature curve (175°C for 22 min) and exhaust solvent LEL <25%.",
+    "ST18": "Graco Airless Dispenser: Apply 1.2mm anti-chip PVC underbody coating; inspect wheel arch hem sealer coverage.",
+    "ST19": "Dürr EcoBell3 Atomizer: Electrostatic high-rotation bell (45,000 RPM); apply 35µm primer surfacer film thickness.",
+    "ST20": "Dürr Robotic Color Changer: Atomizer bell speed 50,000 RPM, fluid delivery 220 cc/min; verify color batch code match.",
+    "ST21": "ABB 2K Clearcoat Bell & IR Booster: Apply 45µm 2-component gloss clearcoat; verify IR curing ramp to 140°C.",
+    "ST22": "Perceptron SurfaceDefect AI Scanner: Optical deflectometry scan for orange peel, dust inclusions (>0.2mm), and sags.",
+    "ST23": "Skid Roller Table & Turntable: Check optical RFID pallet transponder and verify body shell VIN barcode match.",
+    "ST24": "Manual Routing & Clip Insertion Tool: Secure main IP and body harness along rocker panels; confirm 32 harness clip lock clicks.",
+    "ST25": "KUKA Titan Heavy Manipulator: Guide instrument cluster module into cabin; torque 6 bulkhead bolts to 35 N·m.",
+    "ST26": "Desoutter Multi-Spindle Tool: Torque front MacPherson strut top-mount nuts to 65 N·m; verify ball joint cotter pins.",
+    "ST27": "Pneumatic Fastener & Flare Tool: Torque rear multi-link cradle bolts to 95 N·m; flare-fit brake hydraulic unions (16 N·m).",
+    "ST28": "Automated AGV Lift Table: Align HV battery pack & powertrain to chassis guide pins; torque 16 blind bolts to 110 N·m.",
+    "ST29": "DC Electric Nutrunner: Mount catalytic exhaust hangers; torque heat shield M6 fasteners to 9.5 N·m.",
+    "ST30": "Fanuc Dispense Robot: Apply triangular polyurethane adhesive bead (8x12mm); robot suction-cup sets glass within 40s.",
+    "ST31": "Manual Trim Fitting Tool: Snap-fit A/B/C pillar molded trims; route side curtain airbag harness with verified clearance.",
+    "ST32": "Manual Press & Trim Fixture: Position 1-piece acoustic floor carpet; press 18 retention studs and seat heater wire pigtails.",
+    "ST33": "Assisted Zero-Gravity Arm: Lower front & 60/40 rear seat assemblies; torque 8 floor bracket bolts to 48 N·m.",
+    "ST34": "Bosch Rexroth Angle Tool: Torque steering column intermediate shaft pinch bolt to 32 N·m; connect driver airbag squib.",
+    "ST35": "5-Spindle Synchronous Wheel Nutrunner: Tighten 5 lug nuts to 140 N·m in star sequence with angle/torque curve audit.",
+    "ST36": "Schenck Automated Fluid Station: Evacuate brake lines to -950 mbar, pressure-fill DOT4 fluid, coolant (50/50), & R1234yf.",
+    "ST37": "Manual Roller Tool: Press EPDM hollow weatherstrip into door frame channel; verify water-tight seal contact.",
+    "ST38": "OBD-II Wireless Diagnostic Tool: Flash powertrain ECU firmware v4.8; calibrate steering angle & wheel speed sensors.",
+    "ST39": "4-Wheel Chassis Dynamometer: Run 0-80 km/h acceleration, ABS high-speed braking test, and transmission shift sweep.",
+    "ST40": "Laser Target Board & Luxmeter: Calibrate forward radar & optical ADAS cameras; align LED headlamp aim and buy-off."
+  };
+
+  if (toolInstructions[sid]) {
+    return toolInstructions[sid];
+  }
+
+  // Fallback by station type if dynamically created station
+  if (type === "RoboticWeld" || type === "RespotWeld") {
+    return "Industrial Spot Gun: Inspect spot-weld nugget diameter (≥5.2mm) and verify tip dressing cycle count.";
+  } else if (type === "LaserBrazing") {
+    return "Laser Brazing Optical Head: Verify wire feed rate (3.2 m/min) and zero seam porosity.";
+  } else if (type === "RoboticSpray") {
+    return "Electrostatic Bell Atomizer: Inspect fluid delivery rate (220 cc/min) and atomization cup air pressure.";
+  } else if (type === "MechanicalTorque" || type === "AutomatedTorque") {
+    return "DC Synchronous Nutrunner: Torque critical fasteners to engineering print specifications ±2 N·m.";
+  } else if (type === "VisionQC" || type === "QualityScan") {
+    return "High-Resolution Optical Inspection: Execute automated 3D geometric scanner and log defect coordinates.";
+  }
+
+  return "Standard Work Instruction: Follow 5S standard operating sheet, torque calibrations, and safety interlocks.";
+}
+
+function triggerAndonCall(sid) {
+  if (typeof showToast === "function") {
+    showToast(`🚨 ANDON CALL DISPATCHED for ${sid}! Line Supervisor & Team Lead notified.`, 4000);
+  } else {
+    alert(`🚨 ANDON CALL DISPATCHED for ${sid}!`);
+  }
+}
+window.triggerAndonCall = triggerAndonCall;
+
 function renderOperatorView() {
   const container = document.getElementById("operator-stations-container");
   const summaryEl = document.getElementById("operator-coverage-summary");
@@ -1651,7 +1911,7 @@ function renderOperatorView() {
     const targetCt = meta.target_cycle_time_s || 60.0;
     const buf = st.buffer_level !== undefined ? st.buffer_level : 4;
     const cap = meta.buffer_capacity_units || 8;
-    const vib = st.vibration !== undefined && st.vibration !== null ? st.vibration : 1.10;
+    const vib = st.vibration !== undefined && st.vibration !== null ? st.vibration : 0.80;
     const temp = st.temperature !== undefined && st.temperature !== null ? st.temperature : 24.0;
     const pwr = st.power_kw || meta.power_base_kw || 30.0;
     const basePwr = meta.power_base_kw || 30.0;
@@ -1659,42 +1919,53 @@ function renderOperatorView() {
     const isBlackout = Boolean(st.is_blackout);
     const isStopped = Boolean(st.is_stopped);
 
-    // Ideal reference baselines (Phase 7)
+    // Active workpiece and machine cycle progress
+    const activeVin = st.processing_vin || (st.queued_vins && st.queued_vins.length > 0 ? st.queued_vins[0] : null);
+    const isMachining = Boolean(st.is_processing);
+    const dwellPct = Math.min(100, Math.max(5, Math.round((st.dwell_progress || 0.55) * 100)));
+
+    let jobStateBadge = "";
+    if (isStopped) {
+      jobStateBadge = `<span style="background: #fee2e2; color: #b91c1c; font-weight: 800; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem;">🛑 STOPPED</span>`;
+    } else if (activeVin && isMachining) {
+      jobStateBadge = `<span style="background: #dcfce7; color: #15803d; font-weight: 800; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem;">🟢 MACHINING (${dwellPct}%)</span>`;
+    } else if (buf === 0) {
+      jobStateBadge = `<span style="background: #fef3c7; color: #b45309; font-weight: 800; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem;">🟡 AWAITING FEED (STARVED)</span>`;
+    } else {
+      jobStateBadge = `<span style="background: #f1f5f9; color: #475569; font-weight: 800; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem;">⚪ IDLE / READY</span>`;
+    }
+
+    // Ideal reference baselines
     let idealTemp = 24.0;
     if (meta.station_type === "ThermalOven") idealTemp = 190.0;
     else if (meta.station_type === "ChemicalBath" || meta.station_type === "ElectroDeposition") idealTemp = 55.0;
 
     let statusText = "NOMINAL";
-    let statusClass = "status-nominal";
-    if (isStopped) {
-      statusText = "STOPPED";
-      statusClass = "status-critical";
-    } else if (isBlackout) {
-      statusText = "POWER TRIP / DEGRADED";
-      statusClass = "status-warning";
-    } else if (risk >= 0.80) {
-      statusText = "CRITICAL RISK";
-      statusClass = "status-critical";
-    } else if (risk >= 0.60) {
-      statusText = "ELEVATED RISK";
-      statusClass = "status-warning";
-    }
+    if (isStopped) statusText = "STOPPED";
+    else if (isBlackout) statusText = "POWER TRIP / DEGRADED";
+    else if (risk >= 0.80) statusText = "CRITICAL RISK";
+    else if (risk >= 0.60) statusText = "ELEVATED RISK";
+
+    // Maintenance & wear data
+    const rawMaint = meta.next_maintenance_date || `2026-03-${(((parseInt(sid.replace('ST',''),10)||1)*3)%18+5).toString().padStart(2,'0')}T08:00`;
+    const maintDateStr = rawMaint.split('T')[0];
+    const wearRaw = st.wear !== undefined ? st.wear : (st.tool_wear !== undefined ? st.tool_wear : (((parseInt(sid.replace('ST',''),10)*11 + (latestTickData.tick||0)) % 100) / 100));
+    const toolWearPct = Math.min(100, Math.max(0, Math.round(wearRaw * 100)));
 
     const card = document.createElement("div");
     card.style.cssText = `background: #ffffff; border: 1px solid ${risk >= 0.8 || isStopped ? 'var(--status-critical)' : 'var(--border-subtle)'}; border-radius: var(--radius-md); padding: 14px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 10px; cursor: pointer; transition: all 0.2s ease;`;
-    card.onclick = () => {
-      selectStation(sid);
-      switchView("floor");
-    };
+    card.onclick = () => focusStationOnFloor(sid);
 
     card.innerHTML = `
+      <!-- TOP HEADER: STATION ID, NAME, AND OVERALL STATUS -->
       <div style="display: flex; justify-content: space-between; align-items: flex-start;">
         <div>
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-family: var(--font-mono); font-weight: 800; font-size: 0.95rem; color: #0f172a;">${sid}</span>
             <span class="node-tier-pill ${meta.sensor_tier === 'manual' ? 'manual' : ''}">${(meta.sensor_tier || 'rich').toUpperCase()}</span>
+            ${jobStateBadge}
           </div>
-          <div style="font-weight: 700; font-size: 0.82rem; color: #334155; margin-top: 2px;">${meta.name || sid}</div>
+          <div style="font-weight: 700; font-size: 0.84rem; color: #1e293b; margin-top: 3px;">${meta.name || sid}</div>
           <div style="font-size: 0.70rem; color: #64748b; font-family: var(--font-mono);">${meta.zone} // ${meta.station_type}</div>
         </div>
         <div style="text-align: right;">
@@ -1702,12 +1973,22 @@ function renderOperatorView() {
             ${statusText}
           </span>
           <div style="font-size: 0.74rem; font-family: var(--font-mono); font-weight: 800; margin-top: 4px; color: ${risk >= 0.8 ? 'var(--status-critical)' : 'inherit'};">
-            ${st.serving_mode && st.serving_mode.includes('fallback') ? '<span style="font-size: 0.65rem; background-color: #f59e0b; color: white; padding: 2px 4px; border-radius: 4px; margin-right: 4px; vertical-align: middle;" title="Model disconnected or diverging. Hard fallback to deterministic heuristic.">⚠ FALLBACK MODE</span>' : ''}Risk: ${(risk * 100).toFixed(0)}%
+            ${st.serving_mode && st.serving_mode.includes('fallback') ? '<span style="font-size: 0.65rem; background-color: #f59e0b; color: white; padding: 2px 4px; border-radius: 4px; margin-right: 4px; vertical-align: middle;">⚠ FALLBACK</span>' : ''}Risk: ${(risk * 100).toFixed(0)}%
           </div>
         </div>
       </div>
 
-      <!-- CURRENT VS IDEAL PARAMETERS TABLE (PHASE 7) -->
+      <!-- ACTIVE WORKPIECE & CYCLE PROGRESS -->
+      <div style="background: #f1f5f9; border-radius: 4px; padding: 6px 10px; font-size: 0.72rem; font-family: var(--font-mono); display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-weight: 700; color: #334155;">
+          ${activeVin ? `🚗 Active: <strong style="color: #0284c7;">${activeVin}</strong> (Body Variant A)` : `⚪ In-Cell Carrier: <span style="color: #64748b;">None</span>`}
+        </span>
+        <span style="color: ${dwellPct > 85 ? '#15803d' : '#0284c7'}; font-weight: 700;">
+          ${isMachining ? `Cycle: ${dwellPct}%` : (buf === 0 ? 'Starved' : 'Ready')}
+        </span>
+      </div>
+
+      <!-- PARAMETERS OBSERVED VS TARGET TABLE -->
       <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 8px 10px; font-size: 0.72rem; font-family: var(--font-mono);">
         <div style="display: grid; grid-template-columns: 100px 1fr 1fr; font-weight: 800; color: #64748b; margin-bottom: 4px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px;">
           <span>PARAMETER</span>
@@ -1736,9 +2017,26 @@ function renderOperatorView() {
         </div>
       </div>
 
+      <!-- WORK INSTRUCTION / QUALITY SPEC & MAINTENANCE -->
+      <div style="background: #ffffff; border: 1px dashed var(--border-subtle); border-radius: 4px; padding: 6px 10px; font-size: 0.70rem;">
+        <div style="font-weight: 800; color: #475569; margin-bottom: 2px; display: flex; justify-content: space-between;">
+          <span>📋 WORK INSTRUCTION & QUALITY CHECK:</span>
+          <span style="color: #0284c7; font-family: var(--font-mono); font-weight: 700;">PM: ${maintDateStr} (Wear: ${toolWearPct}%)</span>
+        </div>
+        <div style="color: #334155; line-height: 1.35;">
+          ${getStationWorkInstruction({ ...meta, station_id: sid })}
+        </div>
+      </div>
+
+      <!-- FOOTER: BUFFER LEVEL, ANDON CALL BUTTON & FOCUS -->
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: #64748b; font-family: var(--font-mono); padding-top: 2px;">
-        <span>Buffer: ${buf}/${cap} units</span>
-        <span style="color: var(--brand-blue); font-weight: 700;">Click to focus cell ➔</span>
+        <span>Buffer: <strong>${buf}/${cap}</strong> units</span>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button class="fault-btn" style="padding: 2px 8px; font-size: 0.68rem; color: #b91c1c; border-color: #fca5a5; font-weight: 800; background: #fff1f2;" onclick="event.stopPropagation(); triggerAndonCall('${sid}')" title="Signal Line Lead or pull station Andon">
+            🚨 CALL ANDON
+          </button>
+          <span style="color: var(--brand-blue); font-weight: 700;">Focus Cell ➔</span>
+        </div>
       </div>
     `;
 

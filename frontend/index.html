@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TwinSphere | Plant Control-Room Digital Twin</title>
-  <link rel="stylesheet" href="css/style.css?v=9.0">
+  <link rel="stylesheet" href="css/style.css?v=9.8">
 </head>
 <body class="blueprint-grid-bg">
   <div class="app-layout">
@@ -93,22 +93,6 @@
           </div>
         </div>
 
-        <!-- HMI Simulation Controller -->
-        <div class="sim-ctrl-box">
-          <div class="sim-btn-group">
-            <button id="btn-run" class="hmi-btn active-play" onclick="controlSim('run')">▶ RUN</button>
-            <button id="btn-hold" class="hmi-btn" onclick="controlSim('pause')">⏸ HOLD</button>
-            <button id="btn-step" class="hmi-btn" onclick="controlSim('step')">⏭ STEP</button>
-          </div>
-          
-          <div class="speed-selector-strip">
-            <button class="speed-tick selected" onclick="setSpeed(1, this)">1X</button>
-            <button class="speed-tick" onclick="setSpeed(2, this)">2X</button>
-            <button class="speed-tick" onclick="setSpeed(5, this)">5X</button>
-            <button class="speed-tick" onclick="setSpeed(10, this)">10X</button>
-          </div>
-        </div>
-
         <div style="font-family: var(--font-mono); font-size: 0.8rem; font-weight: 800; color: var(--text-primary);" id="sim-clock">
           SHIFT 1 // TICK 0142
         </div>
@@ -117,7 +101,7 @@
       <!-- VIEW 1: FLOOR SUPERVISOR LIVING LINE -->
       <div id="view-floor" class="view-panel active">
         
-        <!-- HAZARD FAULT INJECTION BAR (FLOOR EXCLUSIVE) -->
+        <!-- HAZARD FAULT INJECTION & SIMULATION CONTROL BAR (FLOOR EXCLUSIVE) -->
         <div class="fault-injection-bar">
           <div class="hazard-title-wrap">
             <span class="hazard-stripe-badge">⚡ FAULT INJECTOR</span>
@@ -140,6 +124,22 @@
               <button class="fault-btn" onclick="clearAllAnomalies()" style="margin-left: 8px; font-weight: 800; color: #0284c7; border-color: #bae6fd;" title="Clear all active anomaly injections across plant">
                 🔄 CLEAR ACTIVE FAULTS
               </button>
+            </div>
+          </div>
+
+          <!-- Floor-Exclusive Simulation Playback & Speed Controller -->
+          <div class="sim-ctrl-box" style="margin-left: auto;">
+            <div class="sim-btn-group">
+              <button id="btn-run" class="hmi-btn active-play" onclick="controlSim('run')">▶ RUN</button>
+              <button id="btn-hold" class="hmi-btn" onclick="controlSim('pause')">⏸ HOLD</button>
+              <button id="btn-step" class="hmi-btn" onclick="controlSim('step')">⏭ STEP</button>
+            </div>
+            
+            <div class="speed-selector-strip">
+              <button class="speed-tick selected" onclick="setSpeed(1, this)">1X</button>
+              <button class="speed-tick" onclick="setSpeed(2, this)">2X</button>
+              <button class="speed-tick" onclick="setSpeed(5, this)">5X</button>
+              <button class="speed-tick" onclick="setSpeed(10, this)">10X</button>
             </div>
           </div>
         </div>
@@ -521,6 +521,93 @@
               <div id="genealogy-result" style="margin-top: 8px; font-size: 0.74rem; font-family: var(--font-mono);">
                 40/40 Stations Verified • 0 Quality Buy-off Defects
               </div>
+
+              <!-- SCOPE-2 PRODUCT CARBON PASSPORT (PER-VIN) -->
+              <div id="vin-carbon-passport-container" style="margin-top: 12px; padding: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; font-family: var(--font-mono); font-size: 0.72rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 800; color: #166534; margin-bottom: 6px;">
+                  <span>🌱 DIGITAL PRODUCT CARBON PASSPORT</span>
+                  <span style="background: #dcfce7; color: #15803d; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem;">EU 2026/27 COMPLIANT</span>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; color: #1e293b;">
+                  <div>Total Energy: <strong id="passport-kwh" style="color: #0f172a;">96.4 kWh</strong></div>
+                  <div>Carbon: <strong id="passport-carbon" style="color: #15803d;">37.1 kg CO₂e</strong></div>
+                  <div>Paint Ovens: <strong id="passport-paint" style="color: #0284c7;">20.0 kg</strong></div>
+                  <div>Body/Assy: <strong id="passport-other" style="color: #475569;">17.1 kg</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ESG REAL-TIME CARBON FOOTPRINT & ENERGY TARIFF OPTIMIZER (PHASE 8) -->
+          <div class="scada-lead-panel" style="grid-column: span 2; background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);">
+            <div class="lead-panel-title" style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="display: flex; align-items: center; gap: 8px;">
+                <span>🌿 REAL-TIME CARBON FOOTPRINT & ENERGY TARIFF OPTIMIZER (ESG)</span>
+                <span class="subbar-pill-badge" style="background: #dcfce7; color: #15803d; border: 1px solid #86efac;">SCOPE 1 & 2 AUTOMATED</span>
+              </span>
+              <span id="esg-tariff-badge" style="font-family: var(--font-mono); font-size: 0.74rem; font-weight: 800; padding: 3px 8px; border-radius: 4px; background: #dcfce7; color: #15803d;">
+                🟢 OFF-PEAK GREEN ($0.085/kWh)
+              </span>
+            </div>
+            <div class="lead-panel-sub">Regional grid marginal carbon intensity tracking, per-VIN carbon accounting, and automated peak thermal load shifting</div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 16px;">
+              
+              <!-- Card 1: Grid Tariff & Dynamic Power -->
+              <div style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; font-family: var(--font-brand); text-transform: uppercase;">Grid Tariff & Power Draw</div>
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px;">
+                  <span id="esg-plant-power" style="font-size: 1.25rem; font-weight: 900; color: #0f172a; font-family: var(--font-mono);">842.5 kW</span>
+                  <span id="esg-cost-rate" style="font-size: 0.78rem; font-weight: 800; color: #0284c7; font-family: var(--font-mono);">$71.61 / hr</span>
+                </div>
+                <div style="margin-top: 6px; font-size: 0.70rem; color: #475569; font-family: var(--font-mono);">
+                  Grid Intensity: <strong id="esg-grid-intensity">185 g CO₂e/kWh</strong>
+                </div>
+              </div>
+
+              <!-- Card 2: Per-VIN Product Carbon Footprint -->
+              <div style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; font-family: var(--font-brand); text-transform: uppercase;">Measured Carbon per Vehicle</div>
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px;">
+                  <span id="esg-avg-vin-carbon" style="font-size: 1.25rem; font-weight: 900; color: #15803d; font-family: var(--font-mono);">41.2 kg</span>
+                  <span id="esg-carbon-delta" style="font-size: 0.74rem; font-weight: 800; color: #15803d; font-family: var(--font-mono); background: #dcfce7; padding: 2px 6px; border-radius: 4px;">-15.1% vs OEM Base</span>
+                </div>
+                <div style="margin-top: 6px; font-size: 0.70rem; color: #475569; font-family: var(--font-mono);">
+                  OEM Benchmark: <strong>48.5 kg CO₂e / BIW</strong>
+                </div>
+              </div>
+
+              <!-- Card 3: Hourly Plant Emissions Rate -->
+              <div style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; font-family: var(--font-brand); text-transform: uppercase;">Real-Time Emission Rate</div>
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px;">
+                  <span id="esg-carbon-rate" style="font-size: 1.25rem; font-weight: 900; color: #0f172a; font-family: var(--font-mono);">155.8 kg/hr</span>
+                  <span style="font-size: 0.74rem; font-weight: 800; color: #64748b; font-family: var(--font-mono);">Scope 1 & 2</span>
+                </div>
+                <div style="margin-top: 6px; font-size: 0.70rem; color: #475569; font-family: var(--font-mono);">
+                  Cumulative Shift: <strong id="esg-shift-co2">482.8 kg CO₂e</strong>
+                </div>
+              </div>
+
+              <!-- Card 4: Peak-Tariff Load Shifter AI -->
+              <div style="background: #ffffff; border: 1px solid #bae6fd; border-radius: var(--radius-sm); padding: 12px; box-shadow: 0 1px 3px rgba(2, 132, 199, 0.08); display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 0.72rem; font-weight: 800; color: #0369a1; font-family: var(--font-brand); text-transform: uppercase;">Peak Load Shifter AI</span>
+                    <span id="load-shift-status-pill" style="font-size: 0.65rem; font-weight: 800; padding: 2px 6px; border-radius: 4px; background: #e0f2fe; color: #0369a1;">STANDBY</span>
+                  </div>
+                  <div style="margin-top: 4px; font-size: 0.70rem; color: #334155; line-height: 1.3;">
+                    Flexible Thermal Load: <strong id="esg-flex-load">165.0 kW</strong> (ST15, ST16, ST17, ST39)
+                  </div>
+                  <div style="margin-top: 2px; font-size: 0.70rem; color: #15803d; font-family: var(--font-mono); font-weight: 700;">
+                    Projected Value: <strong id="esg-savings-projected">$184,500/yr</strong> (<span id="esg-co2-abatement">248.5 T</span> CO₂ Abatement)
+                  </div>
+                </div>
+                <button id="btn-toggle-load-shift" class="fault-btn-primary" style="margin-top: 8px; width: 100%; font-size: 0.72rem; padding: 4px 8px;" onclick="toggleEsgLoadShift()">
+                  ⚡ ENGAGE PEAK LOAD SHIFT
+                </button>
+              </div>
+
             </div>
           </div>
 
@@ -998,8 +1085,8 @@
 
   </div>
 
-  <script src="js/twin_scene.js?v=9.0"></script>
-  <script src="js/topology_editor.js?v=9.0"></script>
-  <script src="js/app.js?v=9.0"></script>
+  <script src="js/twin_scene.js?v=9.8"></script>
+  <script src="js/topology_editor.js?v=9.8"></script>
+  <script src="js/app.js?v=9.8"></script>
 </body>
 </html>
