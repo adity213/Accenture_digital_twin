@@ -29,11 +29,13 @@ from pipeline.confidence import ConfidenceEngine
 from pipeline.risk_model import RiskScoringModel
 from pipeline.propagation import GraphPropagationEngine
 from pipeline.recommender import RecommendationEngine
+from pipeline.energy_optimizer import EnergyOptimizer, GridTariffSchedule
 from api.ws import ConnectionManager
 from api.schemas import SimulatorControlRequest, OverrideRequest, TopologyUpdateRequest, AssignmentRequest, InterventionRequest
 from simulator.ot_adapter import create_ot_adapter, PythonSimulatorAdapter
 
 assignment_store = AssignmentStore()
+energy_optimizer = EnergyOptimizer()
 
 app = FastAPI(title="DigitalTwin.ai REST API", version="1.0.0")
 
@@ -333,6 +335,12 @@ def process_simulation_tick() -> Dict[str, Any]:
         serialized_veh = serialize_vehicle_state(vdata, station_states)
         active_veh_list.append(serialized_veh)
 
+    esg_telemetry = energy_optimizer.track_tick_energy(
+        timestamp_str=tick_result["timestamp"],
+        station_states=station_states,
+        stations_meta=stations_meta
+    )
+
     payload = {
         "type": "TICK_UPDATE",
         "tick": simulator.current_tick,
@@ -341,6 +349,7 @@ def process_simulation_tick() -> Dict[str, Any]:
         "vehicles": active_veh_list,
         "propagation": propagation_map,
         "recommendations": recommendations,
+        "esg": esg_telemetry,
         "kpis": {
             "fleet_twin_confidence": avg_twin_conf,
             "active_anomalies_count": active_risk_alerts_count,
@@ -439,6 +448,25 @@ def get_current_risk():
     if not latest_payload or "stations" not in latest_payload:
         latest_payload = process_simulation_tick()
     return latest_payload
+
+@app.get("/api/esg/metrics")
+def get_esg_metrics():
+    """Returns real-time ESG metrics, grid tariff schedule, and carbon accounting."""
+    global latest_payload
+    ts = latest_payload.get("timestamp") if latest_payload else None
+    st_states = latest_payload.get("stations", {}) if latest_payload else {}
+    return energy_optimizer.track_tick_energy(ts, st_states, stations_meta)
+
+@app.get("/api/esg/vin_passport/{vin}")
+def get_vin_passport(vin: str):
+    """Returns the Scope-2 Digital Product Carbon Passport for a given VIN."""
+    return energy_optimizer.get_vin_passport(vin)
+
+@app.post("/api/esg/toggle_load_shift")
+def toggle_load_shift(body: Dict[str, Any] = None):
+    """Toggles automated peak-tariff thermal load shifting."""
+    active = body.get("active", True) if body else True
+    return energy_optimizer.toggle_load_shift(active)
 
 @app.get("/api/risk/{station_id}/drivers")
 def get_risk_drivers(station_id: str):

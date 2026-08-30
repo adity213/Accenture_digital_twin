@@ -299,6 +299,73 @@ function handleTickUpdate(payload) {
     }
   }
 
+  // 4. ESG Real-Time Carbon & Grid Tariff Updates
+  if (payload.esg) {
+    const esg = payload.esg;
+    const tariffBadge = document.getElementById("esg-tariff-badge");
+    if (tariffBadge && esg.tariff) {
+      tariffBadge.innerText = esg.tariff.badge;
+      tariffBadge.style.color = esg.tariff.color;
+      tariffBadge.style.background = esg.tariff.tier === 'ON_PEAK' ? '#fee2e2' : (esg.tariff.tier === 'OFF_PEAK' ? '#dcfce7' : '#fef3c7');
+    }
+
+    const pwrEl = document.getElementById("esg-plant-power");
+    if (pwrEl) pwrEl.innerText = `${esg.plant_power_kw} kW`;
+
+    const costEl = document.getElementById("esg-cost-rate");
+    if (costEl && esg.instant_cost_rate_usd_per_hr !== undefined) {
+      costEl.innerText = `$${esg.instant_cost_rate_usd_per_hr.toFixed(2)} / hr`;
+    }
+
+    const intensityEl = document.getElementById("esg-grid-intensity");
+    if (intensityEl && esg.tariff) {
+      intensityEl.innerText = `${esg.tariff.carbon_intensity_g_per_kwh} g CO₂e/kWh`;
+    }
+
+    const avgCarbonEl = document.getElementById("esg-avg-vin-carbon");
+    if (avgCarbonEl) avgCarbonEl.innerText = `${esg.avg_carbon_per_vin_kg.toFixed(1)} kg`;
+
+    const deltaEl = document.getElementById("esg-carbon-delta");
+    if (deltaEl) {
+      deltaEl.innerText = `${esg.carbon_delta_pct > 0 ? '+' : ''}${esg.carbon_delta_pct}% vs OEM Base`;
+      deltaEl.style.color = esg.carbon_delta_pct <= 0 ? '#15803d' : '#b91c1c';
+      deltaEl.style.background = esg.carbon_delta_pct <= 0 ? '#dcfce7' : '#fee2e2';
+    }
+
+    const carbonRateEl = document.getElementById("esg-carbon-rate");
+    if (carbonRateEl) carbonRateEl.innerText = `${esg.instant_carbon_rate_kg_per_hr.toFixed(1)} kg/hr`;
+
+    const shiftCo2El = document.getElementById("esg-shift-co2");
+    if (shiftCo2El) shiftCo2El.innerText = `${(esg.instant_carbon_rate_kg_per_hr * 3.2).toFixed(1)} kg CO₂e`;
+
+    const flexLoadEl = document.getElementById("esg-flex-load");
+    if (flexLoadEl) flexLoadEl.innerText = `${esg.flexible_load_kw} kW (ST15, ST16, ST17, ST39)`;
+
+    const savingsProjEl = document.getElementById("esg-savings-projected");
+    if (savingsProjEl) savingsProjEl.innerText = `$${esg.monthly_esg_savings_projected_usd.toLocaleString()}/yr`;
+
+    const co2AbateEl = document.getElementById("esg-co2-abatement");
+    if (co2AbateEl) co2AbateEl.innerText = `${esg.annual_co2_abatement_tons} T`;
+
+    const loadPill = document.getElementById("load-shift-status-pill");
+    const loadBtn = document.getElementById("btn-toggle-load-shift");
+    if (loadPill && loadBtn) {
+      if (esg.load_shift_active) {
+        loadPill.innerText = "ACTIVE (SAVING $184K/YR)";
+        loadPill.style.background = "#dcfce7";
+        loadPill.style.color = "#15803d";
+        loadBtn.innerText = "🛑 DISENGAGE PEAK LOAD SHIFT";
+        loadBtn.className = "fault-btn";
+      } else {
+        loadPill.innerText = "STANDBY";
+        loadPill.style.background = "#e0f2fe";
+        loadPill.style.color = "#0369a1";
+        loadBtn.innerText = "⚡ ENGAGE PEAK LOAD SHIFT";
+        loadBtn.className = "fault-btn-primary";
+      }
+    }
+  }
+
   if (currentView === "operator") {
     renderOperatorView();
   }
@@ -1339,10 +1406,61 @@ async function traceGenealogy() {
       Defects Flagged: <strong style="color: ${isPassed ? 'var(--status-nominal)' : 'var(--status-critical)'};">${defectCount}</strong> • 
       Quality Status: <strong style="color: ${isPassed ? 'var(--status-nominal)' : 'var(--status-critical)'}; text-transform: uppercase;">${data.status || (isPassed ? 'PASSED FINAL BUY-OFF' : 'FLAGGED_REWORK')}</strong>
     `;
+
+    // Fetch and populate Scope-2 Product Carbon Passport for this VIN
+    try {
+      const pRes = await fetch(`/api/esg/vin_passport/${vin}`);
+      if (pRes.ok) {
+        const passport = await pRes.json();
+        const kwhEl = document.getElementById("passport-kwh");
+        const carbEl = document.getElementById("passport-carbon");
+        const paintEl = document.getElementById("passport-paint");
+        const otherEl = document.getElementById("passport-other");
+        if (kwhEl) kwhEl.innerText = `${passport.total_kwh} kWh`;
+        if (carbEl) carbEl.innerText = `${passport.total_carbon_kg} kg CO₂e`;
+        if (paintEl && passport.zone_breakdown && passport.zone_breakdown.Paint) {
+          paintEl.innerText = `${passport.zone_breakdown.Paint.carbon_kg} kg`;
+        }
+        if (otherEl && passport.zone_breakdown) {
+          const bodyC = (passport.zone_breakdown.Body ? passport.zone_breakdown.Body.carbon_kg : 0);
+          const assyC = (passport.zone_breakdown.Assembly ? passport.zone_breakdown.Assembly.carbon_kg : 0);
+          otherEl.innerText = `${(bodyC + assyC).toFixed(1)} kg`;
+        }
+      }
+    } catch (e) {
+      console.warn("Error loading VIN carbon passport:", e);
+    }
   } catch (err) {
     resultEl.innerHTML = `<span style="color: var(--status-critical);">Failed to trace ${vin}: ${err.message}</span>`;
   }
 }
+
+async function toggleEsgLoadShift() {
+  try {
+    const isCurrentlyActive = (latestTickData && latestTickData.esg) ? Boolean(latestTickData.esg.load_shift_active) : false;
+    const nextState = !isCurrentlyActive;
+    
+    const res = await fetch("/api/esg/toggle_load_shift", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active: nextState })
+    });
+    const data = await res.json();
+    
+    if (nextState) {
+      if (typeof showToast === "function") {
+        showToast("🌿 Peak-Tariff Thermal Load Shifting ENGAGED! Thermal ovens (ST17) & chemical tanks throttled during on-peak window. Projected monthly savings: $184,500.", 5000);
+      }
+    } else {
+      if (typeof showToast === "function") {
+        showToast("⚡ Standard dispatch resumed. Peak thermal load shifting disengaged.", 3000);
+      }
+    }
+  } catch (err) {
+    console.error("Failed to toggle ESG load shift:", err);
+  }
+}
+window.toggleEsgLoadShift = toggleEsgLoadShift;
 
 function updateLineBalancing(jphVal) {
   const jph = parseInt(jphVal, 10) || 55;
