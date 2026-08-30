@@ -753,7 +753,7 @@ class TwinSceneEngine {
       if (veh.animHops && veh.animHops.length > 0) {
         const numHops = veh.animHops.length;
         const elapsed = now - (veh.animStartTime || now);
-        const duration = Math.max(150, veh.animDuration || this.measuredBackendInterval || 3200);
+        const duration = Math.max(150, veh.animDuration || this.measuredBackendInterval || 4500);
         u = Math.max(0.0, Math.min(1.0, elapsed / duration));
 
         const hopFraction = 1.0 / numHops;
@@ -891,7 +891,7 @@ class TwinSceneEngine {
           veh.queueSlot = 0;
 
           const elapsed = now - (veh.animStartTime || now);
-          const duration = Math.max(150, veh.animDuration || this.measuredBackendInterval || 3200);
+          const duration = Math.max(150, veh.animDuration || this.measuredBackendInterval || 4500);
           const dwellFraction = Math.max(0.0, Math.min(1.0, elapsed / duration));
 
           if (!isDestStopped) {
