@@ -85,6 +85,10 @@ class PythonSimulatorAdapter(SimulatorAdapter):
     @property
     def completed_vehicles(self) -> List[Dict[str, Any]]:
         return list(self._sim.completed_vehicles)
+
+    @property
+    def total_completed_vehicles(self) -> int:
+        return getattr(self._sim, "total_completed_vehicles", len(self._sim.completed_vehicles))
         
     @property
     def active_vehicles(self) -> Dict[str, Dict[str, Any]]:

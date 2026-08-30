@@ -79,6 +79,7 @@ class LineSimulator:
         self.station_dwell_ticks: Dict[str, int] = {}
         self.target_jph: float = 55.0
         self.vehicle_counter = 1000
+        self.total_completed_vehicles: int = 0
         self.active_vehicles: Dict[str, Dict[str, Any]] = {}
         self.completed_vehicles: deque = deque(maxlen=50)
         
@@ -155,32 +156,48 @@ class LineSimulator:
         st01_cap = self.stations["ST01"]["buffer_capacity_units"]
         max_line_wip = sum(1 + s["buffer_capacity_units"] for s in self.stations.values())
         
-        # When an issue is active, spawn probability is hard locked to 0.0
-        if is_andon_active:
-            spawn_prob = 0.0
-        else:
-            spawn_prob = min(0.6, max(0.15, self.target_jph / 90.0))
+        # LITTLE'S LAW WIP CAP ARITHMETIC:
+        # Total nominal cycle time along typical 37-station path:
+        # Zone 1 (Body, 12 st): 60+55+58+25+65+62+27+54+52+48+56+45 = 607.0s
+        # Zone 2 (Paint, 8 st): 70+75+80+68+72+74+78+60 = 577.0s
+        # Zone 3 (Assembly, 17 st): 45+65+60+26+70+55+50+62+58+64+52+48+56+60+55+72+65 = 943.0s
+        # Total nominal processing time T_process = 2127.0s (35.45 min = 0.5908 hr)
+        # Expected inter-station conveyor transfer & queueing delay = 370.0s (6.17 min = 0.1028 hr)
+        # Average Total Line Transit Time T_transit = 2497.0s = 41.62 min = 0.6936 hr (~0.70 hr)
+        # Dimensionally Correct WIP Cap = ceil(Target_JPH * T_transit_hr * 1.25 buffer elasticity)
+        line_transit_hours = 2497.0 / 3600.0  # 0.6936 hours
+        wip_cap = max(10, min(int(math.ceil(self.target_jph * line_transit_hours * 1.25)), max_line_wip))
 
-        if (
-            not is_andon_active
-            and self.rng.random() < spawn_prob 
-            and len(self.active_vehicles) < min(int(self.target_jph), max_line_wip)
-            and len(self.station_buffers["ST01"]) < st01_cap
-        ):
-            self.vehicle_counter += 1
-            vin = f"VIN-2026-{self.vehicle_counter:05d}"
-            veh_info = {
-                "vehicle_id": vin,
-                "entry_tick": self.current_tick,
-                "completion_tick": None,
-                "current_station": "ST01",
-                "status": "IN_PROGRESS",
-                "visit_history": [{"station_id": "ST01", "tick": self.current_tick, "defect_flag": False}],
-                "route_station_ids": ["ST01"],
-                "defect_flags": []
-            }
-            self.active_vehicles[vin] = veh_info
-            self.station_buffers["ST01"].append(vin)
+        # Ingress Spawn Rate Calculation (vehicles to attempt spawning this tick):
+        # 1 tick = 1 simulated minute. Target spawn rate = target_jph / 60.0 vehicles/tick.
+        if not is_andon_active:
+            target_spawns_per_tick = self.target_jph / 60.0
+            base_spawns = int(target_spawns_per_tick)
+            fractional_prob = target_spawns_per_tick - base_spawns
+            spawns_this_tick = base_spawns + (1 if self.rng.random() < fractional_prob else 0)
+        else:
+            spawns_this_tick = 0
+
+        for _ in range(spawns_this_tick):
+            if (
+                not is_andon_active
+                and len(self.active_vehicles) < wip_cap
+                and len(self.station_buffers["ST01"]) < st01_cap
+            ):
+                self.vehicle_counter += 1
+                vin = f"VIN-2026-{self.vehicle_counter:05d}"
+                veh_info = {
+                    "vehicle_id": vin,
+                    "entry_tick": self.current_tick,
+                    "completion_tick": None,
+                    "current_station": "ST01",
+                    "status": "IN_PROGRESS",
+                    "visit_history": [{"station_id": "ST01", "tick": self.current_tick, "defect_flag": False}],
+                    "route_station_ids": ["ST01"],
+                    "defect_flags": []
+                }
+                self.active_vehicles[vin] = veh_info
+                self.station_buffers["ST01"].append(vin)
 
         # Periodic preventive maintenance service window (Phase 21: simulated 48-hr maintenance window)
         if self.current_tick > 0 and self.current_tick % self.maintenance_interval_ticks == 0:
@@ -388,7 +405,7 @@ class LineSimulator:
             # Buffer count represents items in buffer queue plus current processing
             self.buffers[sid] = len(self.station_buffers[sid]) + (1 if current_vin else 0)
             queued_list = list(self.station_buffers[sid])
-            required_dwell = max(1, math.ceil(actual_ct / 55.0))
+            required_dwell = max(1, math.ceil(actual_ct / 60.0))
             dwell_prog = round(min(1.0, self.station_dwell_ticks[sid] / max(1, required_dwell)), 2) if current_vin else 0.0
 
             downstreams = s.get("downstream_ids", [])
@@ -504,6 +521,7 @@ class LineSimulator:
                     v_rec["completion_tick"] = self.current_tick
                     v_rec["status"] = "COMPLETED"
                     self.completed_vehicles.append(v_rec)
+                    self.total_completed_vehicles += 1
                     updated_genealogy_records.append(v_rec)
 
                 # Successfully completed and exited line: free cradle

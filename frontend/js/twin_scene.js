@@ -888,7 +888,7 @@ class TwinSceneEngine {
       this.fleet = this.fleet.filter(veh => activeVinMap[veh.vin]);
 
       // If fleet has room, introduce new backend vehicles
-      const MAX_FLEET_RENDER = 100;
+      const MAX_FLEET_RENDER = 150;
       if (this.fleet.length < Math.min(MAX_FLEET_RENDER, vehiclesPayload.length)) {
         const currentFleetVins = new Set(this.fleet.map(f => f.vin));
         vehiclesPayload.forEach(vBackend => {
