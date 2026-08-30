@@ -366,48 +366,53 @@
             <div class="lead-panel-sub">Real-time capital productivity, conversion cost efficiency, payback timelines, and JPH throughput</div>
 
             <!-- Top Executive Metric KPI Cards -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 14px;">
-              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
-                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Plant Capital Density</div>
-                <div id="lead-cost-sqft" style="font-size: 1.15rem; font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 4px;">$1,800.00 / sq ft</div>
-                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">250,000 sq ft Footprint ($450M Capex)</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 14px;">
+              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 12px;">
+                <div style="font-size: 0.68rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Plant Capital Density</div>
+                <div id="lead-cost-sqft" style="font-size: 1.10rem; font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 3px;">$1,800.00 / sq ft</div>
+                <div style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">250,000 sq ft ($450M Capex)</div>
               </div>
 
-              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
-                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Unit Conversion Cost</div>
-                <div id="lead-cost-ton" style="font-size: 1.15rem; font-weight: 800; color: #0284c7; font-family: var(--font-mono); margin-top: 4px;">$1,727.27 / ton</div>
-                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">$2,850 / vehicle (1.65t Curb Weight)</div>
+              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 12px;">
+                <div style="font-size: 0.68rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Unit Conversion Cost</div>
+                <div id="lead-cost-ton" style="font-size: 1.10rem; font-weight: 800; color: #0284c7; font-family: var(--font-mono); margin-top: 3px;">$1,727.27 / ton</div>
+                <div style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">$2,850 / veh (1.65t Curb)</div>
               </div>
 
-              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
-                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Downtime Savings</div>
-                <div id="lead-savings-usd" style="font-size: 1.15rem; font-weight: 800; color: #15803d; font-family: var(--font-mono); margin-top: 4px;">$0.00 M</div>
-                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">$38,333.33 / min avoided downtime</div>
+              <div style="background: #f8fafc; border: 1px solid #0284c7; border-radius: var(--radius-sm); padding: 10px 12px; background: rgba(2,132,199,0.04);">
+                <div style="font-size: 0.68rem; font-weight: 700; color: #0284c7; text-transform: uppercase;">⚡ Takt Value Shield</div>
+                <div id="lead-tvl-usd" style="font-size: 1.10rem; font-weight: 800; color: #0284c7; font-family: var(--font-mono); margin-top: 3px;">$0.00 M</div>
+                <div id="lead-tvl-sub" style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">0.0 Units Protected ($9.2k Margin)</div>
               </div>
 
-              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
-                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Line Cadence Target</div>
-                <div id="lead-jph-comp" style="font-size: 1.15rem; font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 4px;">55.4 / 55.0 JPH</div>
-                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">100.7% Line vs Plant Target</div>
+              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 12px;">
+                <div style="font-size: 0.68rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Gross Downtime Avoided</div>
+                <div id="lead-savings-usd" style="font-size: 1.10rem; font-weight: 800; color: #15803d; font-family: var(--font-mono); margin-top: 3px;">$0.00 M</div>
+                <div style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">$38,333.33 / min avoided downtime</div>
+              </div>
+
+              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 12px;">
+                <div style="font-size: 0.68rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Takt Cadence Target</div>
+                <div id="lead-jph-comp" style="font-size: 1.10rem; font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 3px;">55.4 / 55.0 JPH</div>
+                <div style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">65.5s Takt // 100.7% Cadence</div>
               </div>
             </div>
-            <!-- Per-Station Capex, ROI & Payback Period Table -->
+
+            <!-- Per-Station Capex, ROI & Payback Period Table with Mode Toggle -->
             <div style="margin-top: 18px;">
-              <div style="font-weight: 800; font-size: 0.82rem; color: #0f172a; margin-bottom: 8px;">
-                📊 Station-Level Capital ROI & Payback Schedule
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="font-weight: 800; font-size: 0.82rem; color: #0f172a;">
+                  📊 Station-Level Capital ROI & Payback Schedule
+                </div>
+                <div style="display: flex; gap: 6px;">
+                  <button id="roi-mode-btn-takt" class="hmi-btn active-play" style="height: 24px; font-size: 0.68rem; padding: 2px 8px;" onclick="setRoiMode('takt')">⚡ Takt Economics</button>
+                  <button id="roi-mode-btn-gross" class="hmi-btn" style="height: 24px; font-size: 0.68rem; padding: 2px 8px;" onclick="setRoiMode('gross')">🏛️ Gross Capex Baseline</button>
+                </div>
               </div>
-              <div style="max-height: 240px; overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left; font-family: var(--font-mono);">
-                  <thead>
-                    <tr style="background: #f1f5f9; color: #475569; position: sticky; top: 0; z-index: 1;">
-                      <th style="padding: 8px 10px;">Station</th>
-                      <th style="padding: 8px 10px;">Category</th>
-                      <th style="padding: 8px 10px;">Station Capex</th>
-                      <th style="padding: 8px 10px;">Downtime Avoided</th>
-                      <th style="padding: 8px 10px;">Attributed Savings</th>
-                      <th style="padding: 8px 10px;">Payback Period</th>
-                      <th style="padding: 8px 10px;">Plain ROI</th>
-                    </tr>
+              <div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.74rem; text-align: left; font-family: var(--font-mono);">
+                  <thead id="lead-station-roi-thead">
+                    <!-- Populated dynamically based on ROI mode -->
                   </thead>
                   <tbody id="lead-station-roi-tbody">
                     <!-- Populated dynamically -->
@@ -855,8 +860,8 @@
 
   </div>
 
-  <script src="js/twin_scene.js?v=6.2"></script>
-  <script src="js/topology_editor.js?v=6.2"></script>
-  <script src="js/app.js?v=6.2"></script>
+  <script src="js/twin_scene.js?v=7.0"></script>
+  <script src="js/topology_editor.js?v=7.0"></script>
+  <script src="js/app.js?v=7.0"></script>
 </body>
 </html>
