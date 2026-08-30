@@ -23,6 +23,7 @@ class TwinSceneEngine {
     this.isHudPinned = false;
     this.hudElement = null;
     this.hudCloseTimer = null;
+    window._logQueueDiagnostics = true;
     this.animFrameId = null;
     this.initHoverHud();
     this.startMotionLoop();
@@ -600,8 +601,24 @@ class TwinSceneEngine {
   }
 
   /**
+   * Returns the physical pixel track length between two stations.
+   */
+  getTrackLength(fromSid, toSid) {
+    const p1 = window.stationCoords ? window.stationCoords[fromSid] : null;
+    const p2 = window.stationCoords ? window.stationCoords[toSid] : null;
+    if (!p1 || !p2) return 220;
+    const edgeKey = `${fromSid}->${toSid}`;
+    const edgeData = this.edgePaths ? this.edgePaths[edgeKey] : null;
+    if (edgeData) {
+      return Math.round(Math.hypot(edgeData.x2 - edgeData.x1, edgeData.y2 - edgeData.y1) + 144);
+    }
+    return Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y));
+  }
+
+  /**
    * Calculates distinct, offset queue positions along the upstream conveyor curve
-   * feeding into a station, preventing queue stacking on the station cradle.
+   * feeding into a station, guaranteeing at least 58px of center-to-center physical
+   * spacing regardless of segment length.
    */
   getStationQueuePosition(toSid, queueIndex = 0, preferredFromSid = null) {
     const pTo = window.stationCoords[toSid] || { x: 100, y: 170 };
@@ -622,28 +639,51 @@ class TwinSceneEngine {
 
     if (!fromSid || fromSid === toSid) {
       // For ST01 infeed buffer, queue line extends horizontally to the left along infeed conveyor
-      const offset = 70 + (queueIndex * 60);
+      const offset = 70 + (Math.min(queueIndex, 3) * 58);
       return { x: cradlePos.x - offset, y: cradlePos.y };
     }
 
-    // Calculate dynamic spacing based on the physical pixel length of the conveyor track
     const pFrom = window.stationCoords[fromSid];
-    let trackLength = 220; // default fallback
-    if (pFrom && pTo) {
-      trackLength = Math.sqrt(Math.pow(pTo.x - pFrom.x, 2) + Math.pow(pTo.y - pFrom.y, 2));
-    }
-    
+    const edgeKey = `${fromSid}->${toSid}`;
+    const edgeData = this.edgePaths ? this.edgePaths[edgeKey] : null;
+
     // Per-branch queue index when merging
     const effectiveBranchIndex = (upstreams.length > 1 && !preferredFromSid) 
       ? Math.floor(queueIndex / upstreams.length) 
       : queueIndex;
 
-    // Ensure each 54px-wide car gets at least ~58px of clear physical space along track
-    const spacingDecrement = Math.max(0.04, Math.min(0.22, 58 / Math.max(100, trackLength)));
-    
-    // Position along the real upstream SVG conveyor curve entering toSid
-    const qProgress = Math.max(0.05, 0.76 - (effectiveBranchIndex * spacingDecrement));
-    return this.getConveyorTrackPosition(fromSid, toSid, qProgress);
+    const MIN_CAR_SPACING = 58; // px center-to-center clearance (car width: 54px)
+
+    if (edgeData) {
+      // Physical bezier chord distance between ports
+      const bezierLength = Math.max(20, Math.hypot(edgeData.x2 - edgeData.x1, edgeData.y2 - edgeData.y1));
+      const maxFitCars = Math.max(1, Math.floor((bezierLength - 16) / MIN_CAR_SPACING) + 1);
+      // Clamp to visible rail segment so overflow vehicles do not run through upstream station card
+      const clampedIndex = Math.min(effectiveBranchIndex, maxFitCars - 1);
+      const targetDist = Math.min(bezierLength - 6, 18 + (clampedIndex * MIN_CAR_SPACING));
+
+      const normT = Math.max(0.0, Math.min(1.0, 1.0 - (targetDist / bezierLength)));
+      const mt = 1 - normT;
+      const mt2 = mt * mt;
+      const mt3 = mt2 * mt;
+      const t2 = normT * normT;
+      const t3 = t2 * normT;
+
+      const x = mt3 * edgeData.x1 + 3 * mt2 * normT * edgeData.cx1 + 3 * mt * t2 * edgeData.cx2 + t3 * edgeData.x2;
+      const y = mt3 * edgeData.y1 + 3 * mt2 * normT * edgeData.cy1 + 3 * mt * t2 * edgeData.cy2 + t3 * edgeData.y2;
+      return { x, y };
+    }
+
+    // Straight-line fallback when edgeData is not present
+    const c1 = pFrom ? { x: pFrom.x + 72, y: pFrom.y + 60 } : { x: cradlePos.x - 220, y: cradlePos.y };
+    const totalDist = Math.max(MIN_CAR_SPACING, Math.hypot(cradlePos.x - c1.x, cradlePos.y - c1.y));
+    const dirX = (c1.x - cradlePos.x) / totalDist;
+    const dirY = (c1.y - cradlePos.y) / totalDist;
+    const clampedIndex = Math.min(effectiveBranchIndex, 3);
+    return {
+      x: cradlePos.x + dirX * (20 + clampedIndex * MIN_CAR_SPACING),
+      y: cradlePos.y + dirY * (20 + clampedIndex * MIN_CAR_SPACING)
+    };
   }
 
   startMotionLoop() {
@@ -842,13 +882,56 @@ class TwinSceneEngine {
         }
       }
 
+      // Smooth position interpolation for queue and station slot transitions
+      if (!veh.renderPos) {
+        veh.renderPos = { x: pos.x, y: pos.y };
+      } else if (veh.state === "TRANSIT" && veh.animHops && veh.animHops.length > 0) {
+        // Direct tracking during continuous bezier transit
+        veh.renderPos.x = pos.x;
+        veh.renderPos.y = pos.y;
+      } else {
+        // Smooth easing towards target position for queue advances and docking (prevents visual snapping/crossing)
+        const dx = pos.x - veh.renderPos.x;
+        const dy = pos.y - veh.renderPos.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 0.5) {
+          const easeFactor = 0.18; // smooth ~200-250ms convergence at 60fps
+          veh.renderPos.x += dx * easeFactor;
+          veh.renderPos.y += dy * easeFactor;
+        } else {
+          veh.renderPos.x = pos.x;
+          veh.renderPos.y = pos.y;
+        }
+      }
+
       veh.is_stopped = isHalted;
-      veh.lastPos = pos;
+      veh.lastPos = { ...pos };
+
+      // Calculate track segment capacity and overflow state for queued vehicles
+      const edgeKey = `${fromSid}->${targetSid}`;
+      const edgeData = this.edgePaths ? this.edgePaths[edgeKey] : null;
+      let bezierLength = 220;
+      if (edgeData) {
+        bezierLength = Math.max(30, Math.hypot(edgeData.x2 - edgeData.x1, edgeData.y2 - edgeData.y1));
+      } else if (!fromSid || fromSid === targetSid) {
+        bezierLength = 232;
+      }
+      const maxFitCars = Math.max(1, Math.floor((bezierLength - 16) / 58) + 1);
+      const overflowCount = Math.max(0, queueList.length - maxFitCars);
+      const isOverflowCar = isVehicleQueued && (queueIndex >= maxFitCars);
+      const isTailVisibleCar = isVehicleQueued && (queueIndex === maxFitCars - 1 || (queueIndex === queueList.length - 1 && queueList.length <= maxFitCars));
 
       const el = veh.element;
       if (el) {
-        el.style.left = `${pos.x}px`;
-        el.style.top = `${pos.y}px`;
+        // Hide individual overflow vehicle sprites that exceed the rail segment capacity
+        if (isOverflowCar) {
+          el.style.display = "none";
+        } else {
+          el.style.display = "";
+        }
+
+        el.style.left = `${veh.renderPos.x}px`;
+        el.style.top = `${veh.renderPos.y}px`;
 
         const isDocked = (veh.state === "DOCK" && isStationProcessing);
         const isQueued = (veh.state === "QUEUE" || isVehicleQueued);
@@ -861,14 +944,18 @@ class TwinSceneEngine {
 
         const badgeEl = el.querySelector(".vehicle-carrier-badge");
         if (badgeEl) {
-          if (isTrueHalted) {
-            badgeEl.innerText = `🛑 HALT (${targetSid})`;
-          } else if (isBlocked) {
-            badgeEl.innerText = `⏸️ BLOCKED (${targetSid})`;
-          } else if (isDocked) {
+          badgeEl.classList.remove("overflow-pill");
+          if (isDocked) {
             badgeEl.innerText = `⚙️ ${targetSid}`;
+          } else if (isQueued && isTailVisibleCar && overflowCount > 0) {
+            badgeEl.classList.add("overflow-pill");
+            badgeEl.innerText = `+${overflowCount + 1} wait`;
+          } else if (isTrueHalted) {
+            badgeEl.innerText = (veh.queueSlot === 0) ? `🛑 ${targetSid}` : `🛑 #${veh.queueSlot + 1}`;
+          } else if (isBlocked) {
+            badgeEl.innerText = (veh.queueSlot === 0) ? `⏸️ ${targetSid}` : `⏸️ #${veh.queueSlot + 1}`;
           } else if (isQueued && veh.queueSlot >= 0) {
-            badgeEl.innerText = `BUF #${veh.queueSlot + 1}`;
+            badgeEl.innerText = (veh.queueSlot === 0) ? `BUF #1` : `#${veh.queueSlot + 1}`;
           } else if (isQueued) {
             badgeEl.innerText = veh.vin.replace("VIN-2026-", "#"); // position pending confirmation
           } else {
@@ -886,11 +973,34 @@ class TwinSceneEngine {
 
         // Keep HUD pinned above vehicle
         if (this.activeHudVin === veh.vin && this.hudElement && this.hudElement.style.display !== "none") {
-          this.hudElement.style.left = `${pos.x}px`;
-          this.hudElement.style.top = `${pos.y}px`;
+          this.hudElement.style.left = `${veh.renderPos.x}px`;
+          this.hudElement.style.top = `${veh.renderPos.y}px`;
         }
       }
     });
+
+    // Debug Instrumentation Logging for Queue Verification
+    if (typeof window !== "undefined" && window._logQueueDiagnostics) {
+      const queuedVehs = this.fleet.filter(v => v.state === "QUEUE" || v.queueSlot >= 0);
+      if (queuedVehs.length > 0) {
+        const nowMs = performance.now();
+        if (!this._lastDiagLogTime || nowMs - this._lastDiagLogTime > 1000) {
+          this._lastDiagLogTime = nowMs;
+          const logTable = queuedVehs.map(v => ({
+            vin: v.vin,
+            targetStation: v.toStation,
+            fromStation: v.fromStation,
+            state: v.state,
+            queueSlot: v.queueSlot,
+            posX: Math.round(v.renderPos?.x ?? v.lastPos?.x ?? 0),
+            posY: Math.round(v.renderPos?.y ?? v.lastPos?.y ?? 0),
+            trackLength: this.getTrackLength(v.fromStation, v.toStation)
+          }));
+          console.table(logTable);
+          window._lastQueueDiagnostics = logTable;
+        }
+      }
+    }
 
     // Cleanly prune vehicles that completed the line
     this.fleet = this.fleet.filter(veh => !veh.isCompleted);
@@ -953,13 +1063,22 @@ class TwinSceneEngine {
           if (newBackendStation !== prevBackendStation || newVisited.length > prevVisited.length) {
             let hops = [];
             // If full visited trace is available, extract sequential station hops
-            if (newVisited.length > 0) {
-              const startIdx = Math.max(0, newVisited.indexOf(prevBackendStation));
+            if (newVisited.length > 0 && prevBackendStation) {
+              const startIdx = newVisited.indexOf(prevBackendStation);
               const endIdx = newVisited.indexOf(newBackendStation);
               if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
                 for (let i = startIdx; i < endIdx; i++) {
                   hops.push({ from: newVisited[i], to: newVisited[i + 1] });
                 }
+              } else if (startIdx === -1) {
+                // Record and log unmatched history fallback
+                window._unmatchedStationFallbackCount = (window._unmatchedStationFallbackCount || 0) + 1;
+                console.warn(`[twin_scene] Unmatched prevBackendStation hop fallback (#${window._unmatchedStationFallbackCount}):`, {
+                  vin: veh.vin,
+                  prevBackendStation,
+                  newBackendStation,
+                  newVisitedLength: newVisited.length
+                });
               }
             }
             if (hops.length === 0) {

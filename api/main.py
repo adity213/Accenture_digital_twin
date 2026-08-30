@@ -1073,15 +1073,17 @@ async def control_simulator(req: SimulatorControlRequest):
         latest_payload = process_simulation_tick()
         await ws_manager.broadcast_json(latest_payload)
         return {"status": "ANOMALIES_CLEARED", "payload": latest_payload}
-    elif action in ["reset", "restart", "reset_sim"]:
+    elif action in ["reset", "restart", "reset_sim", "reset_run"]:
         raw_sim = getattr(simulator, "_sim", simulator)
         if hasattr(raw_sim, "reset_state"):
             raw_sim.reset_state()
         simulator.anomaly_mgr.active_anomalies.clear()
         cumulative_downtime_avoided_min = 0.0
+        is_sim_running = True
+        speed_multiplier = 1.0
         latest_payload = process_simulation_tick()
         await ws_manager.broadcast_json(latest_payload)
-        return {"status": "SIMULATION_RESET", "payload": latest_payload}
+        return {"status": "SIMULATION_RESET", "payload": latest_payload, "is_running": True}
     elif action == "inject_anomaly":
         if not req.anomaly_type or not req.station_id:
             raise HTTPException(status_code=400, detail="Missing anomaly_type or station_id")

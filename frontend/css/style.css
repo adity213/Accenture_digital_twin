@@ -1130,7 +1130,7 @@ body {
   position: absolute;
   top: -9px;
   right: -8px;
-  font-size: 0.58rem;
+  font-size: 0.55rem;
   font-family: var(--font-mono);
   font-weight: 800;
   padding: 1px 4px;
@@ -1141,9 +1141,21 @@ body {
   white-space: nowrap;
   pointer-events: none;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  max-width: 52px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
 }
 
-.vehicle-carrier-node.halted .vehicle-carrier-badge {
+.vehicle-carrier-badge.overflow-pill {
+  background: #f59e0b !important;
+  color: #0f172a !important;
+  font-weight: 900 !important;
+  border: 1px solid #fbbf24;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
+}
+
+.vehicle-carrier-node.halted .vehicle-carrier-badge:not(.overflow-pill) {
   background: #ef4444;
   animation: blink-badge 1s infinite alternate;
 }

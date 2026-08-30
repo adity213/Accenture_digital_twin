@@ -900,6 +900,35 @@ async function controlSim(action) {
   }
 }
 
+async function resetAndRunSim() {
+  const btnRun = document.getElementById("btn-run");
+  const btnHold = document.getElementById("btn-hold");
+  if (btnRun) btnRun.classList.add("active-play");
+  if (btnHold) btnHold.classList.remove("active-play");
+
+  // Reset speed selector to 1X
+  const speedTicks = document.querySelectorAll(".speed-tick");
+  speedTicks.forEach((b, idx) => b.classList.toggle("selected", idx === 0));
+
+  try {
+    const res = await fetch("/api/simulator/control", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reset_run", speed_multiplier: 1.0 })
+    });
+    const data = await res.json();
+    if (data.payload) {
+      handleTickUpdate(data.payload);
+      if (currentView === "leadership" || currentView === "weekly") {
+        loadLeadershipData();
+      }
+    }
+    console.log("Sim reset & run successful:", data);
+  } catch (err) {
+    console.error("Reset & Run error:", err);
+  }
+}
+
 async function setSpeed(mult, btn) {
   document.querySelectorAll(".speed-tick").forEach(b => b.classList.remove("selected"));
   if (btn) btn.classList.add("selected");
