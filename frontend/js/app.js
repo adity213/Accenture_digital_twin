@@ -322,6 +322,10 @@ function selectStation(sid) {
 
   document.querySelectorAll(".station-schematic-node").forEach(n => {
     n.classList.remove("selected");
+    // If selecting a different cell, reset previous focus magnification
+    if (n.id !== `station-node-${sid}`) {
+      n.classList.remove("operator-focus-spotlight");
+    }
   });
   const node = document.getElementById(`station-node-${sid}`);
   if (node) node.classList.add("selected");
@@ -371,6 +375,18 @@ function focusStationOnFloor(sid) {
   }, 100);
 }
 window.focusStationOnFloor = focusStationOnFloor;
+
+// Global listener: Reset enlarged station back to standard shape when clicking anywhere outside
+document.addEventListener("click", (e) => {
+  const spotlightNodes = document.querySelectorAll(".station-schematic-node.operator-focus-spotlight");
+  if (spotlightNodes.length === 0) return;
+
+  spotlightNodes.forEach(node => {
+    if (!node.contains(e.target) && !e.target.closest("#view-operator")) {
+      node.classList.remove("operator-focus-spotlight");
+    }
+  });
+});
 
 function updateCockpitDrawer(sid) {
   const meta = stationsMeta[sid];

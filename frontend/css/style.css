@@ -1284,7 +1284,7 @@ body {
   flex-direction: column;
   justify-content: space-between;
   box-shadow: var(--shadow-node);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease, box-shadow 0.3s ease;
 }
 
 .station-schematic-node:hover {
@@ -1315,7 +1315,7 @@ body {
 
 .station-schematic-node.operator-focus-spotlight .station-glyph-wrap {
   transform: scale(1.22);
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .station-schematic-node.operator-focus-spotlight .node-name-label {
