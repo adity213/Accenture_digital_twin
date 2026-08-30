@@ -395,6 +395,10 @@ def get_stations():
         prev_st = visited_ids[-2] if len(visited_ids) >= 2 else None
         route_len_est = route_index + simulator.shortest_path_to_sink.get(st_id, 1) - 1
 
+        is_proc = (simulator.station_processing.get(st_id) == vin)
+        queued_vins = list(simulator.station_buffers.get(st_id, []))
+        q_slot = queued_vins.index(vin) if vin in queued_vins else 0
+
         active_veh_list.append({
             "vin": vin,
             "vehicle_id": vin,
@@ -407,6 +411,8 @@ def get_stations():
             "defect_count": len(vdata.get("defect_flags", [])),
             "defect_flags": vdata.get("defect_flags", []),
             "is_stopped": False,
+            "is_processing": is_proc,
+            "queue_slot": q_slot,
             "visit_history_len": route_index,
             "route_index": route_index,
             "route_length_estimate": route_len_est,
@@ -995,6 +1001,15 @@ async def control_simulator(req: SimulatorControlRequest):
         latest_payload = process_simulation_tick()
         await ws_manager.broadcast_json(latest_payload)
         return {"status": "ANOMALIES_CLEARED", "payload": latest_payload}
+    elif action in ["reset", "restart", "reset_sim"]:
+        raw_sim = getattr(simulator, "_sim", simulator)
+        if hasattr(raw_sim, "reset_state"):
+            raw_sim.reset_state()
+        simulator.anomaly_mgr.active_anomalies.clear()
+        cumulative_downtime_avoided_min = 0.0
+        latest_payload = process_simulation_tick()
+        await ws_manager.broadcast_json(latest_payload)
+        return {"status": "SIMULATION_RESET", "payload": latest_payload}
     elif action == "inject_anomaly":
         if not req.anomaly_type or not req.station_id:
             raise HTTPException(status_code=400, detail="Missing anomaly_type or station_id")

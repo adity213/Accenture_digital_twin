@@ -454,9 +454,15 @@ class TwinSceneEngine {
     if (!this.edges || this.edges.length === 0) return;
 
     if (Array.isArray(activeVehicles) && activeVehicles.length > 0) {
+      const stationOccupancy = {};
+
       activeVehicles.forEach((vData) => {
         const curSid = vData.current_station || "ST01";
         const prevSid = vData.previous_station || (this.stations[curSid]?.upstream_ids?.[0]) || curSid;
+
+        stationOccupancy[curSid] = (stationOccupancy[curSid] || 0) + 1;
+        const occIndex = stationOccupancy[curSid] - 1;
+        const isDocked = (occIndex === 0 && vData.is_processing !== false);
 
         const veh = {
           vin: vData.vin,
@@ -464,8 +470,8 @@ class TwinSceneEngine {
           toStation: curSid,
           backendCurrentStation: curSid,
           backendPreviousStation: prevSid,
-          progress: 1.0,
-          state: "DOCK",
+          progress: isDocked ? 1.0 : 0.0,
+          state: isDocked ? "DOCK" : "QUEUE",
           dwellTimer: 0.0,
           dwellTarget: 2.5,
           speed: 0.012,
@@ -474,7 +480,7 @@ class TwinSceneEngine {
           route_length_estimate: vData.route_length_estimate || 37,
           route_length: vData.route_length,
           visited_station_ids: vData.visited_station_ids || [],
-          queueSlot: 0,
+          queueSlot: isDocked ? 0 : occIndex - 1,
           element: null
         };
         this.fleet.push(veh);
@@ -603,30 +609,40 @@ class TwinSceneEngine {
 
     let fromSid = preferredFromSid;
     const stMeta = this.stations ? this.stations[toSid] : null;
+    const upstreams = (stMeta && Array.isArray(stMeta.upstream_ids)) ? stMeta.upstream_ids : [];
+
     if (!fromSid || fromSid === toSid) {
-      if (stMeta && Array.isArray(stMeta.upstream_ids) && stMeta.upstream_ids.length > 0) {
-        fromSid = stMeta.upstream_ids[0];
+      if (upstreams.length > 1) {
+        // Multi-branch merge: alternate queue positions by upstream parent
+        fromSid = upstreams[queueIndex % upstreams.length];
+      } else if (upstreams.length === 1) {
+        fromSid = upstreams[0];
       }
     }
 
     if (!fromSid || fromSid === toSid) {
-      // For ST01 or orphan stations without upstream edges, queue line extends horizontally to the left
-      const offset = 65 + (queueIndex * 40);
+      // For ST01 infeed buffer, queue line extends horizontally to the left along infeed conveyor
+      const offset = 70 + (queueIndex * 60);
       return { x: cradlePos.x - offset, y: cradlePos.y };
     }
 
     // Calculate dynamic spacing based on the physical pixel length of the conveyor track
     const pFrom = window.stationCoords[fromSid];
-    let trackLength = 200; // default fallback
+    let trackLength = 220; // default fallback
     if (pFrom && pTo) {
       trackLength = Math.sqrt(Math.pow(pTo.x - pFrom.x, 2) + Math.pow(pTo.y - pFrom.y, 2));
     }
     
-    // Ensure each 54px-wide car gets at least ~40px of physical space
-    const spacingDecrement = Math.max(0.015, Math.min(0.1, 40 / trackLength));
+    // Per-branch queue index when merging
+    const effectiveBranchIndex = (upstreams.length > 1 && !preferredFromSid) 
+      ? Math.floor(queueIndex / upstreams.length) 
+      : queueIndex;
+
+    // Ensure each 54px-wide car gets at least ~58px of clear physical space along track
+    const spacingDecrement = Math.max(0.04, Math.min(0.22, 58 / Math.max(100, trackLength)));
     
     // Position along the real upstream SVG conveyor curve entering toSid
-    const qProgress = Math.max(0.04, 0.82 - (queueIndex * spacingDecrement));
+    const qProgress = Math.max(0.05, 0.76 - (effectiveBranchIndex * spacingDecrement));
     return this.getConveyorTrackPosition(fromSid, toSid, qProgress);
   }
 
@@ -839,19 +855,22 @@ class TwinSceneEngine {
         const isDocked = (veh.state === "DOCK" && isStationProcessing);
         const isQueued = (veh.state === "QUEUE" || isVehicleQueued);
         const isBlocked = Boolean(veh.is_blocked);
+        const isTrueHalted = Boolean(isDestStopped && isHalted);
+        
         el.classList.toggle("in-station", isDocked);
-        el.classList.toggle("halted", (isHalted || isQueued) && (isDestStopped || isBlocked || isQueued));
+        el.classList.toggle("queued", isQueued && !isDocked);
+        el.classList.toggle("halted", isTrueHalted || isBlocked);
 
         const badgeEl = el.querySelector(".vehicle-carrier-badge");
         if (badgeEl) {
-          if (isDestStopped && isHalted) {
-            badgeEl.innerText = `🛑 STOPPED (${targetSid})`;
+          if (isTrueHalted) {
+            badgeEl.innerText = `🛑 HALT (${targetSid})`;
           } else if (isBlocked) {
             badgeEl.innerText = `⏸️ BLOCKED (${targetSid})`;
           } else if (isDocked) {
             badgeEl.innerText = `⚙️ ${targetSid}`;
           } else if (isQueued) {
-            badgeEl.innerText = `⏱️ QUEUE #${(veh.queueSlot || 0) + 1}`;
+            badgeEl.innerText = `BUF #${(veh.queueSlot || 0) + 1}`;
           } else {
             badgeEl.innerText = veh.vin.replace("VIN-2026-", "#");
           }
