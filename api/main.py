@@ -407,7 +407,7 @@ def get_stations():
 
         is_proc = (simulator.station_processing.get(st_id) == vin)
         queued_vins = list(simulator.station_buffers.get(st_id, []))
-        q_slot = queued_vins.index(vin) if vin in queued_vins else 0
+        q_slot = queued_vins.index(vin) if vin in queued_vins else -1
 
         active_veh_list.append({
             "vin": vin,

@@ -480,7 +480,7 @@ class TwinSceneEngine {
           route_length_estimate: vData.route_length_estimate || 37,
           route_length: vData.route_length,
           visited_station_ids: vData.visited_station_ids || [],
-          queueSlot: isDocked ? 0 : occIndex - 1,
+          queueSlot: isDocked ? 0 : occIndex,
           element: null
         };
         this.fleet.push(veh);
@@ -725,7 +725,7 @@ class TwinSceneEngine {
       const isOriginStopped = Boolean(fromState.is_stopped);
 
       let isHalted = false;
-      let pos = { x: 100, y: 100 };
+      let pos = veh.lastPos ? { ...veh.lastPos } : { x: 100, y: 100 };
 
       const pTo = window.stationCoords[targetSid] || { x: 100, y: 170 };
       const cradlePos = { x: pTo.x + 72, y: pTo.y + 60 };
@@ -744,7 +744,7 @@ class TwinSceneEngine {
           const transitProg = localU / transitAlpha;
           veh.state = "TRANSIT";
           veh.progress = transitProg;
-          veh.queueSlot = 0;
+          veh.queueSlot = -1;
           pos = this.getConveyorTrackPosition(fromSid, targetSid, transitProg);
 
           if (barEl && !isStationProcessing) {
@@ -777,11 +777,10 @@ class TwinSceneEngine {
             pos = this.getStationQueuePosition(targetSid, queueIndex, fromSid);
             isHalted = true;
           } else {
-            // Vehicle not yet confirmed by backend tick — hold at cradle (most likely mid-transition)
-            veh.state = "DOCK";
-            veh.progress = 1.0;
-            veh.queueSlot = 0;
-            pos = cradlePos;
+            // Vehicle not yet confirmed by backend tick — keep at last known interpolated position (don't snap to cradle)
+            veh.state = "TRANSIT";
+            veh.queueSlot = -1;
+            pos = veh.lastPos || this.getConveyorTrackPosition(fromSid, targetSid, 0.85);
           }
         }
 
@@ -801,11 +800,10 @@ class TwinSceneEngine {
             pos = this.getStationQueuePosition(veh.backendCurrentStation, queueIndex, veh.backendPreviousStation);
             isHalted = true;
           } else {
-            // Vehicle not yet confirmed by backend tick — hold at cradle
-            veh.state = "DOCK";
-            veh.progress = 1.0;
-            veh.queueSlot = 0;
-            pos = cradlePos;
+            // Vehicle not yet confirmed by backend tick — keep at last known position
+            veh.state = "TRANSIT";
+            veh.queueSlot = -1;
+            pos = veh.lastPos || this.getConveyorTrackPosition(veh.fromStation, veh.toStation, 0.85);
           }
         }
       } else {
@@ -837,15 +835,15 @@ class TwinSceneEngine {
           pos = this.getStationQueuePosition(targetSid, queueIndex, fromSid);
           isHalted = true;
         } else {
-          // Vehicle not yet confirmed by backend tick — hold at cradle
-          veh.state = "DOCK";
-          veh.progress = 1.0;
-          veh.queueSlot = 0;
-          pos = cradlePos;
+          // Vehicle not yet confirmed by backend tick — keep at last known position
+          veh.state = "TRANSIT";
+          veh.queueSlot = -1;
+          pos = veh.lastPos || this.getConveyorTrackPosition(fromSid, targetSid, 0.85);
         }
       }
 
       veh.is_stopped = isHalted;
+      veh.lastPos = pos;
 
       const el = veh.element;
       if (el) {
@@ -869,8 +867,10 @@ class TwinSceneEngine {
             badgeEl.innerText = `⏸️ BLOCKED (${targetSid})`;
           } else if (isDocked) {
             badgeEl.innerText = `⚙️ ${targetSid}`;
+          } else if (isQueued && veh.queueSlot >= 0) {
+            badgeEl.innerText = `BUF #${veh.queueSlot + 1}`;
           } else if (isQueued) {
-            badgeEl.innerText = `BUF #${(veh.queueSlot || 0) + 1}`;
+            badgeEl.innerText = veh.vin.replace("VIN-2026-", "#"); // position pending confirmation
           } else {
             badgeEl.innerText = veh.vin.replace("VIN-2026-", "#");
           }
@@ -1039,7 +1039,7 @@ class TwinSceneEngine {
               route_length_estimate: vBackend.route_length_estimate || 37,
               route_length: vBackend.route_length,
               visited_station_ids: vBackend.visited_station_ids || [],
-              queueSlot: 0,
+              queueSlot: -1,
               element: null
             };
             this.fleet.push(newVeh);
@@ -1087,7 +1087,7 @@ class TwinSceneEngine {
     const isHalted = Boolean(veh.is_stopped);
     let statusTag = '🟢 CONVEYOR TRANSIT';
     if (isHalted && this.stationsPayload[veh.toStation]?.is_stopped) statusTag = '🛑 HALTED AT STATION';
-    else if (isHalted && veh.queueSlot > 0) statusTag = `⏱️ QUEUED (#${(veh.queueSlot || 0) + 1})`;
+    else if (isHalted && veh.queueSlot >= 0) statusTag = `⏱️ QUEUED (#${veh.queueSlot + 1})`;
     else if (veh.state === 'DOCK') statusTag = `⚙️ IN-CYCLE (${veh.toStation})`;
 
     hud.innerHTML = `
