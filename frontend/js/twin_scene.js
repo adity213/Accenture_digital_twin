@@ -738,12 +738,11 @@ class TwinSceneEngine {
       let currentHop = null;
       let u = 0.0;
       let localU = 0.0;
-      const transitAlpha = 0.60;
 
       if (veh.animHops && veh.animHops.length > 0) {
         const numHops = veh.animHops.length;
         const elapsed = now - (veh.animStartTime || now);
-        const duration = Math.max(150, veh.animDuration || this.measuredBackendInterval || 1500);
+        const duration = Math.max(150, veh.animDuration || this.measuredBackendInterval || 2400);
         u = Math.max(0.0, Math.min(1.0, elapsed / duration));
 
         const hopFraction = 1.0 / numHops;
@@ -760,6 +759,15 @@ class TwinSceneEngine {
 
       const fromState = stationPayload[fromSid] || {};
       const toState = stationPayload[targetSid] || {};
+
+      // Dynamic station-proportional transit vs dwell allocation
+      // Conveyor transit is snappy (~12s plant equivalent), remaining time is dedicated in-station dwell
+      // High cycle-time / bottleneck stations get a larger proportion of in-station machine dwell!
+      const stMeta = this.stations ? this.stations[targetSid] : null;
+      const liveCt = toState.is_stopped
+        ? (stMeta?.target_cycle_time_s || 55.0) * 4.5
+        : (toState.cycle_time_s || stMeta?.target_cycle_time_s || 55.0);
+      const transitAlpha = Math.max(0.14, Math.min(0.32, 12.0 / Math.max(20.0, liveCt)));
 
       const isDestStopped = Boolean(toState.is_stopped);
       const isOriginStopped = Boolean(fromState.is_stopped);
