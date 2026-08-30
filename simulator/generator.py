@@ -616,10 +616,22 @@ class LineSimulator:
             if self.station_processing[sid] is None:
                 if len(self.station_buffers[sid]) > 0:
                     self.station_processing[sid] = self.station_buffers[sid].popleft()
-                    # self.station_dwell_seconds[sid] already has t_remain carried over from this tick
+                    # Carry over remaining work time
                 else:
                     self.station_dwell_seconds[sid] = 0.0
                     self.station_dwell_ticks[sid] = 0
+
+        # Phase 4: Synchronize Telemetry Events with Accurate Post-Admission Cradle & Buffer State
+        for event in tick_telemetry:
+            sid = event["station_id"]
+            cur_proc = self.station_processing.get(sid)
+            q_list = list(self.station_buffers.get(sid, []))
+            self.buffers[sid] = len(q_list) + (1 if cur_proc else 0)
+            event["buffer_level"] = self.buffers[sid]
+            event["processing_vin"] = cur_proc
+            event["vehicle_id"] = cur_proc
+            event["queued_vins"] = q_list
+            event["is_processing"] = bool(cur_proc and not event.get("is_stopped", False))
 
         return {
             "tick": self.current_tick,

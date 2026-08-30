@@ -795,8 +795,8 @@ class TwinSceneEngine {
       const queueList = queuedVinsMap[targetSid] || [];
       const queueIndex = queueList.indexOf(veh.vin);
       const isStationProcessing = isCradleOccupant;
-      const isVehicleQueued = !isCradleOccupant && (queueIndex !== -1 || (queueList.length > 0 && veh.backendCurrentStation === targetSid));
-      const effectiveQueueIndex = isVehicleQueued ? Math.max(0, queueIndex) : 0;
+      const isVehicleQueued = !isCradleOccupant && (queueIndex !== -1);
+      const effectiveQueueIndex = isVehicleQueued ? queueIndex : -1;
 
       if (veh.animHops && veh.animHops.length > 0) {
         const rawProg = Math.max(0.0, Math.min(1.0, localU / transitAlpha));
