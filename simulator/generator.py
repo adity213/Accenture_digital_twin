@@ -82,13 +82,15 @@ class LineSimulator:
         self.total_completed_vehicles: int = 0
         self.active_vehicles: Dict[str, Dict[str, Any]] = {}
         self.completed_vehicles: deque = deque(maxlen=50)
+        self.station_dwell_seconds: Dict[str, float] = {}
         
         for sid, s in self.stations.items():
             cap = s["buffer_capacity_units"]
-            self.buffers[sid] = max(1, int(cap * 0.5))
+            self.buffers[sid] = 0
             self.station_buffers[sid] = deque(maxlen=cap)
             self.station_processing[sid] = None
             self.station_dwell_ticks[sid] = 0
+            self.station_dwell_seconds[sid] = 0.0
 
         # Latent load state per station (Phase 17)
         self.load_state: Dict[str, float] = {sid: 0.0 for sid in self.stations}
@@ -152,6 +154,7 @@ class LineSimulator:
                 self.station_buffers[sid] = deque(maxlen=cap)
                 self.station_processing[sid] = None
                 self.station_dwell_ticks[sid] = 0
+                self.station_dwell_seconds[sid] = 0.0
                 self.load_state[sid] = 0.0
                 self.wear_state[sid] = 0.0
             else:
@@ -171,6 +174,7 @@ class LineSimulator:
             self.station_buffers.pop(r_sid, None)
             self.buffers.pop(r_sid, None)
             self.station_dwell_ticks.pop(r_sid, None)
+            self.station_dwell_seconds.pop(r_sid, None)
             self.load_state.pop(r_sid, None)
             self.wear_state.pop(r_sid, None)
             
@@ -389,7 +393,8 @@ class LineSimulator:
 
             current_vin = self.station_processing[sid]
             if current_vin and not is_stopped:
-                self.station_dwell_ticks[sid] += 1
+                self.station_dwell_seconds[sid] += 60.0
+                self.station_dwell_ticks[sid] = int(self.station_dwell_seconds[sid] // 60.0)
 
             # Attach defect to current vehicle genealogy
             if defect_flag and current_vin and current_vin in self.active_vehicles:
@@ -452,13 +457,12 @@ class LineSimulator:
             # Buffer count represents items in buffer queue plus current processing
             self.buffers[sid] = len(self.station_buffers[sid]) + (1 if current_vin else 0)
             queued_list = list(self.station_buffers[sid])
-            required_dwell = max(1, math.ceil(actual_ct / 60.0))
-            dwell_prog = round(min(1.0, self.station_dwell_ticks[sid] / max(1, required_dwell)), 2) if current_vin else 0.0
+            dwell_prog = round(min(1.0, self.station_dwell_seconds[sid] / max(1.0, actual_ct)), 2) if current_vin else 0.0
+            is_ready = bool(current_vin and not is_stopped and self.station_dwell_seconds[sid] >= actual_ct)
 
             downstreams = s.get("downstream_ids", [])
             is_blocked = bool(
-                current_vin and not is_stopped
-                and self.station_dwell_ticks[sid] >= required_dwell
+                is_ready
                 and downstreams
                 and not any(len(self.station_buffers[d]) < self.stations[d]["buffer_capacity_units"] for d in downstreams)
             )
@@ -521,7 +525,7 @@ class LineSimulator:
             tick_telemetry.append(event)
 
             # Check if current station finished its dwell cycle and is ready to dispatch
-            if current_vin and not is_stopped and self.station_dwell_ticks[sid] >= required_dwell:
+            if is_ready:
                 dispatched_this_tick[sid] = current_vin
 
         # Phase 2: Dispatch completed vehicles downstream (strict Blocking-After-Service protocol)
@@ -559,12 +563,13 @@ class LineSimulator:
                     
                     # Successfully transferred downstream: free cradle
                     self.station_processing[sid] = None
+                    self.station_dwell_seconds[sid] = 0.0
                     self.station_dwell_ticks[sid] = 0
                 else:
                     # BACKPRESSURE / BLOCKED: All downstream buffers are full!
                     # Station remains blocked with the vehicle in the cradle.
-                    # Dwell ticks stay capped so it can immediately transfer once space frees up.
-                    self.station_dwell_ticks[sid] = required_dwell
+                    self.station_dwell_seconds[sid] = max(self.station_dwell_seconds[sid], s["target_cycle_time_s"])
+                    self.station_dwell_ticks[sid] = int(self.station_dwell_seconds[sid] // 60.0)
             else:
                 # Terminal Station (ST40 Buy-Off) Completed!
                 if vin in self.active_vehicles:
@@ -577,12 +582,14 @@ class LineSimulator:
 
                 # Successfully completed and exited line: free cradle
                 self.station_processing[sid] = None
+                self.station_dwell_seconds[sid] = 0.0
                 self.station_dwell_ticks[sid] = 0
 
         # Phase 3: Admit next queued vehicle into empty cradles
         for sid in self.stations.keys():
             if self.station_processing[sid] is None and len(self.station_buffers[sid]) > 0:
                 self.station_processing[sid] = self.station_buffers[sid].popleft()
+                self.station_dwell_seconds[sid] = 0.0
                 self.station_dwell_ticks[sid] = 0
 
         return {
