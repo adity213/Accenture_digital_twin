@@ -1,43 +1,5 @@
 [
   {
-    "worker_id": "W01",
-    "worker_name": "Worker A",
-    "assigned_station_ids": [
-      "ST01",
-      "ST02",
-      "ST03",
-      "ST04",
-      "ST05"
-    ]
-  },
-  {
-    "worker_id": "W02",
-    "worker_name": "Worker B",
-    "assigned_station_ids": [
-      "ST15",
-      "ST16",
-      "ST17",
-      "ST18",
-      "ST19",
-      "ST20",
-      "ST21",
-      "ST22"
-    ]
-  },
-  {
-    "worker_id": "W03",
-    "worker_name": "David Kim (Assembly Marriage)",
-    "assigned_station_ids": [
-      "ST24",
-      "ST25",
-      "ST26",
-      "ST27",
-      "ST28",
-      "ST29",
-      "ST30"
-    ]
-  },
-  {
     "worker_id": "w04",
     "worker_name": "Harshada",
     "assigned_station_ids": [
@@ -66,12 +28,22 @@
     ]
   },
   {
-    "worker_id": "sw",
-    "worker_name": "sda",
+    "worker_id": "wefrw",
+    "worker_name": "fef",
     "assigned_station_ids": [
-      "ST05",
-      "ST12",
+      "ST01",
+      "ST04",
       "ST14"
+    ]
+  },
+  {
+    "worker_id": "12345",
+    "worker_name": "Bihari ADI",
+    "assigned_station_ids": [
+      "ST01",
+      "ST03",
+      "ST08",
+      "ST13"
     ]
   }
 ]

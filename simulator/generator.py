@@ -82,13 +82,16 @@ class LineSimulator:
         self.total_completed_vehicles: int = 0
         self.active_vehicles: Dict[str, Dict[str, Any]] = {}
         self.completed_vehicles: deque = deque(maxlen=50)
+        self.station_dwell_seconds: Dict[str, float] = {}
+        self.ingress_accumulator: float = 0.0
         
         for sid, s in self.stations.items():
             cap = s["buffer_capacity_units"]
-            self.buffers[sid] = max(1, int(cap * 0.5))
+            self.buffers[sid] = 0
             self.station_buffers[sid] = deque(maxlen=cap)
             self.station_processing[sid] = None
             self.station_dwell_ticks[sid] = 0
+            self.station_dwell_seconds[sid] = 0.0
 
         # Latent load state per station (Phase 17)
         self.load_state: Dict[str, float] = {sid: 0.0 for sid in self.stations}
@@ -105,6 +108,25 @@ class LineSimulator:
 
         # Phase 25/P0b: Pre-compute shortest path to sink for routing estimates
         self.shortest_path_to_sink = self._compute_shortest_paths_to_sink()
+
+    def reset_state(self):
+        """Resets the simulator to a pristine empty state with paced takt ingress."""
+        self.current_tick = 0
+        self.vehicle_counter = 1000
+        self.total_completed_vehicles = 0
+        self.active_vehicles.clear()
+        self.completed_vehicles.clear()
+        self.ingress_accumulator = 0.0
+        self.anomaly_mgr.active_anomalies.clear()
+        for sid, s in self.stations.items():
+            cap = s["buffer_capacity_units"]
+            self.buffers[sid] = 0
+            self.station_buffers[sid] = deque(maxlen=cap)
+            self.station_processing[sid] = None
+            self.station_dwell_ticks[sid] = 0
+            self.station_dwell_seconds[sid] = 0.0
+            self.load_state[sid] = 0.0
+            self.wear_state[sid] = 0.0 if sid in NO_DRIFT_CONTROL_STATIONS else self.rng.uniform(0.0, 0.15)
 
     def _compute_shortest_paths_to_sink(self) -> Dict[str, int]:
         adj = {sid: set() for sid in self.stations}
@@ -133,6 +155,55 @@ class LineSimulator:
                     
         return {k: int(v) if v != float('inf') else 1 for k, v in dists.items()}
 
+    def retopologize(self, new_topology: Dict[str, Any]):
+        """
+        Hot-reloads the assembly line DAG topology without destroying in-flight vehicle states,
+        buffer FIFO queues, wear degradation, or simulation tick clocks (Issue 2).
+        """
+        self.topology = new_topology
+        self.stations = new_topology["stations"]
+        self.edges = new_topology["edges"]
+        self.shortest_path_to_sink = self._compute_shortest_paths_to_sink()
+
+        # Synchronize per-station state containers
+        for sid, s in self.stations.items():
+            cap = s.get("buffer_capacity_units", 4)
+            if sid not in self.station_buffers:
+                # Newly added station
+                self.buffers[sid] = 0
+                self.station_buffers[sid] = deque(maxlen=cap)
+                self.station_processing[sid] = None
+                self.station_dwell_ticks[sid] = 0
+                self.station_dwell_seconds[sid] = 0.0
+                self.load_state[sid] = 0.0
+                self.wear_state[sid] = 0.0
+            else:
+                # Existing station: adjust deque capacity while preserving in-flight vehicles
+                existing_items = list(self.station_buffers[sid])
+                self.station_buffers[sid] = deque(existing_items, maxlen=cap)
+                self.buffers[sid] = len(self.station_buffers[sid])
+
+        # Clean up removed stations gracefully (if any)
+        removed_sids = set(self.station_buffers.keys()) - set(self.stations.keys())
+        for r_sid in removed_sids:
+            orphaned = []
+            if self.station_processing.get(r_sid):
+                orphaned.append(self.station_processing[r_sid])
+                self.station_processing[r_sid] = None
+            orphaned.extend(list(self.station_buffers.get(r_sid, [])))
+            self.station_buffers.pop(r_sid, None)
+            self.buffers.pop(r_sid, None)
+            self.station_dwell_ticks.pop(r_sid, None)
+            self.station_dwell_seconds.pop(r_sid, None)
+            self.load_state.pop(r_sid, None)
+            self.wear_state.pop(r_sid, None)
+            
+            first_sid = list(self.stations.keys())[0] if self.stations else None
+            for vin in orphaned:
+                if vin in self.active_vehicles and first_sid:
+                    self.active_vehicles[vin]["current_station"] = first_sid
+                    self.station_buffers[first_sid].append(vin)
+
     def get_simulated_time(self) -> str:
         sim_dt = self.start_time + timedelta(minutes=self.current_tick)
         return sim_dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -152,38 +223,25 @@ class LineSimulator:
         self.andon_ingress_locked = is_andon_active
         self.andon_reason = ", ".join(andon_reasons) if andon_reasons else None
 
-        # 1. Vehicle Ingress at ST01 (Option 1: Andon Hard Ingress Lock on Issue)
+        # 1. Vehicle Ingress at ST01 (Paced Takt Ingress)
         st01_cap = self.stations["ST01"]["buffer_capacity_units"]
         max_line_wip = sum(1 + s["buffer_capacity_units"] for s in self.stations.values())
         
-        # LITTLE'S LAW WIP CAP ARITHMETIC:
-        # Total nominal cycle time along typical 37-station path:
-        # Zone 1 (Body, 12 st): 60+55+58+25+65+62+27+54+52+48+56+45 = 607.0s
-        # Zone 2 (Paint, 8 st): 70+75+80+68+72+74+78+60 = 577.0s
-        # Zone 3 (Assembly, 17 st): 45+65+60+26+70+55+50+62+58+64+52+48+56+60+55+72+65 = 943.0s
-        # Total nominal processing time T_process = 2127.0s (35.45 min = 0.5908 hr)
-        # Expected inter-station conveyor transfer & queueing delay = 370.0s (6.17 min = 0.1028 hr)
-        # Average Total Line Transit Time T_transit = 2497.0s = 41.62 min = 0.6936 hr (~0.70 hr)
-        # Dimensionally Correct WIP Cap = ceil(Target_JPH * T_transit_hr * 1.25 buffer elasticity)
+        # Little's Law WIP Cap Arithmetic
         line_transit_hours = 2497.0 / 3600.0  # 0.6936 hours
         wip_cap = max(10, min(int(math.ceil(self.target_jph * line_transit_hours * 1.25)), max_line_wip))
 
-        # Ingress Spawn Rate Calculation (vehicles to attempt spawning this tick):
-        # 1 tick = 1 simulated minute. Target spawn rate = target_jph / 60.0 vehicles/tick.
+        # Takt-Paced Ingress Release: 1 vehicle at a time at Takt cadence T_takt = 3600 / target_jph
+        takt_time_s = 3600.0 / max(10.0, self.target_jph)
         if not is_andon_active:
-            target_spawns_per_tick = self.target_jph / 60.0
-            base_spawns = int(target_spawns_per_tick)
-            fractional_prob = target_spawns_per_tick - base_spawns
-            spawns_this_tick = base_spawns + (1 if self.rng.random() < fractional_prob else 0)
-        else:
-            spawns_this_tick = 0
-
-        for _ in range(spawns_this_tick):
+            self.ingress_accumulator += 60.0
+            # Paced single-vehicle release at takt cadence, held if ST01 infeed buffer has >= 1 vehicle
             if (
-                not is_andon_active
+                self.ingress_accumulator >= takt_time_s
                 and len(self.active_vehicles) < wip_cap
-                and len(self.station_buffers["ST01"]) < st01_cap
+                and len(self.station_buffers["ST01"]) < 1
             ):
+                self.ingress_accumulator = max(0.0, self.ingress_accumulator - takt_time_s)
                 self.vehicle_counter += 1
                 vin = f"VIN-2026-{self.vehicle_counter:05d}"
                 veh_info = {
@@ -198,6 +256,8 @@ class LineSimulator:
                 }
                 self.active_vehicles[vin] = veh_info
                 self.station_buffers["ST01"].append(vin)
+            elif self.ingress_accumulator > takt_time_s * 2.0:
+                self.ingress_accumulator = takt_time_s * 2.0
 
         # Periodic preventive maintenance service window (Phase 21: simulated 48-hr maintenance window)
         if self.current_tick > 0 and self.current_tick % self.maintenance_interval_ticks == 0:
@@ -341,8 +401,28 @@ class LineSimulator:
                 defect_type = latent_type or "weld_porosity"
 
             current_vin = self.station_processing[sid]
+            prior_dwell = self.station_dwell_seconds[sid]
+            t_remain = 0.0
+            is_ready = False
+
             if current_vin and not is_stopped:
-                self.station_dwell_ticks[sid] += 1
+                time_needed_to_finish = max(0.0, actual_ct - prior_dwell)
+                if 60.0 >= time_needed_to_finish:
+                    # Completed during this 60s tick interval
+                    t_remain = 60.0 - time_needed_to_finish
+                    self.station_dwell_seconds[sid] = actual_ct
+                    self.station_dwell_ticks[sid] = int(actual_ct // 60.0)
+                    is_ready = True
+                    dwell_prog = 1.0
+                else:
+                    # In progress
+                    t_remain = 0.0
+                    self.station_dwell_seconds[sid] += 60.0
+                    self.station_dwell_ticks[sid] = int(self.station_dwell_seconds[sid] // 60.0)
+                    is_ready = False
+                    dwell_prog = round(min(1.0, self.station_dwell_seconds[sid] / max(1.0, actual_ct)), 2)
+            else:
+                dwell_prog = 0.0
 
             # Attach defect to current vehicle genealogy
             if defect_flag and current_vin and current_vin in self.active_vehicles:
@@ -405,13 +485,10 @@ class LineSimulator:
             # Buffer count represents items in buffer queue plus current processing
             self.buffers[sid] = len(self.station_buffers[sid]) + (1 if current_vin else 0)
             queued_list = list(self.station_buffers[sid])
-            required_dwell = max(1, math.ceil(actual_ct / 60.0))
-            dwell_prog = round(min(1.0, self.station_dwell_ticks[sid] / max(1, required_dwell)), 2) if current_vin else 0.0
 
             downstreams = s.get("downstream_ids", [])
             is_blocked = bool(
-                current_vin and not is_stopped
-                and self.station_dwell_ticks[sid] >= required_dwell
+                is_ready
                 and downstreams
                 and not any(len(self.station_buffers[d]) < self.stations[d]["buffer_capacity_units"] for d in downstreams)
             )
@@ -474,11 +551,11 @@ class LineSimulator:
             tick_telemetry.append(event)
 
             # Check if current station finished its dwell cycle and is ready to dispatch
-            if current_vin and not is_stopped and self.station_dwell_ticks[sid] >= required_dwell:
-                dispatched_this_tick[sid] = current_vin
+            if is_ready:
+                dispatched_this_tick[sid] = (current_vin, t_remain)
 
         # Phase 2: Dispatch completed vehicles downstream (strict Blocking-After-Service protocol)
-        for sid, vin in dispatched_this_tick.items():
+        for sid, (vin, t_remain) in dispatched_this_tick.items():
             s = self.stations[sid]
             downstreams = s["downstream_ids"]
             
@@ -490,11 +567,15 @@ class LineSimulator:
                 ]
                 
                 if available_downstreams:
-                    # Pick available downstream with lowest buffer fill ratio / count (load balancing)
-                    target_down = min(
-                        available_downstreams, 
-                        key=lambda d: (len(self.station_buffers[d]) / max(1, self.stations[d]["buffer_capacity_units"]), len(self.station_buffers[d]))
-                    )
+                    # Pick available downstream with lowest total occupancy (buffer queue + active cradle processing)
+                    def _station_occupancy_score(d):
+                        q_len = len(self.station_buffers[d])
+                        in_proc = 1 if self.station_processing.get(d) is not None else 0
+                        total = q_len + in_proc
+                        cap = max(1, self.stations[d]["buffer_capacity_units"])
+                        return (total / cap, total)
+
+                    target_down = min(available_downstreams, key=_station_occupancy_score)
                     self.station_buffers[target_down].append(vin)
                     if vin in self.active_vehicles:
                         self.active_vehicles[vin]["current_station"] = target_down
@@ -506,14 +587,15 @@ class LineSimulator:
                         })
                         updated_genealogy_records.append(dict(self.active_vehicles[vin]))
                     
-                    # Successfully transferred downstream: free cradle
+                    # Successfully transferred downstream: free cradle and carry over remaining work time
                     self.station_processing[sid] = None
+                    self.station_dwell_seconds[sid] = t_remain
                     self.station_dwell_ticks[sid] = 0
                 else:
                     # BACKPRESSURE / BLOCKED: All downstream buffers are full!
                     # Station remains blocked with the vehicle in the cradle.
-                    # Dwell ticks stay capped so it can immediately transfer once space frees up.
-                    self.station_dwell_ticks[sid] = required_dwell
+                    self.station_dwell_seconds[sid] = max(self.station_dwell_seconds[sid], s["target_cycle_time_s"])
+                    self.station_dwell_ticks[sid] = int(self.station_dwell_seconds[sid] // 60.0)
             else:
                 # Terminal Station (ST40 Buy-Off) Completed!
                 if vin in self.active_vehicles:
@@ -524,15 +606,20 @@ class LineSimulator:
                     self.total_completed_vehicles += 1
                     updated_genealogy_records.append(v_rec)
 
-                # Successfully completed and exited line: free cradle
+                # Successfully completed and exited line: free cradle and carry over remaining work time
                 self.station_processing[sid] = None
+                self.station_dwell_seconds[sid] = t_remain
                 self.station_dwell_ticks[sid] = 0
 
         # Phase 3: Admit next queued vehicle into empty cradles
         for sid in self.stations.keys():
-            if self.station_processing[sid] is None and len(self.station_buffers[sid]) > 0:
-                self.station_processing[sid] = self.station_buffers[sid].popleft()
-                self.station_dwell_ticks[sid] = 0
+            if self.station_processing[sid] is None:
+                if len(self.station_buffers[sid]) > 0:
+                    self.station_processing[sid] = self.station_buffers[sid].popleft()
+                    # self.station_dwell_seconds[sid] already has t_remain carried over from this tick
+                else:
+                    self.station_dwell_seconds[sid] = 0.0
+                    self.station_dwell_ticks[sid] = 0
 
         return {
             "tick": self.current_tick,

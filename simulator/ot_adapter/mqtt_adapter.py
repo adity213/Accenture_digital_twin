@@ -52,9 +52,20 @@ class MqttAdapter(SimulatorAdapter):
     def shortest_path_to_sink(self) -> Dict[str, int]:
         return {}
 
+    @property
+    def stations(self) -> Dict[str, Any]:
+        return {}
+
+    @property
+    def anomaly_mgr(self) -> Any:
+        return None
+
     def inject_anomaly(self, anomaly_type: str, station_id: str, duration_ticks: int = 60) -> str:
         logger.error("Cannot inject simulated anomalies into a physical MQTT stream.")
         return "ERROR_PHYSICAL_SYSTEM"
+
+    def retopologize(self, new_topology: Dict[str, Any]):
+        logger.info("MqttAdapter: Received new line topology configuration.")
 
     def clear_anomalies(self):
         pass

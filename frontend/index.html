@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TwinSphere | Plant Control-Room Digital Twin</title>
-  <link rel="stylesheet" href="css/style.css?v=11.0">
+  <link rel="stylesheet" href="css/style.css?v=9.8">
 </head>
 
 <body class="blueprint-grid-bg">
@@ -103,24 +103,7 @@
           </div>
         </div>
 
-        <!-- HMI Simulation Controller -->
-        <div class="sim-ctrl-box">
-          <div class="sim-btn-group">
-            <button id="btn-run" class="hmi-btn active-play" onclick="controlSim('run')">▶ RUN</button>
-            <button id="btn-hold" class="hmi-btn" onclick="controlSim('pause')">⏸ HOLD</button>
-            <button id="btn-step" class="hmi-btn" onclick="controlSim('step')">⏭ STEP</button>
-          </div>
-
-          <div class="speed-selector-strip">
-            <button class="speed-tick selected" onclick="setSpeed(1, this)">1X</button>
-            <button class="speed-tick" onclick="setSpeed(2, this)">2X</button>
-            <button class="speed-tick" onclick="setSpeed(5, this)">5X</button>
-            <button class="speed-tick" onclick="setSpeed(10, this)">10X</button>
-          </div>
-        </div>
-
-        <div style="font-family: var(--font-mono); font-size: 0.8rem; font-weight: 800; color: var(--text-primary);"
-          id="sim-clock">
+        <div style="font-family: var(--font-mono); font-size: 0.8rem; font-weight: 800; color: var(--text-primary);" id="sim-clock">
           SHIFT 1 // TICK 0142
         </div>
       </header>
@@ -159,6 +142,50 @@
 
       <!-- VIEW 1: FLOOR SUPERVISOR LIVING LINE -->
       <div id="view-floor" class="view-panel active">
+        
+        <!-- HAZARD FAULT INJECTION & SIMULATION CONTROL BAR (FLOOR EXCLUSIVE) -->
+        <div class="fault-injection-bar">
+          <div class="hazard-title-wrap">
+            <span class="hazard-stripe-badge">⚡ FAULT INJECTOR</span>
+            <div class="hazard-custom-injector">
+              <span style="font-size: 0.72rem; font-weight: 700; color: #475569; font-family: var(--font-brand);">TARGET:</span>
+              <select id="fault-target-station" class="fault-select" onchange="onFaultStationSelectChange(this.value)">
+                <!-- Populated dynamically ST01 - ST40 -->
+              </select>
+              <span style="font-size: 0.72rem; font-weight: 700; color: #475569; font-family: var(--font-brand);">ANOMALY:</span>
+              <select id="fault-type-select" class="fault-select">
+                <option value="stoppage">⚡ Sudden Stoppage (0 JPH Halt)</option>
+                <option value="drift">📈 Gradual Tool Drift (+15s / 1.5mm/s)</option>
+                <option value="latent_defect">⚠️ Latent Defect (Quality Escape)</option>
+                <option value="sensor_blackout">🔌 Sensor Blackout (Manual Fallback)</option>
+                <option value="energy_waste">🔋 Energy Waste (Idle Power Surge)</option>
+              </select>
+              <button class="fault-btn-primary" onclick="injectCustomFault()" title="Inject selected anomaly into targeted cell">
+                🚨 INJECT FAULT
+              </button>
+              <button class="fault-btn" onclick="clearAllAnomalies()" style="margin-left: 8px; font-weight: 800; color: #0284c7; border-color: #bae6fd;" title="Clear all active anomaly injections across plant">
+                🔄 CLEAR ACTIVE FAULTS
+              </button>
+            </div>
+          </div>
+
+          <!-- Floor-Exclusive Simulation Playback & Speed Controller -->
+          <div class="sim-ctrl-box" style="margin-left: auto;">
+            <div class="sim-btn-group">
+              <button id="btn-run" class="hmi-btn active-play" onclick="controlSim('run')">▶ RUN</button>
+              <button id="btn-hold" class="hmi-btn" onclick="controlSim('pause')">⏸ HOLD</button>
+              <button id="btn-step" class="hmi-btn" onclick="controlSim('step')">⏭ STEP</button>
+            </div>
+            
+            <div class="speed-selector-strip">
+              <button class="speed-tick selected" onclick="setSpeed(1, this)">1X</button>
+              <button class="speed-tick" onclick="setSpeed(2, this)">2X</button>
+              <button class="speed-tick" onclick="setSpeed(5, this)">5X</button>
+              <button class="speed-tick" onclick="setSpeed(10, this)">10X</button>
+            </div>
+          </div>
+        </div>
+
         <div class="workspace-floor">
 
           <!-- 40-STATION LIVING LINE HOUSING -->
@@ -284,6 +311,40 @@
               </div>
             </div>
 
+            <!-- PREDICTIVE MAINTENANCE & SERVICE SCHEDULE CARD -->
+            <div class="maintenance-gauge-box" style="margin: 0 0 4px 0; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: var(--radius-sm); padding: 10px 12px; box-shadow: var(--shadow-sm);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-family: var(--font-brand); font-size: 0.76rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 5px;">
+                  🔧 PREDICTIVE MAINTENANCE
+                </span>
+                <span id="focus-maint-status" style="font-family: var(--font-mono); font-size: 0.68rem; font-weight: 800; color: #15803d; background: #dcfce7; padding: 2px 6px; border-radius: 4px;">
+                  🟢 ON SCHEDULE
+                </span>
+              </div>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.72rem; margin-top: 6px;">
+                <div style="background: #f8fafc; padding: 6px 8px; border-radius: 4px; border: 1px solid var(--border-subtle);">
+                  <div style="color: #64748b; font-size: 0.65rem; font-weight: 700; text-transform: uppercase;">Next Service Date</div>
+                  <div id="focus-maint-date" style="font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 2px;">2026-03-15 08:00</div>
+                </div>
+                <div style="background: #f8fafc; padding: 6px 8px; border-radius: 4px; border: 1px solid var(--border-subtle);">
+                  <div style="color: #64748b; font-size: 0.65rem; font-weight: 700; text-transform: uppercase;">Countdown / Window</div>
+                  <div id="focus-maint-countdown" style="font-weight: 800; color: #0284c7; font-family: var(--font-mono); margin-top: 2px;">11 Days (1,440 Ticks)</div>
+                </div>
+              </div>
+
+              <!-- Tool Wear & Service Progress -->
+              <div style="margin-top: 8px;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: #64748b; font-family: var(--font-mono); margin-bottom: 3px;">
+                  <span>Tool Wear / Degradation:</span>
+                  <span id="focus-maint-wear-val" style="font-weight: 800; color: #0f172a;">12% Degraded</span>
+                </div>
+                <div style="height: 6px; background: #e2e8f0; border-radius: 999px; overflow: hidden;">
+                  <div id="focus-maint-wear-bar" style="width: 12%; height: 100%; background: #10b981; transition: width 0.3s ease;"></div>
+                </div>
+              </div>
+            </div>
+
             <!-- Starvation Countdown Face -->
             <div class="countdown-gauge-box">
               <div class="countdown-timer-title">
@@ -395,6 +456,25 @@
 
       <!-- VIEW 2: LEADERSHIP ANALYTICS -->
       <div id="view-leadership" class="view-panel">
+        
+        <!-- LEADERSHIP EXECUTIVE CONTROLS STRIP -->
+        <div class="view-subbar leadership-subbar">
+          <div class="subbar-left">
+            <span class="subbar-pill-badge" style="background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;">💼 EXECUTIVE VALUATION</span>
+            <span style="font-size: 0.75rem; font-weight: 700; color: #475569;">Financial Model:</span>
+            <div style="display: inline-flex; gap: 4px; margin-left: 4px;">
+              <button id="roi-mode-btn-takt-top" class="hmi-btn active-play" style="height: 24px; font-size: 0.68rem; padding: 2px 8px;" onclick="setRoiMode('takt')">⚡ Takt Economics</button>
+              <button id="roi-mode-btn-gross-top" class="hmi-btn" style="height: 24px; font-size: 0.68rem; padding: 2px 8px;" onclick="setRoiMode('gross')">🏛️ Gross CapEx Baseline</button>
+            </div>
+          </div>
+          <div class="subbar-right">
+            <span class="subbar-stat">Target Takt: <strong>65.5s</strong></span>
+            <span class="subbar-stat">Line Cadence: <strong>55.0 JPH</strong></span>
+            <span class="subbar-stat">Vehicle Gross Margin: <strong>$9,200/u</strong></span>
+            <button class="hmi-btn" style="height: 24px; font-size: 0.68rem; margin-left: 6px;" onclick="loadLeadershipData()">🔄 REFRESH P&L</button>
+          </div>
+        </div>
+
         <div class="leadership-screen" style="display: block;">
 
           <!-- SENIOR LEADERSHIP EXECUTIVE FINANCIALS & UNIT ECONOMICS (PHASE 5) -->
@@ -407,70 +487,53 @@
               and JPH throughput</div>
 
             <!-- Top Executive Metric KPI Cards -->
-            <div
-              style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 14px;">
-              <div
-                style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
-                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Plant
-                  Capital Density</div>
-                <div id="lead-cost-sqft"
-                  style="font-size: 1.15rem; font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 4px;">
-                  $1,800.00 / sq ft</div>
-                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">250,000 sq ft Footprint ($450M Capex)
-                </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 14px;">
+              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 12px;">
+                <div style="font-size: 0.68rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Plant Capital Density</div>
+                <div id="lead-cost-sqft" style="font-size: 1.10rem; font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 3px;">$1,800.00 / sq ft</div>
+                <div style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">250,000 sq ft ($450M Capex)</div>
               </div>
 
-              <div
-                style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
-                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Unit
-                  Conversion Cost</div>
-                <div id="lead-cost-ton"
-                  style="font-size: 1.15rem; font-weight: 800; color: #0284c7; font-family: var(--font-mono); margin-top: 4px;">
-                  $1,727.27 / ton</div>
-                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">$2,850 / vehicle (1.65t Curb Weight)
-                </div>
+              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 12px;">
+                <div style="font-size: 0.68rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Unit Conversion Cost</div>
+                <div id="lead-cost-ton" style="font-size: 1.10rem; font-weight: 800; color: #0284c7; font-family: var(--font-mono); margin-top: 3px;">$1,727.27 / ton</div>
+                <div style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">$2,850 / veh (1.65t Curb)</div>
               </div>
 
-              <div
-                style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
-                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Downtime
-                  Savings</div>
-                <div id="lead-savings-usd"
-                  style="font-size: 1.15rem; font-weight: 800; color: #15803d; font-family: var(--font-mono); margin-top: 4px;">
-                  $0.00 M</div>
-                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">$38,333.33 / min avoided downtime
-                </div>
+              <div style="background: #f8fafc; border: 1px solid #0284c7; border-radius: var(--radius-sm); padding: 10px 12px; background: rgba(2,132,199,0.04);">
+                <div style="font-size: 0.68rem; font-weight: 700; color: #0284c7; text-transform: uppercase;">⚡ Takt Value Shield</div>
+                <div id="lead-tvl-usd" style="font-size: 1.10rem; font-weight: 800; color: #0284c7; font-family: var(--font-mono); margin-top: 3px;">$0.00 M</div>
+                <div id="lead-tvl-sub" style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">0.0 Units Protected ($9.2k Margin)</div>
               </div>
 
-              <div
-                style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
-                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Line
-                  Cadence Target</div>
-                <div id="lead-jph-comp"
-                  style="font-size: 1.15rem; font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 4px;">
-                  55.4 / 55.0 JPH</div>
-                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">100.7% Line vs Plant Target</div>
+              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 12px;">
+                <div style="font-size: 0.68rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Gross Downtime Avoided</div>
+                <div id="lead-savings-usd" style="font-size: 1.10rem; font-weight: 800; color: #15803d; font-family: var(--font-mono); margin-top: 3px;">$0.00 M</div>
+                <div style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">$38,333.33 / min avoided downtime</div>
+              </div>
+
+              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 12px;">
+                <div style="font-size: 0.68rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Takt Cadence Target</div>
+                <div id="lead-jph-comp" style="font-size: 1.10rem; font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 3px;">55.4 / 55.0 JPH</div>
+                <div style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">65.5s Takt // 100.7% Cadence</div>
               </div>
             </div>
-            <!-- Per-Station Capex, ROI & Payback Period Table -->
+
+            <!-- Per-Station Capex, ROI & Payback Period Table with Mode Toggle -->
             <div style="margin-top: 18px;">
-              <div style="font-weight: 800; font-size: 0.82rem; color: #0f172a; margin-bottom: 8px;">
-                📊 Station-Level Capital ROI & Payback Schedule
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="font-weight: 800; font-size: 0.82rem; color: #0f172a;">
+                  📊 Station-Level Capital ROI & Payback Schedule
+                </div>
+                <div style="display: flex; gap: 6px;">
+                  <button id="roi-mode-btn-takt" class="hmi-btn active-play" style="height: 24px; font-size: 0.68rem; padding: 2px 8px;" onclick="setRoiMode('takt')">⚡ Takt Economics</button>
+                  <button id="roi-mode-btn-gross" class="hmi-btn" style="height: 24px; font-size: 0.68rem; padding: 2px 8px;" onclick="setRoiMode('gross')">🏛️ Gross Capex Baseline</button>
+                </div>
               </div>
-              <div
-                style="max-height: 240px; overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
-                <table
-                  style="width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left; font-family: var(--font-mono);">
-                  <thead>
-                    <tr style="background: #f1f5f9; color: #475569; position: sticky; top: 0; z-index: 1;">
-                      <th style="padding: 8px 10px;">Station</th>
-                      <th style="padding: 8px 10px;">Category</th>
-                      <th style="padding: 8px 10px;">Station Capex</th>
-                      <th style="padding: 8px 10px;">Downtime Avoided</th>
-                      <th style="padding: 8px 10px;">Attributed Savings</th>
-                      <th style="padding: 8px 10px;">Payback Period</th>
-                      <th style="padding: 8px 10px;">Plain ROI</th>
-                    </tr>
+              <div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.74rem; text-align: left; font-family: var(--font-mono);">
+                  <thead id="lead-station-roi-thead">
+                    <!-- Populated dynamically based on ROI mode -->
                   </thead>
                   <tbody id="lead-station-roi-tbody">
                     <!-- Populated dynamically -->
@@ -484,6 +547,22 @@
 
       <!-- VIEW X: PLANT MANAGER -->
       <div id="view-plant-manager" class="view-panel">
+        
+        <!-- PLANT OPERATIONS & TRACEABILITY STRIP -->
+        <div class="view-subbar plant-subbar">
+          <div class="subbar-left">
+            <span class="subbar-pill-badge" style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;">🏭 OPERATIONS & TRACEABILITY</span>
+            <span style="font-size: 0.75rem; font-weight: 700; color: #475569;">Lookup VIN:</span>
+            <input id="quick-genealogy-input" placeholder="VIN-2026-01042" style="height: 24px; width: 140px; font-size: 0.74rem; font-family: var(--font-mono); padding: 2px 6px; border: 1px solid var(--border-subtle); border-radius: 4px;">
+            <button class="hmi-btn active-play" style="height: 24px; font-size: 0.68rem;" onclick="document.getElementById('genealogy-input').value = document.getElementById('quick-genealogy-input').value || 'VIN-2026-01042'; traceGenealogy();">🔍 TRACE VEHICLE</button>
+          </div>
+          <div class="subbar-right">
+            <span class="subbar-stat">Target Yield: <strong>&gt;98.5%</strong></span>
+            <span class="subbar-stat">SPC Alert Band: <strong>|z| &gt; 3.0σ</strong></span>
+            <span class="subbar-stat">ISO Vibration Spec: <strong>4.5 mm/s</strong></span>
+          </div>
+        </div>
+
         <div class="leadership-screen">
 
           <!-- PLANT QUICK JUMP SUBNAV -->
@@ -565,6 +644,93 @@
               <div id="genealogy-result" style="margin-top: 8px; font-size: 0.74rem; font-family: var(--font-mono);">
                 40/40 Stations Verified • 0 Quality Buy-off Defects
               </div>
+
+              <!-- SCOPE-2 PRODUCT CARBON PASSPORT (PER-VIN) -->
+              <div id="vin-carbon-passport-container" style="margin-top: 12px; padding: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; font-family: var(--font-mono); font-size: 0.72rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 800; color: #166534; margin-bottom: 6px;">
+                  <span>🌱 DIGITAL PRODUCT CARBON PASSPORT</span>
+                  <span style="background: #dcfce7; color: #15803d; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem;">EU 2026/27 COMPLIANT</span>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; color: #1e293b;">
+                  <div>Total Energy: <strong id="passport-kwh" style="color: #0f172a;">96.4 kWh</strong></div>
+                  <div>Carbon: <strong id="passport-carbon" style="color: #15803d;">37.1 kg CO₂e</strong></div>
+                  <div>Paint Ovens: <strong id="passport-paint" style="color: #0284c7;">20.0 kg</strong></div>
+                  <div>Body/Assy: <strong id="passport-other" style="color: #475569;">17.1 kg</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ESG REAL-TIME CARBON FOOTPRINT & ENERGY TARIFF OPTIMIZER (PHASE 8) -->
+          <div class="scada-lead-panel" style="grid-column: span 2; background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);">
+            <div class="lead-panel-title" style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="display: flex; align-items: center; gap: 8px;">
+                <span>🌿 REAL-TIME CARBON FOOTPRINT & ENERGY TARIFF OPTIMIZER (ESG)</span>
+                <span class="subbar-pill-badge" style="background: #dcfce7; color: #15803d; border: 1px solid #86efac;">SCOPE 1 & 2 AUTOMATED</span>
+              </span>
+              <span id="esg-tariff-badge" style="font-family: var(--font-mono); font-size: 0.74rem; font-weight: 800; padding: 3px 8px; border-radius: 4px; background: #dcfce7; color: #15803d;">
+                🟢 OFF-PEAK GREEN ($0.085/kWh)
+              </span>
+            </div>
+            <div class="lead-panel-sub">Regional grid marginal carbon intensity tracking, per-VIN carbon accounting, and automated peak thermal load shifting</div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 16px;">
+              
+              <!-- Card 1: Grid Tariff & Dynamic Power -->
+              <div style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; font-family: var(--font-brand); text-transform: uppercase;">Grid Tariff & Power Draw</div>
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px;">
+                  <span id="esg-plant-power" style="font-size: 1.25rem; font-weight: 900; color: #0f172a; font-family: var(--font-mono);">842.5 kW</span>
+                  <span id="esg-cost-rate" style="font-size: 0.78rem; font-weight: 800; color: #0284c7; font-family: var(--font-mono);">$71.61 / hr</span>
+                </div>
+                <div style="margin-top: 6px; font-size: 0.70rem; color: #475569; font-family: var(--font-mono);">
+                  Grid Intensity: <strong id="esg-grid-intensity">185 g CO₂e/kWh</strong>
+                </div>
+              </div>
+
+              <!-- Card 2: Per-VIN Product Carbon Footprint -->
+              <div style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; font-family: var(--font-brand); text-transform: uppercase;">Measured Carbon per Vehicle</div>
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px;">
+                  <span id="esg-avg-vin-carbon" style="font-size: 1.25rem; font-weight: 900; color: #15803d; font-family: var(--font-mono);">41.2 kg</span>
+                  <span id="esg-carbon-delta" style="font-size: 0.74rem; font-weight: 800; color: #15803d; font-family: var(--font-mono); background: #dcfce7; padding: 2px 6px; border-radius: 4px;">-15.1% vs OEM Base</span>
+                </div>
+                <div style="margin-top: 6px; font-size: 0.70rem; color: #475569; font-family: var(--font-mono);">
+                  OEM Benchmark: <strong>48.5 kg CO₂e / BIW</strong>
+                </div>
+              </div>
+
+              <!-- Card 3: Hourly Plant Emissions Rate -->
+              <div style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; font-family: var(--font-brand); text-transform: uppercase;">Real-Time Emission Rate</div>
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px;">
+                  <span id="esg-carbon-rate" style="font-size: 1.25rem; font-weight: 900; color: #0f172a; font-family: var(--font-mono);">155.8 kg/hr</span>
+                  <span style="font-size: 0.74rem; font-weight: 800; color: #64748b; font-family: var(--font-mono);">Scope 1 & 2</span>
+                </div>
+                <div style="margin-top: 6px; font-size: 0.70rem; color: #475569; font-family: var(--font-mono);">
+                  Cumulative Shift: <strong id="esg-shift-co2">482.8 kg CO₂e</strong>
+                </div>
+              </div>
+
+              <!-- Card 4: Peak-Tariff Load Shifter AI -->
+              <div style="background: #ffffff; border: 1px solid #bae6fd; border-radius: var(--radius-sm); padding: 12px; box-shadow: 0 1px 3px rgba(2, 132, 199, 0.08); display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 0.72rem; font-weight: 800; color: #0369a1; font-family: var(--font-brand); text-transform: uppercase;">Peak Load Shifter AI</span>
+                    <span id="load-shift-status-pill" style="font-size: 0.65rem; font-weight: 800; padding: 2px 6px; border-radius: 4px; background: #e0f2fe; color: #0369a1;">STANDBY</span>
+                  </div>
+                  <div style="margin-top: 4px; font-size: 0.70rem; color: #334155; line-height: 1.3;">
+                    Flexible Thermal Load: <strong id="esg-flex-load">165.0 kW</strong> (ST15, ST16, ST17, ST39)
+                  </div>
+                  <div style="margin-top: 2px; font-size: 0.70rem; color: #15803d; font-family: var(--font-mono); font-weight: 700;">
+                    Projected Value: <strong id="esg-savings-projected">$184,500/yr</strong> (<span id="esg-co2-abatement">248.5 T</span> CO₂ Abatement)
+                  </div>
+                </div>
+                <button id="btn-toggle-load-shift" class="fault-btn-primary" style="margin-top: 8px; width: 100%; font-size: 0.72rem; padding: 4px 8px;" onclick="toggleEsgLoadShift()">
+                  ⚡ ENGAGE PEAK LOAD SHIFT
+                </button>
+              </div>
+
             </div>
           </div>
 
@@ -654,6 +820,21 @@
 
       <!-- VIEW 3: WEEKLY TRENDS & LINE BALANCING -->
       <div id="view-weekly" class="view-panel">
+        
+        <!-- 7-DAY ANALYTICS & WHAT-IF STRIP -->
+        <div class="view-subbar weekly-subbar">
+          <div class="subbar-left">
+            <span class="subbar-pill-badge" style="background: #fef3c7; color: #92400e; border: 1px solid #fde68a;">📈 7-DAY ANALYTICS & WHAT-IF</span>
+            <span style="font-size: 0.75rem; font-weight: 700; color: #475569;">Line Balancing Target:</span>
+            <span id="quick-whatif-jph-badge" style="font-family: var(--font-mono); font-size: 0.75rem; font-weight: 800; color: #0284c7; background: #e0f2fe; padding: 2px 6px; border-radius: 4px;">55 JPH (65.5s Takt)</span>
+          </div>
+          <div class="subbar-right">
+            <span class="subbar-stat">Historical Window: <strong>10,080 Ticks</strong></span>
+            <span class="subbar-stat">Thermal Threshold: <strong>&lt; 55°C</strong></span>
+            <span class="subbar-stat">Zone Balance: <strong>Body 91% • Paint 89% • Assy 94%</strong></span>
+          </div>
+        </div>
+
         <div class="leadership-screen">
           <div class="scada-lead-panel">
             <div class="lead-panel-title">7-Day Zone OEE Trajectory</div>
@@ -781,29 +962,23 @@
 
       <!-- VIEW 4: TOPOLOGY EDITOR -->
       <div id="view-topology" class="view-panel">
-        <div class="schematic-toolbar">
-          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-            <span style="font-weight: 800; color: #0f172a; font-family: var(--font-brand); font-size: 0.85rem;">
-              PLANT MANAGER // DYNAMIC DAG TOPOLOGY EDITOR
-            </span>
+        
+        <!-- SINGLE UNIFIED TOPOLOGY ACTION BAR -->
+        <div class="view-subbar topology-subbar" style="background: #ffffff; padding: 0 16px;">
+          <div class="subbar-left" style="gap: 8px;">
+            <span class="subbar-pill-badge" style="background: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff;">📐 DAG DESIGNER</span>
             <span class="plant-tag" id="editor-station-count">40 STATIONS // 42 FLOW EDGES</span>
+            <span style="font-size: 0.70rem; color: #15803d; font-weight: 700; background: #dcfce7; padding: 2px 6px; border-radius: 4px; white-space: nowrap;">⚡ Hot-Reload Active</span>
             <span id="editor-mode-indicator" class="editor-status-pill" style="display: none;"></span>
           </div>
-          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            <button id="btn-undo" class="hmi-btn" onclick="undo()" title="Undo last layout action (Ctrl+Z)" disabled>↩
-              UNDO</button>
-            <button id="btn-redo" class="hmi-btn" onclick="redo()" title="Redo last layout action (Ctrl+Y)" disabled>↪
-              REDO</button>
-            <button class="hmi-btn" onclick="showAddStationModal()" title="Add a new custom machine or QC cell">+ ADD
-              STATION</button>
-            <button class="hmi-btn" onclick="autoArrangeLayout()" title="Auto-align stations in clean zone lanes">📐
-              AUTO-ARRANGE</button>
-            <button class="hmi-btn" onclick="showConnectionsModal()" title="View and manage conveyor connections">🔗
-              CONNECTIONS</button>
-            <button class="hmi-btn" onclick="resetEditorToDefault()" title="Reset to standard 40-station topology">RESET
-              DEFAULT</button>
-            <button class="hmi-btn active-play" onclick="applyTopology()"
-              title="Apply layout to physics simulation & reboot twin">⚡ APPLY LAYOUT (REBOOT TWIN)</button>
+          <div class="subbar-right" style="gap: 6px;">
+            <button id="btn-undo" class="hmi-btn" style="height: 26px; font-size: 0.68rem; padding: 0 8px;" onclick="undo()" title="Undo last layout action (Ctrl+Z)" disabled>↩ UNDO</button>
+            <button id="btn-redo" class="hmi-btn" style="height: 26px; font-size: 0.68rem; padding: 0 8px;" onclick="redo()" title="Redo last layout action (Ctrl+Y)" disabled>↪ REDO</button>
+            <button class="hmi-btn" style="height: 26px; font-size: 0.68rem; padding: 0 8px;" onclick="showAddStationModal()" title="Add a new custom machine or QC cell">+ ADD STATION</button>
+            <button class="hmi-btn" style="height: 26px; font-size: 0.68rem; padding: 0 8px;" onclick="autoArrangeLayout()" title="Auto-align stations in clean zone lanes">📐 AUTO-ARRANGE</button>
+            <button class="hmi-btn" style="height: 26px; font-size: 0.68rem; padding: 0 8px;" onclick="showConnectionsModal()" title="View and manage conveyor connections">🔗 CONNECTIONS</button>
+            <button class="fault-btn" style="height: 26px; font-size: 0.68rem; padding: 0 8px;" onclick="resetEditorToDefault()" title="Reset to standard 40-station topology">🔄 RESET DEFAULT</button>
+            <button class="hmi-btn active-play" style="height: 26px; font-size: 0.68rem; padding: 0 10px;" onclick="applyTopology()" title="Apply layout to live physics simulation">⚡ APPLY LAYOUT</button>
           </div>
         </div>
 
@@ -922,6 +1097,23 @@
           </div>
         </div>
 
+        <!-- Preventive Maintenance Section (Calendar Picker) -->
+        <div style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 6px; padding: 10px 12px; margin-top: 4px; margin-bottom: 8px;">
+          <div style="font-weight: 800; font-size: 0.76rem; color: #166534; margin-bottom: 6px; display: flex; align-items: center; gap: 5px;">
+            <span>🔧 PREVENTIVE MAINTENANCE SCHEDULING</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 8px;">
+            <div class="modal-form-group" style="margin-bottom: 0;">
+              <label style="color: #166534; font-size: 0.70rem; font-weight: 700;">Scheduled Service Date (Calendar)</label>
+              <input type="datetime-local" id="new-maint-date" class="modal-form-input" style="background: #ffffff; border-color: #86efac; color: #0f172a; font-family: var(--font-mono); font-size: 0.72rem; font-weight: 700;">
+            </div>
+            <div class="modal-form-group" style="margin-bottom: 0;">
+              <label style="color: #166534; font-size: 0.70rem; font-weight: 700;">Interval (Hours)</label>
+              <input type="number" id="new-maint-interval" class="modal-form-input" value="168" min="24" max="720" step="24" style="background: #ffffff; border-color: #86efac; font-family: var(--font-mono); font-size: 0.72rem; font-weight: 700;">
+            </div>
+          </div>
+        </div>
+
         <div class="modal-btn-row">
           <button class="fault-btn" onclick="closeAddStationModal()">Cancel</button>
           <button class="hmi-btn active-play" onclick="submitAddStation()">+ Add Station to DAG</button>
@@ -1023,6 +1215,23 @@
           </div>
         </div>
 
+        <!-- PREVENTIVE MAINTENANCE SCHEDULE SECTION (CALENDAR PICKER) -->
+        <div style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 8px; padding: 12px 14px; margin-top: 12px;">
+          <div style="font-weight: 800; font-size: 0.78rem; color: #166534; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <span>🔧 PREDICTIVE & PREVENTIVE MAINTENANCE SCHEDULING</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 10px;">
+            <div class="modal-form-group" style="margin-bottom: 0;">
+              <label style="color: #166534; font-weight: 700; font-size: 0.72rem;">Next Scheduled Service (Calendar Date & Time)</label>
+              <input type="datetime-local" id="edit-maint-date" class="modal-form-input" style="background: #ffffff; border-color: #86efac; color: #0f172a; font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700;">
+            </div>
+            <div class="modal-form-group" style="margin-bottom: 0;">
+              <label style="color: #166534; font-weight: 700; font-size: 0.72rem;">Service Interval (Shift Hours)</label>
+              <input type="number" id="edit-maint-interval" class="modal-form-input" value="168" min="24" max="720" step="24" placeholder="168 hrs (Weekly)" style="background: #ffffff; border-color: #86efac; font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700;">
+            </div>
+          </div>
+        </div>
+
         <div class="modal-btn-row" style="margin-top: 16px;">
           <button class="fault-btn" onclick="closeEditStationModal()">Cancel</button>
           <button class="hmi-btn active-play" onclick="saveEditStation()">💾 Save Changes</button>
@@ -1055,9 +1264,9 @@
 
   </div>
 
-  <script src="js/twin_scene.js?v=10.0"></script>
-  <script src="js/topology_editor.js?v=10.0"></script>
-  <script src="js/app.js?v=10.0"></script>
+  <script src="js/twin_scene.js?v=9.8"></script>
+  <script src="js/topology_editor.js?v=9.8"></script>
+  <script src="js/app.js?v=9.8"></script>
 </body>
 
 </html>

@@ -304,13 +304,16 @@ class RiskScoringModel:
         self,
         features: List[float],
         divergence_threshold: float = 0.45,
-        min_sensor_confidence: float = 0.65
+        min_sensor_confidence: float = 0.65,
+        is_ood: bool = False,
+        ood_reason: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Shadow Mode Router for Risk Model (Phase 25):
-        Evaluates both deterministic baseline and ML model.
-        Monitors prediction divergence and sensor confidence.
-        Routes to ML serving or fails safe to deterministic baseline if divergence/blackout detected.
+        Shadow Mode Router for Risk Model (Phase 25 & Issue 4):
+        Evaluates deterministic baseline, ML model, divergence, sensor confidence,
+        and topology Out-Of-Distribution (OOD) status.
+        Routes to ML serving or fails safe to conservative baseline if divergence, blackout,
+        or topological structural OOD drift is detected.
         """
         base_bn, base_def, base_comp = self.compute_baseline_risk(features)
         sensor_conf = features[6] if len(features) > 6 else 1.0
@@ -324,7 +327,9 @@ class RiskScoringModel:
                 "serving_mode": "baseline_heuristic",
                 "divergence_score": 0.0,
                 "router_fallback_active": False,
-                "sensor_confidence": sensor_conf
+                "sensor_confidence": sensor_conf,
+                "is_ood": is_ood,
+                "ood_reason": ood_reason
             }
             
         X_infer = np.asarray([features], dtype=np.float32)
@@ -333,13 +338,16 @@ class RiskScoringModel:
         ml_comp = max(ml_bn, ml_def)
         
         divergence = abs(ml_comp - base_comp)
-        fallback_triggered = (sensor_conf < min_sensor_confidence) or (divergence > divergence_threshold)
+        fallback_triggered = is_ood or (sensor_conf < min_sensor_confidence) or (divergence > divergence_threshold)
         
         if fallback_triggered:
             final_bn = round(max(ml_bn, base_bn), 3)
             final_def = round(max(ml_def, base_def), 3)
             final_comp = round(max(final_bn, final_def), 3)
-            serving_mode = "shadow_fallback_conservative"
+            if is_ood:
+                serving_mode = "shadow_fallback_ood_conservative"
+            else:
+                serving_mode = "shadow_fallback_conservative"
         else:
             final_bn, final_def, final_comp = round(ml_bn, 3), round(ml_def, 3), round(ml_comp, 3)
             serving_mode = "ml_model"
@@ -362,7 +370,9 @@ class RiskScoringModel:
             "ml_defect_risk": round(ml_def, 3),
             "base_bottleneck_risk": base_bn,
             "base_defect_risk": base_def,
-            "sensor_confidence": sensor_conf
+            "sensor_confidence": sensor_conf,
+            "is_ood": is_ood,
+            "ood_reason": ood_reason
         }
 
     def predict_risk(self, features: List[float]) -> Tuple[float, float, str]:
@@ -371,80 +381,117 @@ class RiskScoringModel:
 
     def get_feature_contributions(self, station_id: str, features: List[float]) -> List[Dict[str, Any]]:
         """
-        Calculates top risk driver attributions relative to calibrated nominal baselines.
-        Returns top-3 driving features, observed values, nominal baselines, delta risk impact,
-        and operator explanation text.
+        Calculates standardized statistical Z-score risk driver attributions relative to calibrated baselines.
+        Uses unit-invariant sigma scaling (Z = |Observed - Mean| / Std) and feature importance weighting
+        to eliminate raw magnitude distortion (e.g. kW vs mm/s).
         """
-        baselines = {
-            "processing_time_ratio": 1.0,
-            "buffer_utilization": 0.5,
-            "degradation_momentum": 0.0,
-            "spc_z_score": 0.0,
-            "avg_upstream_starvation_risk": 0.05,
-            "max_upstream_starvation_risk": 0.05,
-            "sensor_confidence": 1.0,
-            "shift_tick_sin": 0.0,
-            "shift_tick_cos": 1.0,
-            "is_manual_sensor": 0.0,
-            "zone_code": 0.0,
-            "station_type_code": 0.0,
-            "rolling_mean_ct_ratio": 1.0,
-            "rolling_std_ct_ratio": 0.0,
-            "buffer_utilization_delta": 0.0,
-            "ticks_since_spc_flag": 50.0,
-            "machine_shaking_vibration": 0.8,
-            "motor_heat_temperature": 24.0,
-            "active_power_draw_kw": 20.0,
+        # Calibrated nominal baselines (mean, std_dev, weight, unit, label)
+        feature_specs = {
+            "processing_time_ratio": {
+                "mean": 1.0, "std": 0.08, "weight": 2.2, "unit": "x",
+                "label": "Cycle Time Takt Drift",
+                "expl": lambda v, z: f"Cycle time running {int((v-1.0)*100)}% slower than nominal target ({z:.1f}σ deviation)."
+            },
+            "rolling_mean_ct_ratio": {
+                "mean": 1.0, "std": 0.06, "weight": 2.0, "unit": "x",
+                "label": "Rolling Cycle Time Elevation",
+                "expl": lambda v, z: f"Rolling average job duration sustained at {int((v-1.0)*100)}% above baseline."
+            },
+            "machine_shaking_vibration": {
+                "mean": 0.80, "std": 0.35, "weight": 2.5, "unit": "mm/s",
+                "label": "Mechanical ISO Vibration",
+                "expl": lambda v, z: f"ISO 10816 mechanical vibration elevated ({v:.2f} mm/s vs 0.80 mm/s nominal - {z:.1f}σ spike)."
+            },
+            "motor_heat_temperature": {
+                "mean": 24.0, "std": 6.0, "weight": 1.8, "unit": "°C",
+                "label": "Thermal Motor Heat",
+                "expl": lambda v, z: f"Motor core temperature elevated ({v:.1f}°C vs 24.0°C ambient baseline)."
+            },
+            "active_power_draw_kw": {
+                "mean": 25.0, "std": 7.5, "weight": 1.8, "unit": "kW",
+                "label": "Active Power Draw",
+                "expl": lambda v, z: f"Spindle electrical draw surged ({v:.1f} kW vs 25.0 kW nominal load - {z:.1f}σ)."
+            },
+            "spc_z_score": {
+                "mean": 0.0, "std": 1.0, "weight": 2.0, "unit": "σ",
+                "label": "Statistical Process Drift (SPC)",
+                "expl": lambda v, z: f"Statistical Process Control EWMA drift detected (|z|={v:.2f} > 2.0σ control bound)."
+            },
+            "degradation_momentum": {
+                "mean": 0.0, "std": 0.04, "weight": 1.9, "unit": "rate",
+                "label": "Tool Wear Degradation Momentum",
+                "expl": lambda v, z: "Accelerated sequential cycle time degradation detected across active batch."
+            },
+            "buffer_utilization": {
+                "mean": 0.50, "std": 0.18, "weight": 1.6, "unit": "%",
+                "label": "Buffer Queue Starvation/Blockage",
+                "expl": lambda v, z: f"Buffer queue critical ({int(v*100)}% capacity utilization - {z:.1f}σ offset)."
+            },
+            "max_upstream_starvation_risk": {
+                "mean": 0.05, "std": 0.15, "weight": 1.7, "unit": "prob",
+                "label": "Upstream Starvation Ripple",
+                "expl": lambda v, z: f"Upstream feeder line blockage propagating {int(v*100)}% starvation ripple risk."
+            },
+            "sensor_confidence": {
+                "mean": 1.0, "std": 0.15, "weight": 1.5, "unit": "%",
+                "label": "Sensor Signal Quality Degradation",
+                "expl": lambda v, z: f"Sensor fidelity degraded ({int(v*100)}% telemetry confidence - fallback active)."
+            },
+            "buffer_utilization_delta": {
+                "mean": 0.0, "std": 0.10, "weight": 1.4, "unit": "Δ/tick",
+                "label": "Buffer Queue Inflow/Outflow Disparity",
+                "expl": lambda v, z: "Buffer inventory delta rate diverging from line flow equilibrium."
+            }
         }
 
         contributions = []
         for i, name in enumerate(FEATURE_NAMES):
-            val = features[i]
-            base = baselines.get(name, 0.0)
-            
-            weight = 1.0
-            if name in ["processing_time_ratio", "rolling_mean_ct_ratio"]:
-                weight = 1.8
-            elif name in ["spc_z_score", "degradation_momentum"]:
-                weight = 1.4
-            elif name in ["buffer_utilization_delta", "max_upstream_starvation_risk"]:
-                weight = 1.2
-            elif name in ["machine_shaking_vibration", "motor_heat_temperature"]:
-                weight = 1.1
+            if name not in feature_specs:
+                continue  # Skip non-actionable contextual encoding features (e.g. station_type_code, shift_tick_cos)
 
-            diff = val - base
-            if name == "ticks_since_spc_flag":
-                diff = max(0.0, 50.0 - val) / 10.0
-            elif name == "sensor_confidence":
-                diff = max(0.0, 1.0 - val)
+            spec = feature_specs[name]
+            val = float(features[i])
+            mean_val = spec["mean"]
+            std_val = spec["std"]
+            weight = spec["weight"]
 
-            impact_score = abs(diff) * weight
-            
-            expl = ""
-            if name in ["processing_time_ratio", "rolling_mean_ct_ratio"] and val > 1.1:
-                expl = f"Station cycle time running {int((val-1.0)*100)}% slower than nominal target."
-            elif name == "spc_z_score" and abs(val) > 2.0:
-                expl = f"Statistical Process Control EWMA drift detected (|z|={val:.2f} > 2.0 sigma)."
-            elif name == "degradation_momentum" and val > 0:
-                expl = "Consecutive upward cycle time drift detected across recent operations."
-            elif name == "machine_shaking_vibration" and val > 2.5:
-                expl = f"ISO 10816 vibration elevated ({val:.2f} mm/s vs 0.8 mm/s baseline)."
-            elif name == "max_upstream_starvation_risk" and val > 0.4:
-                expl = f"Upstream feeder line blockage propagating starvation risk ({int(val*100)}%)."
-            elif name == "buffer_utilization" and val < 0.2:
-                expl = f"Buffer starving at {int(val*100)}% capacity."
-            elif name == "buffer_utilization" and val > 0.85:
-                expl = f"Buffer bottlenecking / overflowing at {int(val*100)}% capacity."
+            # Compute standardized Z-score deviation
+            if name in ["sensor_confidence"]:
+                z_score = max(0.0, (mean_val - val) / std_val)
+            elif name in ["processing_time_ratio", "rolling_mean_ct_ratio", "machine_shaking_vibration", "motor_heat_temperature", "active_power_draw_kw", "degradation_momentum", "max_upstream_starvation_risk"]:
+                z_score = max(0.0, (val - mean_val) / std_val)
             else:
-                expl = "Metric deviates from baseline."
+                z_score = abs(val - mean_val) / std_val
+
+            # Minimum statistical significance threshold (0.4 sigma)
+            if z_score < 0.35:
+                continue
+
+            impact_score = z_score * weight
+            expl_text = spec["expl"](val, z_score)
 
             contributions.append({
-                "feature": name,
-                "value": val,
-                "baseline": base,
+                "feature": spec["label"],
+                "raw_feature_name": name,
+                "value": round(val, 2),
+                "baseline": round(mean_val, 2),
+                "unit": spec["unit"],
+                "z_score": round(z_score, 2),
                 "impact_score": round(impact_score, 3),
-                "impact_label": f"+{round(impact_score * 0.15, 2)} risk",
-                "explanation": expl
+                "explanation": expl_text
+            })
+
+        # Fallback if all metrics are in deep nominal state
+        if not contributions:
+            contributions.append({
+                "feature": "Nominal Baseline Variance",
+                "raw_feature_name": "nominal",
+                "value": 1.0,
+                "baseline": 1.0,
+                "unit": "norm",
+                "z_score": 0.0,
+                "impact_score": 1.0,
+                "explanation": "All telemetry sensors operating within calibrated 3-sigma statistical process bounds."
             })
 
         contributions.sort(key=lambda c: -c["impact_score"])

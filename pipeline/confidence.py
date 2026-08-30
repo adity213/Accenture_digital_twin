@@ -58,15 +58,31 @@ class ConfidenceEngine:
         model_risk_prob: float,
         spc_deviation_flag: bool,
         zone: str = "Body",
-        is_defect_driven: bool = False
+        is_defect_driven: bool = False,
+        iso_vibration_alarm: bool = False
     ) -> int:
-        model_certainty = 1.0 - 2.0 * abs(model_risk_prob - 0.5)
-        model_confidence = 0.6 + 0.4 * (1.0 - model_certainty)
-        
+        """
+        Computes composite Twin Confidence (0-100%) incorporating:
+        1. Sensor data fidelity (data_confidence)
+        2. ML classification margin certainty (|P - 0.5| * 2)
+        3. Statistical Process Control (SPC) stability
+        4. ISO 10816 mechanical vibration health
+        """
+        # Margin of separation certainty: max certainty at P=0.0 (safe) or P=1.0 (definite fault)
+        # Lowest certainty at P=0.50 (ambiguous classification threshold)
+        margin_certainty = 2.0 * abs(float(model_risk_prob) - 0.5)
+        model_certainty_score = 0.70 + 0.30 * margin_certainty
+
         if zone == "Assembly" and is_defect_driven:
-            model_confidence = max(0.1, model_confidence * 0.6)
-            
-        composite = 0.70 * data_confidence + 0.30 * model_confidence
+            model_certainty_score = max(0.40, model_certainty_score * 0.85)
+
+        # Baseline composite weighting: 65% Sensor Data Fidelity + 35% Model Margin Certainty
+        composite = 0.65 * float(data_confidence) + 0.35 * model_certainty_score
+
+        # Physical Process Stability Penalties
         if spc_deviation_flag:
-            composite = max(0.15, composite * 0.9)
-        return int(round(composite * 100))
+            composite *= 0.88  # 12% penalty for statistical EWMA process drift
+        if iso_vibration_alarm:
+            composite *= 0.82  # 18% penalty for ISO 10816 mechanical boundary violation
+
+        return int(round(min(1.0, max(0.10, composite)) * 100))
