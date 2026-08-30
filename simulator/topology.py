@@ -19,11 +19,21 @@ def build_line_topology(seed: int = RANDOM_SEED) -> Dict[str, Any]:
         {"id": "ST02", "name": "Floor Pan Robotic Weld", "zone": "Body", "type": "RoboticWeld", "target_cycle_time": 55.0, "power_base_kw": 32.0},
         {"id": "ST03", "name": "Side Panel Outer - LH", "zone": "Body", "type": "RoboticWeld", "target_cycle_time": 58.0, "power_base_kw": 28.0},
         {"id": "ST04", "name": "Side Panel Outer - RH", "zone": "Body", "type": "RoboticWeld", "target_cycle_time": 58.0, "power_base_kw": 28.0},
-        {"id": "ST05", "name": "Roof Assembly & Laser Brazing", "zone": "Body", "type": "LaserBrazing", "target_cycle_time": 52.0, "power_base_kw": 35.0},
+        # MERGE POINT AUDIT: ST05 fed by parallel ST03 (58.0s) and ST04 (58.0s).
+        # Combined arrival rate = 1/58.0 + 1/58.0 = 2/58.0 = 1/29.0s (~0.034483 veh/s).
+        # Target cycle time tuned to 25.0s (drain rate = 1/25.0s = 0.040000 veh/s).
+        # Overload ratio = (1/29.0) / (1/25.0) = 25.0 / 29.0 = 0.8621 (~13.8% safety headroom).
+        # Buffer capacity set to 14 units to absorb burst arrivals during anomaly recovery.
+        {"id": "ST05", "name": "Roof Assembly & Laser Brazing", "zone": "Body", "type": "LaserBrazing", "target_cycle_time": 25.0, "power_base_kw": 35.0, "buffer_capacity": 14},
         {"id": "ST06", "name": "Framing Main Station", "zone": "Body", "type": "MainFraming", "target_cycle_time": 65.0, "power_base_kw": 40.0},
         {"id": "ST07", "name": "Respot Welding Line A", "zone": "Body", "type": "RespotWeld", "target_cycle_time": 62.0, "power_base_kw": 30.0},
         {"id": "ST08", "name": "Respot Welding Line B", "zone": "Body", "type": "RespotWeld", "target_cycle_time": 62.0, "power_base_kw": 30.0},
-        {"id": "ST09", "name": "Structural Sealer & Adhesive", "zone": "Body", "type": "Dispensing", "target_cycle_time": 50.0, "power_base_kw": 12.0},
+        # MERGE POINT AUDIT: ST09 fed by parallel ST07 (62.0s) and ST08 (62.0s).
+        # Combined arrival rate = 1/62.0 + 1/62.0 = 2/62.0 = 1/31.0s (~0.032258 veh/s).
+        # Target cycle time tuned to 27.0s (drain rate = 1/27.0s = 0.037037 veh/s).
+        # Overload ratio = (1/31.0) / (1/27.0) = 27.0 / 31.0 = 0.8710 (~12.9% safety headroom).
+        # Buffer capacity set to 14 units to absorb burst arrivals during anomaly recovery.
+        {"id": "ST09", "name": "Structural Sealer & Adhesive", "zone": "Body", "type": "Dispensing", "target_cycle_time": 27.0, "power_base_kw": 12.0, "buffer_capacity": 14},
         {"id": "ST10", "name": "Door Hanging & Alignment", "zone": "Body", "type": "Fitting", "target_cycle_time": 54.0, "power_base_kw": 15.0},
         {"id": "ST11", "name": "Hood & Tailgate Mounting", "zone": "Body", "type": "Fitting", "target_cycle_time": 52.0, "power_base_kw": 14.0},
         {"id": "ST12", "name": "Body Geometry CMM Scan", "zone": "Body", "type": "QualityScan", "target_cycle_time": 48.0, "power_base_kw": 22.0},
@@ -45,7 +55,12 @@ def build_line_topology(seed: int = RANDOM_SEED) -> Dict[str, Any]:
         {"id": "ST24", "name": "Wire Harness Routing", "zone": "Assembly", "type": "ManualWiring", "target_cycle_time": 65.0, "power_base_kw": 7.5},
         {"id": "ST25", "name": "Cockpit / IP Module Marriage", "zone": "Assembly", "type": "ModuleMarriage", "target_cycle_time": 62.0, "power_base_kw": 22.0},
         {"id": "ST26", "name": "Front Suspension Assembly", "zone": "Assembly", "type": "MechanicalTorque", "target_cycle_time": 58.0, "power_base_kw": 20.0},
-        {"id": "ST27", "name": "Rear Axle & Brake Lines", "zone": "Assembly", "type": "MechanicalTorque", "target_cycle_time": 60.0, "power_base_kw": 21.0},
+        # MERGE POINT AUDIT: ST27 fed by parallel ST25 (62.0s) and ST26 (58.0s).
+        # Combined arrival rate = 1/62.0 + 1/58.0 = 120.0 / 3596.0 = 1/29.9667s (~0.033370 veh/s).
+        # Target cycle time tuned to 26.0s (drain rate = 1/26.0s = 0.038462 veh/s).
+        # Overload ratio = (1/29.9667) / (1/26.0) = 26.0 / 29.9667 = 0.8676 (~13.2% safety headroom).
+        # Buffer capacity set to 14 units to absorb burst arrivals during anomaly recovery.
+        {"id": "ST27", "name": "Rear Axle & Brake Lines", "zone": "Assembly", "type": "MechanicalTorque", "target_cycle_time": 26.0, "power_base_kw": 21.0, "buffer_capacity": 14},
         {"id": "ST28", "name": "Drivetrain & Battery Marriage", "zone": "Assembly", "type": "AutomatedMarriage", "target_cycle_time": 70.0, "power_base_kw": 50.0},
         {"id": "ST29", "name": "Exhaust & Undercarriage Bolting", "zone": "Assembly", "type": "RoboticTorque", "target_cycle_time": 55.0, "power_base_kw": 24.0},
         {"id": "ST30", "name": "Windshield Robotic Glazing", "zone": "Assembly", "type": "RoboticUrethane", "target_cycle_time": 50.0, "power_base_kw": 26.0},
@@ -97,7 +112,7 @@ def build_line_topology(seed: int = RANDOM_SEED) -> Dict[str, Any]:
     for st in stations_data:
         sid = st["id"]
         tier = "manual" if sid in manual_station_ids else "rich"
-        cap = random.randint(5, 15)
+        cap = st.get("buffer_capacity", random.randint(8, 12))
         stations[sid] = {
             "station_id": sid,
             "name": st["name"],
