@@ -1,68 +1,77 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TwinSphere | Plant Control-Room Digital Twin</title>
-  <link rel="stylesheet" href="css/style.css?v=3.4">
+  <link rel="stylesheet" href="css/style.css?v=11.0">
 </head>
+
 <body class="blueprint-grid-bg">
   <div class="app-layout">
-    
+
     <!-- LEFT SCADA DOCK -->
     <nav class="scada-dock" role="navigation" aria-label="SCADA Control Dock">
       <div class="dock-emblem" title="TwinSphere Automotive SCADA" onclick="resetSchematicView()">
         <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <circle cx="12" cy="12" r="9"/>
-          <path d="M12 3v18M3 12h18"/>
-          <circle cx="12" cy="12" r="3" fill="#0057ff"/>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 3v18M3 12h18" />
+          <circle cx="12" cy="12" r="3" fill="#0057ff" />
         </svg>
       </div>
 
       <div class="dock-nav-list">
-        <button id="dock-btn-floor" class="dock-btn active" onclick="switchView('floor')" title="Floor Supervisor Living Line">
+        <button id="dock-btn-floor" class="dock-btn active" onclick="switchView('floor')"
+          title="Floor Supervisor Living Line">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="7" height="7" rx="1"/>
-            <rect x="14" y="3" width="7" height="7" rx="1"/>
-            <rect x="14" y="14" width="7" height="7" rx="1"/>
-            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="3" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="14" width="7" height="7" rx="1" />
+            <rect x="3" y="14" width="7" height="7" rx="1" />
           </svg>
           <span class="dock-label-micro">FLOOR</span>
         </button>
 
-        <button id="dock-btn-leadership" class="dock-btn" onclick="switchView('leadership')" title="Senior Leadership Financials">
+        <button id="dock-btn-leadership" class="dock-btn" onclick="switchView('leadership')"
+          title="Senior Leadership Financials">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
           </svg>
           <span class="dock-label-micro">LEAD</span>
         </button>
 
-        <button id="dock-btn-plant-manager" class="dock-btn" onclick="switchView('plant-manager')" title="Plant Manager Analytics & Genealogy">
+        <button id="dock-btn-plant-manager" class="dock-btn" onclick="switchView('plant-manager')"
+          title="Plant Manager Analytics & Genealogy">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 20V10M12 20V4M6 20v-6"/>
+            <path d="M18 20V10M12 20V4M6 20v-6" />
           </svg>
           <span class="dock-label-micro">PLANT</span>
         </button>
 
-        <button id="dock-btn-operator" class="dock-btn" onclick="switchView('operator')" title="Operator Area Filtered View">
+        <button id="dock-btn-operator" class="dock-btn" onclick="switchView('operator')"
+          title="Operator Area Filtered View">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-            <circle cx="12" cy="7" r="4"/>
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
           </svg>
           <span class="dock-label-micro">OPERATOR</span>
         </button>
 
-        <button id="dock-btn-weekly" class="dock-btn" onclick="switchView('weekly')" title="7-Day Trends & What-If Line Balancing">
+        <button id="dock-btn-weekly" class="dock-btn" onclick="switchView('weekly')"
+          title="7-Day Trends & What-If Line Balancing">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 3v18h18M7 14l4-4 4 4 5-6"/>
+            <path d="M3 3v18h18M7 14l4-4 4 4 5-6" />
           </svg>
           <span class="dock-label-micro">TREND</span>
         </button>
 
-        <button id="dock-btn-topology" class="dock-btn" onclick="switchView('topology')" title="Plant Manager Dynamic Layout Editor">
+        <button id="dock-btn-topology" class="dock-btn" onclick="switchView('topology')"
+          title="Plant Manager Dynamic Layout Editor">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3" />
-            <path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.93 4.93l2.12 2.12m9.9 9.9l2.12 2.12M4.93 19.07l2.12-2.12m9.9-9.9l2.12-2.12" />
+            <path
+              d="M12 2v3m0 14v3M2 12h3m14 0h3M4.93 4.93l2.12 2.12m9.9 9.9l2.12 2.12M4.93 19.07l2.12-2.12m9.9-9.9l2.12-2.12" />
           </svg>
           <span class="dock-label-micro">LAYOUT</span>
         </button>
@@ -75,7 +84,7 @@
 
     <!-- SCADA MAIN ENGINE VIEWPORT -->
     <main class="main-viewport">
-      
+
       <!-- TOP STATUS & CONTROLS STRIP -->
       <header class="scada-topbar">
         <div class="plant-identity">
@@ -87,7 +96,8 @@
             <div class="status-pulse-dot"></div>
             <span id="scada-ws-status-text">SCADA WS STREAM ACTIVE</span>
           </div>
-          <div class="andon-status-pill" id="andon-status-pill" style="display: none; background: rgba(239, 68, 68, 0.18); border: 1px solid #ef4444; color: #fca5a5; padding: 4px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; align-items: center; gap: 6px; box-shadow: 0 0 10px rgba(239,68,68,0.3);">
+          <div class="andon-status-pill" id="andon-status-pill"
+            style="display: none; background: rgba(239, 68, 68, 0.18); border: 1px solid #ef4444; color: #fca5a5; padding: 4px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; align-items: center; gap: 6px; box-shadow: 0 0 10px rgba(239,68,68,0.3);">
             <span class="status-pulse-dot" style="background: #ef4444; box-shadow: 0 0 8px #ef4444;"></span>
             <span id="andon-status-text">🛑 ANDON: INGRESS HALTED</span>
           </div>
@@ -100,7 +110,7 @@
             <button id="btn-hold" class="hmi-btn" onclick="controlSim('pause')">⏸ HOLD</button>
             <button id="btn-step" class="hmi-btn" onclick="controlSim('step')">⏭ STEP</button>
           </div>
-          
+
           <div class="speed-selector-strip">
             <button class="speed-tick selected" onclick="setSpeed(1, this)">1X</button>
             <button class="speed-tick" onclick="setSpeed(2, this)">2X</button>
@@ -109,7 +119,8 @@
           </div>
         </div>
 
-        <div style="font-family: var(--font-mono); font-size: 0.8rem; font-weight: 800; color: var(--text-primary);" id="sim-clock">
+        <div style="font-family: var(--font-mono); font-size: 0.8rem; font-weight: 800; color: var(--text-primary);"
+          id="sim-clock">
           SHIFT 1 // TICK 0142
         </div>
       </header>
@@ -119,11 +130,13 @@
         <div class="hazard-title-wrap">
           <span class="hazard-stripe-badge">⚡ FAULT INJECTOR</span>
           <div class="hazard-custom-injector">
-            <span style="font-size: 0.72rem; font-weight: 700; color: #475569; font-family: var(--font-brand);">TARGET:</span>
+            <span
+              style="font-size: 0.72rem; font-weight: 700; color: #475569; font-family: var(--font-brand);">TARGET:</span>
             <select id="fault-target-station" class="fault-select" onchange="onFaultStationSelectChange(this.value)">
               <!-- Populated dynamically ST01 - ST40 -->
             </select>
-            <span style="font-size: 0.72rem; font-weight: 700; color: #475569; font-family: var(--font-brand);">ANOMALY:</span>
+            <span
+              style="font-size: 0.72rem; font-weight: 700; color: #475569; font-family: var(--font-brand);">ANOMALY:</span>
             <select id="fault-type-select" class="fault-select">
               <option value="stoppage">⚡ Sudden Stoppage (0 JPH Halt)</option>
               <option value="drift">📈 Gradual Tool Drift (+15s / 1.5mm/s)</option>
@@ -131,10 +144,13 @@
               <option value="sensor_blackout">🔌 Sensor Blackout (Manual Fallback)</option>
               <option value="energy_waste">🔋 Energy Waste (Idle Power Surge)</option>
             </select>
-            <button class="fault-btn-primary" onclick="injectCustomFault()" title="Inject selected anomaly into targeted cell">
+            <button class="fault-btn-primary" onclick="injectCustomFault()"
+              title="Inject selected anomaly into targeted cell">
               🚨 INJECT FAULT
             </button>
-            <button class="fault-btn" onclick="clearAllAnomalies()" style="margin-left: 8px; font-weight: 800; color: #0284c7; border-color: #bae6fd;" title="Clear all active anomaly injections across plant">
+            <button class="fault-btn" onclick="clearAllAnomalies()"
+              style="margin-left: 8px; font-weight: 800; color: #0284c7; border-color: #bae6fd;"
+              title="Clear all active anomaly injections across plant">
               🔄 CLEAR ACTIVE FAULTS
             </button>
           </div>
@@ -144,23 +160,25 @@
       <!-- VIEW 1: FLOOR SUPERVISOR LIVING LINE -->
       <div id="view-floor" class="view-panel active">
         <div class="workspace-floor">
-          
+
           <!-- 40-STATION LIVING LINE HOUSING -->
           <section class="schematic-housing">
             <div class="schematic-toolbar">
               <span>CONTINUOUS 40-STATION FACTORY CONVEYOR HIGHWAY</span>
-              <button class="hmi-btn" style="height: 24px; font-size: 0.68rem;" onclick="resetSchematicView()">RESET VIEW</button>
+              <button class="hmi-btn" style="height: 24px; font-size: 0.68rem;" onclick="resetSchematicView()">RESET
+                VIEW</button>
             </div>
 
             <div class="schematic-viewport" id="schematic-viewport">
               <div class="living-line-stage" id="living-line-stage">
-                
+
                 <!-- Zone Rail Backdrop Lanes -->
                 <div class="zone-rail-lane zone-lane-1">
                   <div class="zone-rail-header">ZONE 1: BODY SHOP (14 STATIONS // FRAMING & RESPOT FORKS)</div>
                 </div>
                 <div class="zone-rail-lane zone-lane-2">
-                  <div class="zone-rail-header">ZONE 2: PAINT SHOP (8 STATIONS // CONTINUOUS E-COAT & SPRAY TUNNEL)</div>
+                  <div class="zone-rail-header">ZONE 2: PAINT SHOP (8 STATIONS // CONTINUOUS E-COAT & SPRAY TUNNEL)
+                  </div>
                 </div>
                 <div class="zone-rail-lane zone-lane-3">
                   <div class="zone-rail-header">ZONE 3: FINAL ASSEMBLY (18 STATIONS // MARRIAGE & BUY-OFF)</div>
@@ -169,7 +187,8 @@
                 <!-- Continuous Conveyor SVG Rails -->
                 <svg class="conveyor-rails-svg" id="conveyor-rails-svg">
                   <defs>
-                    <marker id="conveyor-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <marker id="conveyor-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6"
+                      orient="auto-start-reverse">
                       <path d="M 0 1 L 10 5 L 0 9 z" fill="#0057ff" />
                     </marker>
                   </defs>
@@ -179,7 +198,9 @@
                 <div id="nodes-container"></div>
 
                 <!-- Live Dynamic Vehicle Fleet Layer -->
-                <div id="vehicle-fleet-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 35;"></div>
+                <div id="vehicle-fleet-layer"
+                  style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 35;">
+                </div>
 
               </div>
             </div>
@@ -195,9 +216,11 @@
               <div class="cockpit-focus-name" id="focus-name">Framing Main Station</div>
               <div class="cockpit-focus-type" id="focus-zone">BODY // MainFraming</div>
             </div>
-            
-            <div id="sensor-coverage-alert" style="display: none; background: rgba(245,158,11,0.15); border: 1px solid #f59e0b; color: #f59e0b; padding: 10px; font-size: 0.72rem; border-radius: var(--radius-sm); margin: 0 16px 12px 16px; font-family: var(--font-mono);">
-              <div id="sensor-coverage-title" style="font-weight: 800; margin-bottom: 4px;">⚠️ VIRTUAL SENSOR IMPUTATION</div>
+
+            <div id="sensor-coverage-alert"
+              style="display: none; background: rgba(245,158,11,0.15); border: 1px solid #f59e0b; color: #f59e0b; padding: 10px; font-size: 0.72rem; border-radius: var(--radius-sm); margin: 0 16px 12px 16px; font-family: var(--font-mono);">
+              <div id="sensor-coverage-title" style="font-weight: 800; margin-bottom: 4px;">⚠️ VIRTUAL SENSOR IMPUTATION
+              </div>
               <div id="sensor-coverage-details">Telemetry is being imputed.</div>
             </div>
 
@@ -227,7 +250,8 @@
                 <div class="gauge-needle-track">
                   <div class="gauge-needle-fill" id="gauge-vib-fill" style="width: 25%;"></div>
                 </div>
-                <div class="gauge-threshold-marks"><span>Good &lt;1.12</span><span>Sat 2.8</span><span>Crit &gt;4.5</span></div>
+                <div class="gauge-threshold-marks"><span>Good &lt;1.12</span><span>Sat 2.8</span><span>Crit
+                    &gt;4.5</span></div>
               </div>
 
               <div class="gauge-cell">
@@ -252,9 +276,11 @@
                 <div class="gauge-title">Twin Confidence / SPC</div>
                 <div class="gauge-val-readout" id="focus-spc-conf">96% (Stable)</div>
                 <div class="gauge-needle-track">
-                  <div class="gauge-needle-fill" id="gauge-conf-fill" style="width: 96%; background: var(--status-nominal);"></div>
+                  <div class="gauge-needle-fill" id="gauge-conf-fill"
+                    style="width: 96%; background: var(--status-nominal);"></div>
                 </div>
-                <div class="gauge-threshold-marks"><span>&lt;65% Crit</span><span>80% Warn</span><span>100% Nom</span></div>
+                <div class="gauge-threshold-marks"><span>&lt;65% Crit</span><span>80% Warn</span><span>100% Nom</span>
+                </div>
               </div>
             </div>
 
@@ -262,10 +288,12 @@
             <div class="countdown-gauge-box">
               <div class="countdown-timer-title">
                 <span>Downstream Starvation</span>
-                <span id="prop-count" style="color: var(--status-critical); font-family: var(--font-mono);">0 AT RISK</span>
+                <span id="prop-count" style="color: var(--status-critical); font-family: var(--font-mono);">0 AT
+                  RISK</span>
               </div>
               <div class="countdown-items-wrap" id="focus-prop-list">
-                <div style="font-size: 0.76rem; color: var(--text-secondary); font-family: var(--font-mono); padding: 4px 0;">
+                <div
+                  style="font-size: 0.76rem; color: var(--text-secondary); font-family: var(--font-mono); padding: 4px 0;">
                   Nominal line flow — zero starvation ripple.
                 </div>
               </div>
@@ -274,7 +302,8 @@
             <!-- AI Action Recommendation -->
             <div class="ai-recommendation-panel">
               <div class="ai-rec-header">
-                <span style="font-family: var(--font-brand); font-size: 0.72rem; font-weight: 800; text-transform: uppercase; color: #93c5fd;">
+                <span
+                  style="font-family: var(--font-brand); font-size: 0.72rem; font-weight: 800; text-transform: uppercase; color: #93c5fd;">
                   AI PRESCRIPTIVE ACTION
                 </span>
                 <span class="ai-rec-conf" id="rec-conf-tag">96% CONFIDENCE</span>
@@ -286,30 +315,41 @@
               <div class="ai-rec-impact" id="rec-impact">
                 Impact: Line running at 55.4 JPH design cadence
               </div>
-              <button id="btn-apply-intervention" onclick="applyIntervention()" style="display: none; width: 100%; margin-top: 10px; background: #3b82f6; color: #fff; border: none; padding: 8px; border-radius: 4px; font-weight: 700; cursor: pointer;">
+              <button id="btn-apply-intervention" onclick="applyIntervention()"
+                style="display: none; width: 100%; margin-top: 10px; background: #3b82f6; color: #fff; border: none; padding: 8px; border-radius: 4px; font-weight: 700; cursor: pointer;">
                 APPLY RECOMMENDED OVERRIDE
               </button>
-              <div id="intervention-badge" style="display: none; margin-top: 10px; background: rgba(59, 130, 246, 0.2); color: #60a5fa; padding: 6px; text-align: center; font-size: 0.72rem; font-weight: 700; border: 1px solid #3b82f6; border-radius: 4px;">
+              <div id="intervention-badge"
+                style="display: none; margin-top: 10px; background: rgba(59, 130, 246, 0.2); color: #60a5fa; padding: 6px; text-align: center; font-size: 0.72rem; font-weight: 700; border: 1px solid #3b82f6; border-radius: 4px;">
                 ⚡ INTERVENTION ACTIVE
               </div>
 
               <!-- RISK DRIVERS (STATISTICAL EVIDENCE) -->
-              <div id="risk-drivers-container" style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.15);">
-                <div style="font-size: 0.68rem; font-weight: 800; color: #93c5fd; font-family: var(--font-brand); margin-bottom: 6px; text-transform: uppercase;">
+              <div id="risk-drivers-container"
+                style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.15);">
+                <div
+                  style="font-size: 0.68rem; font-weight: 800; color: #93c5fd; font-family: var(--font-brand); margin-bottom: 6px; text-transform: uppercase;">
                   Risk Drivers (Statistical Evidence)
                 </div>
-                <div id="risk-drivers-list" style="display: flex; flex-direction: column; gap: 6px; font-size: 0.72rem; font-family: var(--font-mono);">
+                <div id="risk-drivers-list"
+                  style="display: flex; flex-direction: column; gap: 6px; font-size: 0.72rem; font-family: var(--font-mono);">
                   <!-- Populated dynamically -->
                 </div>
               </div>
 
               <!-- TIERED SOP ESCALATION LADDER (PHASE 8) -->
-              <div id="sop-container" style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.15);">
+              <div id="sop-container"
+                style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.15);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                  <span style="font-size: 0.68rem; font-weight: 800; color: #93c5fd; font-family: var(--font-brand);">TIERED SOP ESCALATION LADDER</span>
-                  <span id="sop-badge" style="font-size: 0.65rem; font-family: var(--font-mono); font-weight: 800; color: #38bdf8; background: rgba(56, 189, 248, 0.15); padding: 2px 6px; border-radius: 4px;">STEP 1: OPERATOR</span>
+                  <span
+                    style="font-size: 0.68rem; font-weight: 800; color: #93c5fd; font-family: var(--font-brand);">TIERED
+                    SOP ESCALATION LADDER</span>
+                  <span id="sop-badge"
+                    style="font-size: 0.65rem; font-family: var(--font-mono); font-weight: 800; color: #38bdf8; background: rgba(56, 189, 248, 0.15); padding: 2px 6px; border-radius: 4px;">STEP
+                    1: OPERATOR</span>
                 </div>
-                <div id="sop-steps-list" style="display: flex; flex-direction: column; gap: 6px; font-size: 0.72rem; font-family: var(--font-mono);">
+                <div id="sop-steps-list"
+                  style="display: flex; flex-direction: column; gap: 6px; font-size: 0.72rem; font-family: var(--font-mono);">
                   <!-- Populated dynamically with step 1/2/3 actions -->
                 </div>
               </div>
@@ -363,31 +403,52 @@
               <span>💼 SENIOR LEADERSHIP // PLANT FINANCIAL INTELLIGENCE & UNIT ECONOMICS</span>
               <span class="plant-tag" id="lead-status-tag">40 STATIONS // $450M CAPEX BASE</span>
             </div>
-            <div class="lead-panel-sub">Real-time capital productivity, conversion cost efficiency, payback timelines, and JPH throughput</div>
+            <div class="lead-panel-sub">Real-time capital productivity, conversion cost efficiency, payback timelines,
+              and JPH throughput</div>
 
             <!-- Top Executive Metric KPI Cards -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 14px;">
-              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
-                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Plant Capital Density</div>
-                <div id="lead-cost-sqft" style="font-size: 1.15rem; font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 4px;">$1,800.00 / sq ft</div>
-                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">250,000 sq ft Footprint ($450M Capex)</div>
+            <div
+              style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 14px;">
+              <div
+                style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
+                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Plant
+                  Capital Density</div>
+                <div id="lead-cost-sqft"
+                  style="font-size: 1.15rem; font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 4px;">
+                  $1,800.00 / sq ft</div>
+                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">250,000 sq ft Footprint ($450M Capex)
+                </div>
               </div>
 
-              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
-                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Unit Conversion Cost</div>
-                <div id="lead-cost-ton" style="font-size: 1.15rem; font-weight: 800; color: #0284c7; font-family: var(--font-mono); margin-top: 4px;">$1,727.27 / ton</div>
-                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">$2,850 / vehicle (1.65t Curb Weight)</div>
+              <div
+                style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
+                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Unit
+                  Conversion Cost</div>
+                <div id="lead-cost-ton"
+                  style="font-size: 1.15rem; font-weight: 800; color: #0284c7; font-family: var(--font-mono); margin-top: 4px;">
+                  $1,727.27 / ton</div>
+                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">$2,850 / vehicle (1.65t Curb Weight)
+                </div>
               </div>
 
-              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
-                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Downtime Savings</div>
-                <div id="lead-savings-usd" style="font-size: 1.15rem; font-weight: 800; color: #15803d; font-family: var(--font-mono); margin-top: 4px;">$0.00 M</div>
-                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">$38,333.33 / min avoided downtime</div>
+              <div
+                style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
+                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Downtime
+                  Savings</div>
+                <div id="lead-savings-usd"
+                  style="font-size: 1.15rem; font-weight: 800; color: #15803d; font-family: var(--font-mono); margin-top: 4px;">
+                  $0.00 M</div>
+                <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">$38,333.33 / min avoided downtime
+                </div>
               </div>
 
-              <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
-                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Line Cadence Target</div>
-                <div id="lead-jph-comp" style="font-size: 1.15rem; font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 4px;">55.4 / 55.0 JPH</div>
+              <div
+                style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px;">
+                <div style="font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Line
+                  Cadence Target</div>
+                <div id="lead-jph-comp"
+                  style="font-size: 1.15rem; font-weight: 800; color: #0f172a; font-family: var(--font-mono); margin-top: 4px;">
+                  55.4 / 55.0 JPH</div>
                 <div style="font-size: 0.68rem; color: #64748b; margin-top: 2px;">100.7% Line vs Plant Target</div>
               </div>
             </div>
@@ -396,8 +457,10 @@
               <div style="font-weight: 800; font-size: 0.82rem; color: #0f172a; margin-bottom: 8px;">
                 📊 Station-Level Capital ROI & Payback Schedule
               </div>
-              <div style="max-height: 240px; overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left; font-family: var(--font-mono);">
+              <div
+                style="max-height: 240px; overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                <table
+                  style="width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left; font-family: var(--font-mono);">
                   <thead>
                     <tr style="background: #f1f5f9; color: #475569; position: sticky; top: 0; z-index: 1;">
                       <th style="padding: 8px 10px;">Station</th>
@@ -423,13 +486,66 @@
       <div id="view-plant-manager" class="view-panel">
         <div class="leadership-screen">
 
-          <div class="scada-lead-panel">
-            <div class="lead-panel-title">Thermal Deviation Heatmap</div>
-            <div class="lead-panel-sub">Station × Shift Ticks: Job time standard deviation burn</div>
-            <div class="thermal-heatmap-grid" id="thermal-heatmap"></div>
+          <!-- PLANT QUICK JUMP SUBNAV -->
+          <div class="plant-subnav-bar" style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; background: #ffffff; padding: 10px 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); grid-column: span 2; flex-wrap: wrap;">
+            <span style="font-family: var(--font-brand); font-size: 0.70rem; font-weight: 800; color: #475569; text-transform: uppercase;">QUICK JUMP:</span>
+            <button class="thm-zone-btn" onclick="scrollToPlantSection('sec-heatmap')">THERMAL HEATMAP & FORECAST</button>
+            <button class="thm-zone-btn" onclick="scrollToPlantSection('sec-pareto-vin')">PARETO & VIN GENEALOGY</button>
+            <button class="thm-zone-btn" onclick="scrollToPlantSection('sec-operator-assignment')" style="background: #e0f2fe; color: #0369a1; border-color: #7dd3fc; font-weight: 800;">👷 OPERATOR LINE ASSIGNMENT MANAGER ➔</button>
           </div>
 
-          <div class="scada-lead-panel">
+          <div class="scada-lead-panel" id="sec-heatmap" style="grid-column: span 2;">
+            <div class="thm-header-container" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+              <div>
+                <div class="lead-panel-title" style="display: flex; align-items: center; gap: 8px;">
+                  <span>THERMAL DEVIATION & 10-MINUTE PREDICTIVE HORIZON HEATMAP</span>
+                  <span class="plant-tag" id="thm-live-clock-tag">HISTORICAL + 10-MIN FORECAST</span>
+                </div>
+                <div class="lead-panel-sub">14-Tick Past Telemetry ➔ Live Operational Boundary (NOW) ➔ 10-Minute Predictive Bottleneck & Starvation Forecast</div>
+              </div>
+
+              <!-- Zone Filter Buttons -->
+              <div class="thm-filter-strip" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <button class="thm-zone-btn active" id="thm-btn-all" onclick="filterHeatmapZone('all')">ALL (40 STATIONS)</button>
+                <button class="thm-zone-btn" id="thm-btn-z1" onclick="filterHeatmapZone('z1')">ZONE 1: BODY</button>
+                <button class="thm-zone-btn" id="thm-btn-z2" onclick="filterHeatmapZone('z2')">ZONE 2: PAINT</button>
+                <button class="thm-zone-btn" id="thm-btn-z3" onclick="filterHeatmapZone('z3')">ZONE 3: ASSEMBLY</button>
+              </div>
+            </div>
+
+            <!-- Heatmap Executive KPI Strip & Legend -->
+            <div class="thm-kpi-legend-row" style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+              <!-- KPI Summary Cards -->
+              <div style="display: flex; align-items: center; gap: 16px; font-family: var(--font-mono); font-size: 0.75rem;">
+                <div>
+                  <span style="color: #64748b; font-weight: 600;">ACTIVE HOTSPOTS (NOW):</span>
+                  <span id="thm-kpi-hotspots" style="font-weight: 800; color: #ef4444; margin-left: 4px;">0 STATIONS</span>
+                </div>
+                <div style="border-left: 1px solid #cbd5e1; padding-left: 14px;">
+                  <span style="color: #64748b; font-weight: 600;">PREDICTED RISKS (+10M):</span>
+                  <span id="thm-kpi-future-risks" style="font-weight: 800; color: #7c3aed; margin-left: 4px;">0 FORECASTED</span>
+                </div>
+                <div style="border-left: 1px solid #cbd5e1; padding-left: 14px;">
+                  <span style="color: #64748b; font-weight: 600;">MAX FRICTION CELL:</span>
+                  <span id="thm-kpi-maxcell" style="font-weight: 800; color: #0284c7; margin-left: 4px;">ST00 (NOMINAL)</span>
+                </div>
+              </div>
+
+              <!-- Visual SCADA Legend -->
+              <div class="thm-legend-box" style="display: flex; align-items: center; gap: 14px; font-size: 0.70rem; font-weight: 700; font-family: var(--font-brand);">
+                <div style="display: flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 10px; background: #10b981; border-radius: 2px;"></span> Nominal</div>
+                <div style="display: flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 10px; background: #f59e0b; border-radius: 2px;"></span> Warning Drift</div>
+                <div style="display: flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 10px; background: #ef4444; border-radius: 2px;"></span> Bottleneck</div>
+                <div style="display: flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 10px; background: #38bdf8; border-radius: 2px;"></span> Starved</div>
+                <div style="display: flex; align-items: center; gap: 5px; color: #6b21a8;"><span style="width: 10px; height: 10px; background: #7c3aed; border-radius: 2px;"></span> Predicted Risk (+10m)</div>
+              </div>
+            </div>
+
+            <!-- Thermal Heatmap Grid Container -->
+            <div class="thermal-heatmap-grid" id="thermal-heatmap" style="overflow-x: auto;"></div>
+          </div>
+
+          <div class="scada-lead-panel" id="sec-pareto-vin">
             <div class="lead-panel-title">Pareto Mechanical Root Causes</div>
             <div class="lead-panel-sub">Ranked failure modes across 40 stations</div>
             <div class="root-cause-list" style="margin-top: 14px;"></div>
@@ -439,10 +555,13 @@
                 <span style="font-family: var(--font-brand); font-size: 0.8rem; font-weight: 800; color: #0f172a;">
                   VIN DEFECT GENEALOGY TRAIL
                 </span>
-                <button class="hmi-btn" style="height: 24px; font-size: 0.68rem;" onclick="traceGenealogy()">TRACE</button>
+                <button class="hmi-btn" style="height: 24px; font-size: 0.68rem;"
+                  onclick="traceGenealogy()">TRACE</button>
               </div>
-              <input id="genealogy-input" value="VIN-2026-01042" style="width: 100%; margin-top: 6px; padding: 4px 8px; font-family: var(--font-mono); font-size: 0.75rem; border: 1px solid var(--border-subtle); border-radius: 4px;">
-              <div class="vin-trail-grid" id="vin-trail-container" style="overflow-y: auto; max-height: 300px; padding-right: 4px;"></div>
+              <input id="genealogy-input" value="VIN-2026-01042"
+                style="width: 100%; margin-top: 6px; padding: 4px 8px; font-family: var(--font-mono); font-size: 0.75rem; border: 1px solid var(--border-subtle); border-radius: 4px;">
+              <div class="vin-trail-grid" id="vin-trail-container"
+                style="overflow-y: auto; max-height: 300px; padding-right: 4px;"></div>
               <div id="genealogy-result" style="margin-top: 8px; font-size: 0.74rem; font-family: var(--font-mono);">
                 40/40 Stations Verified • 0 Quality Buy-off Defects
               </div>
@@ -450,34 +569,41 @@
           </div>
 
           <!-- OPERATOR AREA ASSIGNMENT ADMIN PANEL (PHASE 6) -->
-          <div class="scada-lead-panel" style="grid-column: span 2;">
+          <div class="scada-lead-panel" id="sec-operator-assignment" style="grid-column: span 2;">
             <div class="lead-panel-title" style="display: flex; justify-content: space-between; align-items: center;">
               <span>👷 OPERATOR AREA ASSIGNMENT MANAGER</span>
               <span class="plant-tag" id="assignment-count-tag">3 WORKERS CONFIGURED</span>
             </div>
             <div class="lead-panel-sub">Configure line worker station allocations and operational coverage zones</div>
-            
+
             <div style="display: grid; grid-template-columns: 320px 1fr; gap: 20px; margin-top: 16px;">
               <!-- Add/Edit Form -->
-              <div style="background: #f8fafc; padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-                <div style="font-weight: 800; font-size: 0.8rem; color: #0f172a; margin-bottom: 10px;">Assign Line Worker</div>
+              <div
+                style="background: #f8fafc; padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                <div style="font-weight: 800; font-size: 0.8rem; color: #0f172a; margin-bottom: 10px;">Assign Line
+                  Worker</div>
                 <div style="display: flex; flex-direction: column; gap: 10px;">
                   <div>
                     <label style="font-size: 0.72rem; font-weight: 700; color: #475569;">Worker ID</label>
-                    <input type="text" id="assign-worker-id" class="modal-form-input" placeholder="e.g. W04" style="margin-top: 3px;">
+                    <input type="text" id="assign-worker-id" class="modal-form-input" placeholder="e.g. W04"
+                      style="margin-top: 3px;">
                   </div>
                   <div>
                     <label style="font-size: 0.72rem; font-weight: 700; color: #475569;">Worker Name & Role</label>
-                    <input type="text" id="assign-worker-name" class="modal-form-input" placeholder="e.g. Sarah Jenkins (Trim Lead)" style="margin-top: 3px;">
+                    <input type="text" id="assign-worker-name" class="modal-form-input"
+                      placeholder="e.g. Sarah Jenkins (Trim Lead)" style="margin-top: 3px;">
                   </div>
                   <div>
-                    <label style="font-size: 0.72rem; font-weight: 700; color: #475569;">Assigned Stations (Hold Ctrl/Cmd)</label>
-                    <select id="assign-stations-select" class="modal-form-select" multiple style="height: 110px; margin-top: 3px; font-family: var(--font-mono); font-size: 0.75rem;">
+                    <label style="font-size: 0.72rem; font-weight: 700; color: #475569;">Assigned Stations (Hold
+                      Ctrl/Cmd)</label>
+                    <select id="assign-stations-select" class="modal-form-select" multiple
+                      style="height: 110px; margin-top: 3px; font-family: var(--font-mono); font-size: 0.75rem;">
                       <!-- Populated dynamically ST01 - ST40 -->
                     </select>
                   </div>
                   <div style="display: flex; gap: 8px; margin-top: 4px;">
-                    <button class="hmi-btn active-play" style="flex: 1;" onclick="submitOperatorAssignment()">💾 SAVE ASSIGNMENT</button>
+                    <button class="hmi-btn active-play" style="flex: 1;" onclick="submitOperatorAssignment()">💾 SAVE
+                      ASSIGNMENT</button>
                     <button class="fault-btn" onclick="clearAssignmentForm()">CLEAR</button>
                   </div>
                 </div>
@@ -485,8 +611,10 @@
 
               <!-- Configured Workers List -->
               <div>
-                <div style="font-weight: 800; font-size: 0.8rem; color: #0f172a; margin-bottom: 10px;">Active Worker Assignments</div>
-                <div id="operator-assignments-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto;">
+                <div style="font-weight: 800; font-size: 0.8rem; color: #0f172a; margin-bottom: 10px;">Active Worker
+                  Assignments</div>
+                <div id="operator-assignments-list"
+                  style="display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto;">
                   <!-- Populated dynamically -->
                 </div>
               </div>
@@ -497,24 +625,29 @@
 
       <!-- VIEW 5: OPERATOR FILTERED SCADA VIEW (PHASE 6 & 7) -->
       <div id="view-operator" class="view-panel">
-        <div style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow-sm); flex-wrap: wrap; gap: 12px;">
+        <div
+          style="background: #ffffff; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow-sm); flex-wrap: wrap; gap: 12px;">
           <div style="display: flex; align-items: center; gap: 14px;">
-            <div style="background: #e0f2fe; color: #0369a1; padding: 6px 12px; border-radius: var(--radius-sm); font-weight: 800; font-size: 0.82rem; font-family: var(--font-brand);">
+            <div
+              style="background: #e0f2fe; color: #0369a1; padding: 6px 12px; border-radius: var(--radius-sm); font-weight: 800; font-size: 0.82rem; font-family: var(--font-brand);">
               👷 OPERATOR DOCK
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-size: 0.78rem; font-weight: 700; color: #475569;">Active Worker:</span>
-              <select id="operator-worker-select" class="fault-select" onchange="onOperatorWorkerChange(this.value)" style="min-width: 260px; font-weight: 700;">
+              <select id="operator-worker-select" class="fault-select" onchange="onOperatorWorkerChange(this.value)"
+                style="min-width: 260px; font-weight: 700;">
                 <!-- Populated dynamically -->
               </select>
             </div>
           </div>
-          <div id="operator-coverage-summary" style="font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; color: #0284c7;">
+          <div id="operator-coverage-summary"
+            style="font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; color: #0284c7;">
             Coverage: 6 Stations Allocated
           </div>
         </div>
 
-        <div id="operator-stations-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px;">
+        <div id="operator-stations-container"
+          style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px;">
           <!-- Populated dynamically with assigned station cards -->
         </div>
       </div>
@@ -527,45 +660,58 @@
             <div class="lead-panel-sub">Performance stability across Body, Paint, and Final Assembly</div>
             <div id="zone-oee-bars" style="margin-top: 20px; display: flex; flex-direction: column; gap: 16px;">
               <div>
-                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; color: #0f172a;">
+                <div
+                  style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; color: #0f172a;">
                   <span>Zone 1: Body Construction (14 Stations)</span>
-                  <span id="oee-val-body" style="color: #0284c7; font-family: var(--font-mono); font-weight: 800;">91.4% OEE</span>
+                  <span id="oee-val-body" style="color: #0284c7; font-family: var(--font-mono); font-weight: 800;">91.4%
+                    OEE</span>
                 </div>
                 <div style="height: 8px; background: #e2e8f0; border-radius: 999px; margin-top: 6px; overflow: hidden;">
                   <div id="oee-bar-body" style="width: 91.4%; height: 100%; background: #0284c7;"></div>
                 </div>
-                <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); margin-top: 3px; font-family: var(--font-mono);">
-                  <span id="oee-avail-body">Availability: 96.2%</span><span id="oee-perf-body">Performance: 97.1%</span><span id="oee-qual-body">Quality: 98.0%</span>
+                <div
+                  style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); margin-top: 3px; font-family: var(--font-mono);">
+                  <span id="oee-avail-body">Availability: 96.2%</span><span id="oee-perf-body">Performance:
+                    97.1%</span><span id="oee-qual-body">Quality: 98.0%</span>
                 </div>
               </div>
               <div>
-                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; color: #0f172a;">
+                <div
+                  style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; color: #0f172a;">
                   <span>Zone 2: Paint Shop (8 Stations)</span>
-                  <span id="oee-val-paint" style="color: #6366f1; font-family: var(--font-mono); font-weight: 800;">88.7% OEE</span>
+                  <span id="oee-val-paint"
+                    style="color: #6366f1; font-family: var(--font-mono); font-weight: 800;">88.7% OEE</span>
                 </div>
                 <div style="height: 8px; background: #e2e8f0; border-radius: 999px; margin-top: 6px; overflow: hidden;">
                   <div id="oee-bar-paint" style="width: 88.7%; height: 100%; background: #6366f1;"></div>
                 </div>
-                <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); margin-top: 3px; font-family: var(--font-mono);">
-                  <span id="oee-avail-paint">Availability: 94.0%</span><span id="oee-perf-paint">Performance: 96.5%</span><span id="oee-qual-paint">Quality: 97.8%</span>
+                <div
+                  style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); margin-top: 3px; font-family: var(--font-mono);">
+                  <span id="oee-avail-paint">Availability: 94.0%</span><span id="oee-perf-paint">Performance:
+                    96.5%</span><span id="oee-qual-paint">Quality: 97.8%</span>
                 </div>
               </div>
               <div>
-                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; color: #0f172a;">
+                <div
+                  style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; color: #0f172a;">
                   <span>Zone 3: Final Assembly (18 Stations)</span>
-                  <span id="oee-val-assy" style="color: #10b981; font-family: var(--font-mono); font-weight: 800;">94.2% OEE</span>
+                  <span id="oee-val-assy" style="color: #10b981; font-family: var(--font-mono); font-weight: 800;">94.2%
+                    OEE</span>
                 </div>
                 <div style="height: 8px; background: #e2e8f0; border-radius: 999px; margin-top: 6px; overflow: hidden;">
                   <div id="oee-bar-assy" style="width: 94.2%; height: 100%; background: #10b981;"></div>
                 </div>
-                <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); margin-top: 3px; font-family: var(--font-mono);">
-                  <span id="oee-avail-assy">Availability: 98.1%</span><span id="oee-perf-assy">Performance: 97.5%</span><span id="oee-qual-assy">Quality: 98.5%</span>
+                <div
+                  style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); margin-top: 3px; font-family: var(--font-mono);">
+                  <span id="oee-avail-assy">Availability: 98.1%</span><span id="oee-perf-assy">Performance:
+                    97.5%</span><span id="oee-qual-assy">Quality: 98.5%</span>
                 </div>
               </div>
             </div>
 
             <div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--border-subtle);">
-              <div class="lead-panel-sub" style="font-weight: 700; color: #0f172a; font-size: 0.80rem;">Root Cause Pareto Frequency (Weekly)</div>
+              <div class="lead-panel-sub" style="font-weight: 700; color: #0f172a; font-size: 0.80rem;">Root Cause
+                Pareto Frequency (Weekly)</div>
               <div class="root-cause-list-weekly" style="margin-top: 10px;"></div>
             </div>
           </div>
@@ -573,34 +719,49 @@
           <div class="scada-lead-panel">
             <div class="lead-panel-title">What-If Line Balancing Simulator</div>
             <div class="lead-panel-sub">Simulate takt rate adjustments, bottleneck dynamics & buffer backpressure</div>
-            
+
             <!-- Live Computed Line Capacity Banner -->
-            <div id="whatif-capacity-banner" style="margin-top: 14px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--radius-sm); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;">
+            <div id="whatif-capacity-banner"
+              style="margin-top: 14px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--radius-sm); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;">
               <div>
-                <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #1e40af;">Physical Line Capacity</div>
-                <div id="whatif-capacity-text" style="font-size: 0.85rem; font-weight: 800; color: #0f172a; font-family: var(--font-brand); margin-top: 2px;">
-                  Line Capacity: <span style="color: var(--brand-blue);">45 JPH</span> (Bottleneck: ST17 - E-Coat Curing Oven)
+                <div
+                  style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #1e40af;">
+                  Physical Line Capacity</div>
+                <div id="whatif-capacity-text"
+                  style="font-size: 0.85rem; font-weight: 800; color: #0f172a; font-family: var(--font-brand); margin-top: 2px;">
+                  Line Capacity: <span style="color: var(--brand-blue);">45 JPH</span> (Bottleneck: ST17 - E-Coat Curing
+                  Oven)
                 </div>
               </div>
-              <button id="btn-balance-capacity" onclick="balanceToCapacity()" style="background: var(--brand-blue); color: #ffffff; border: none; padding: 6px 12px; border-radius: var(--radius-sm); font-size: 0.74rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+              <button id="btn-balance-capacity" onclick="balanceToCapacity()"
+                style="background: var(--brand-blue); color: #ffffff; border: none; padding: 6px 12px; border-radius: var(--radius-sm); font-size: 0.74rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;">
                 ⚡ Balance to Capacity
               </button>
             </div>
 
             <!-- Over-Capacity Real-World Queuing Warning Banner -->
-            <div id="whatif-capacity-warning" style="display: none; margin-top: 10px; background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius-sm); padding: 10px 12px; font-size: 0.76rem; color: #92400e; line-height: 1.4;">
+            <div id="whatif-capacity-warning"
+              style="display: none; margin-top: 10px; background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius-sm); padding: 10px 12px; font-size: 0.76rem; color: #92400e; line-height: 1.4;">
               <!-- Dynamic warning content injected by JS -->
             </div>
 
-            <div style="margin-top: 14px; background: #f8fafc; padding: 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
-              <div style="display: flex; justify-content: space-between; font-weight: 800; font-size: 0.84rem; color: #0f172a; font-family: var(--font-brand);">
+            <div
+              style="margin-top: 14px; background: #f8fafc; padding: 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+              <div
+                style="display: flex; justify-content: space-between; font-weight: 800; font-size: 0.84rem; color: #0f172a; font-family: var(--font-brand);">
                 <span id="slider-target-val">Target Output: 55 JPH</span>
-                <span id="slider-takt-val" style="color: var(--brand-blue); font-family: var(--font-mono); font-weight: 800;">Required Takt: 65.5s</span>
+                <span id="slider-takt-val"
+                  style="color: var(--brand-blue); font-family: var(--font-mono); font-weight: 800;">Required Takt:
+                  65.5s</span>
               </div>
-              <input type="range" id="whatif-jph-slider" min="20" max="100" value="55" step="1" style="width: 100%; margin-top: 10px; accent-color: var(--brand-blue); cursor: pointer;" oninput="updateLineBalancing(this.value)">
-              <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); font-family: var(--font-mono); margin-top: 4px;">
+              <input type="range" id="whatif-jph-slider" min="20" max="100" value="55" step="1"
+                style="width: 100%; margin-top: 10px; accent-color: var(--brand-blue); cursor: pointer;"
+                oninput="updateLineBalancing(this.value)">
+              <div
+                style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); font-family: var(--font-mono); margin-top: 4px;">
                 <span>20 JPH (Low Rate)</span>
-                <span id="slider-cap-marker" style="font-weight: 800; color: #1e40af;">45 JPH (Line Capacity Limit)</span>
+                <span id="slider-cap-marker" style="font-weight: 800; color: #1e40af;">45 JPH (Line Capacity
+                  Limit)</span>
                 <span>100 JPH (Stress Ingress)</span>
               </div>
             </div>
@@ -629,13 +790,20 @@
             <span id="editor-mode-indicator" class="editor-status-pill" style="display: none;"></span>
           </div>
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            <button id="btn-undo" class="hmi-btn" onclick="undo()" title="Undo last layout action (Ctrl+Z)" disabled>↩ UNDO</button>
-            <button id="btn-redo" class="hmi-btn" onclick="redo()" title="Redo last layout action (Ctrl+Y)" disabled>↪ REDO</button>
-            <button class="hmi-btn" onclick="showAddStationModal()" title="Add a new custom machine or QC cell">+ ADD STATION</button>
-            <button class="hmi-btn" onclick="autoArrangeLayout()" title="Auto-align stations in clean zone lanes">📐 AUTO-ARRANGE</button>
-            <button class="hmi-btn" onclick="showConnectionsModal()" title="View and manage conveyor connections">🔗 CONNECTIONS</button>
-            <button class="hmi-btn" onclick="resetEditorToDefault()" title="Reset to standard 40-station topology">RESET DEFAULT</button>
-            <button class="hmi-btn active-play" onclick="applyTopology()" title="Apply layout to physics simulation & reboot twin">⚡ APPLY LAYOUT (REBOOT TWIN)</button>
+            <button id="btn-undo" class="hmi-btn" onclick="undo()" title="Undo last layout action (Ctrl+Z)" disabled>↩
+              UNDO</button>
+            <button id="btn-redo" class="hmi-btn" onclick="redo()" title="Redo last layout action (Ctrl+Y)" disabled>↪
+              REDO</button>
+            <button class="hmi-btn" onclick="showAddStationModal()" title="Add a new custom machine or QC cell">+ ADD
+              STATION</button>
+            <button class="hmi-btn" onclick="autoArrangeLayout()" title="Auto-align stations in clean zone lanes">📐
+              AUTO-ARRANGE</button>
+            <button class="hmi-btn" onclick="showConnectionsModal()" title="View and manage conveyor connections">🔗
+              CONNECTIONS</button>
+            <button class="hmi-btn" onclick="resetEditorToDefault()" title="Reset to standard 40-station topology">RESET
+              DEFAULT</button>
+            <button class="hmi-btn active-play" onclick="applyTopology()"
+              title="Apply layout to physics simulation & reboot twin">⚡ APPLY LAYOUT (REBOOT TWIN)</button>
           </div>
         </div>
 
@@ -666,19 +834,20 @@
       <div class="editor-modal-box">
         <div class="editor-modal-title">
           <span>ADD FACTORY STATION</span>
-          <button style="background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #64748b;" onclick="closeAddStationModal()">✕</button>
+          <button style="background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #64748b;"
+            onclick="closeAddStationModal()">✕</button>
         </div>
-        
+
         <div class="modal-form-group">
           <label>Station ID (e.g. ST41)</label>
           <input type="text" id="new-sid" class="modal-form-input" placeholder="ST41">
         </div>
-        
+
         <div class="modal-form-group">
           <label>Station Name</label>
           <input type="text" id="new-name" class="modal-form-input" placeholder="Robotic Vision Inspection Cell">
         </div>
-        
+
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
           <div class="modal-form-group">
             <label>Zone</label>
@@ -766,32 +935,42 @@
         <div class="editor-modal-title">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span>EDIT STATION & ASSET PARAMETERS</span>
-            <span id="edit-sid-badge" style="font-family: var(--font-mono); font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; background: #0284c7; color: white;">ST01</span>
+            <span id="edit-sid-badge"
+              style="font-family: var(--font-mono); font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; background: #0284c7; color: white;">ST01</span>
           </div>
-          <button style="background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #64748b;" onclick="closeEditStationModal()">✕</button>
+          <button style="background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #64748b;"
+            onclick="closeEditStationModal()">✕</button>
         </div>
 
         <input type="hidden" id="edit-sid">
 
         <!-- Live Station Preview Card -->
-        <div class="station-preview-banner" style="display: flex; align-items: center; justify-content: space-between; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px;">
+        <div class="station-preview-banner"
+          style="display: flex; align-items: center; justify-content: space-between; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px;">
           <div style="display: flex; align-items: center; gap: 12px;">
-            <div id="edit-preview-glyph" style="width: 50px; height: 32px; display: flex; align-items: center; justify-content: center; background: #ffffff; border-radius: 6px; border: 1px solid #cbd5e1;"></div>
+            <div id="edit-preview-glyph"
+              style="width: 50px; height: 32px; display: flex; align-items: center; justify-content: center; background: #ffffff; border-radius: 6px; border: 1px solid #cbd5e1;">
+            </div>
             <div>
-              <div id="edit-preview-name" style="font-weight: 700; font-size: 0.84rem; color: #0f172a;">Station Name</div>
-              <div style="display: flex; gap: 8px; font-size: 0.68rem; color: #64748b; font-family: var(--font-mono); margin-top: 2px;">
+              <div id="edit-preview-name" style="font-weight: 700; font-size: 0.84rem; color: #0f172a;">Station Name
+              </div>
+              <div
+                style="display: flex; gap: 8px; font-size: 0.68rem; color: #64748b; font-family: var(--font-mono); margin-top: 2px;">
                 <span id="edit-preview-zone">Body Construction</span> •
                 <span id="edit-preview-tier">RICH SENSOR</span> •
                 <span id="edit-preview-takt">55.0s Takt</span>
               </div>
             </div>
           </div>
-          <div id="edit-preview-badge" style="font-size: 0.70rem; font-weight: 800; font-family: var(--font-mono); color: #0284c7; background: #e0f2fe; padding: 4px 8px; border-radius: 4px;">ACTIVE</div>
+          <div id="edit-preview-badge"
+            style="font-size: 0.70rem; font-weight: 800; font-family: var(--font-mono); color: #0284c7; background: #e0f2fe; padding: 4px 8px; border-radius: 4px;">
+            ACTIVE</div>
         </div>
 
         <div class="modal-form-group">
           <label>Station Name / Description</label>
-          <input type="text" id="edit-name" class="modal-form-input" placeholder="e.g. Floor Pan Robotic Weld" oninput="updateEditPreview()">
+          <input type="text" id="edit-name" class="modal-form-input" placeholder="e.g. Floor Pan Robotic Weld"
+            oninput="updateEditPreview()">
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -817,7 +996,8 @@
         <div class="modal-form-group">
           <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
             <span>Asset Symbol & Equipment Category</span>
-            <span id="edit-selected-type-label" style="font-size: 0.68rem; color: #0284c7; font-weight: 700; font-family: var(--font-mono);">RoboticWeld</span>
+            <span id="edit-selected-type-label"
+              style="font-size: 0.68rem; color: #0284c7; font-weight: 700; font-family: var(--font-mono);">RoboticWeld</span>
           </label>
           <div class="asset-symbol-grid" id="edit-symbol-grid">
             <!-- Populated dynamically with visual equipment symbol cards -->
@@ -828,7 +1008,8 @@
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
           <div class="modal-form-group">
             <label>Target Cycle Time (s)</label>
-            <input type="number" id="edit-ct" class="modal-form-input" value="55.0" step="0.5" min="10" max="300" oninput="updateEditPreview()">
+            <input type="number" id="edit-ct" class="modal-form-input" value="55.0" step="0.5" min="10" max="300"
+              oninput="updateEditPreview()">
           </div>
 
           <div class="modal-form-group">
@@ -854,7 +1035,8 @@
       <div class="editor-modal-box" style="width: 520px;">
         <div class="editor-modal-title">
           <span>FACTORY FLOW CONNECTIONS</span>
-          <button style="background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #64748b;" onclick="closeConnectionsModal()">✕</button>
+          <button style="background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #64748b;"
+            onclick="closeConnectionsModal()">✕</button>
         </div>
         <div style="font-size: 0.76rem; color: var(--text-secondary); margin-bottom: 12px;">
           Active conveyor linkages between stations. Click <strong>Disconnect</strong> to remove a link.
@@ -873,8 +1055,9 @@
 
   </div>
 
-  <script src="js/twin_scene.js?v=6.2"></script>
-  <script src="js/topology_editor.js?v=6.2"></script>
-  <script src="js/app.js?v=6.2"></script>
+  <script src="js/twin_scene.js?v=10.0"></script>
+  <script src="js/topology_editor.js?v=10.0"></script>
+  <script src="js/app.js?v=10.0"></script>
 </body>
+
 </html>

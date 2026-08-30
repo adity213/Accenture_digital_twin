@@ -8,24 +8,30 @@
 :root {
   --bg-page: #f1f5f9;
   --bg-gradient: radial-gradient(120% 120% at 50% 0%, #ffffff 0%, #f8fafc 50%, #e2e8f0 100%);
-  
+
   --surface-panel: #ffffff;
   --surface-panel-raised: #f8fafc;
   --surface-panel-subtle: #f1f5f9;
-  
+
   --border-subtle: #cbd5e1;
   --border-strong: #94a3b8;
-  
-  --text-primary: #0f172a;       /* Deep Slate / Black */
-  --text-secondary: #334155;     /* Slate */
-  --text-muted: #64748b;         /* Muted Slate */
+
+  --text-primary: #0f172a;
+  /* Deep Slate / Black */
+  --text-secondary: #334155;
+  /* Slate */
+  --text-muted: #64748b;
+  /* Muted Slate */
   --text-inverse: #ffffff;
 
-  --status-nominal: #15803d;     /* Deep Emerald */
+  --status-nominal: #15803d;
+  /* Deep Emerald */
   --status-nominal-bg: #dcfce7;
-  --status-warning: #b45309;     /* Deep Amber */
+  --status-warning: #b45309;
+  /* Deep Amber */
   --status-warning-bg: #fef3c7;
-  --status-critical: #b91c1c;    /* Deep Crimson */
+  --status-critical: #b91c1c;
+  /* Deep Crimson */
   --status-critical-bg: #fee2e2;
 
   --brand-blue: #0057ff;
@@ -68,7 +74,7 @@ body {
 }
 
 .blueprint-grid-bg {
-  background-image: 
+  background-image:
     linear-gradient(to right, rgba(203, 213, 225, 0.35) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(203, 213, 225, 0.35) 1px, transparent 1px);
   background-size: 24px 24px;
@@ -108,7 +114,9 @@ body {
   transition: transform 0.15s ease;
 }
 
-.dock-emblem:hover { transform: scale(1.05); }
+.dock-emblem:hover {
+  transform: scale(1.05);
+}
 
 .dock-nav-list {
   display: flex;
@@ -192,7 +200,9 @@ body {
   gap: 6px;
 }
 
-.plant-title span { color: var(--brand-blue); }
+.plant-title span {
+  color: var(--brand-blue);
+}
 
 .plant-tag {
   font-family: var(--font-mono);
@@ -380,9 +390,17 @@ body {
   z-index: 20;
 }
 
-.editor-node.zone-body { border-top: 4px solid #0284c7; }
-.editor-node.zone-paint { border-top: 4px solid #6366f1; }
-.editor-node.zone-assembly { border-top: 4px solid #10b981; }
+.editor-node.zone-body {
+  border-top: 4px solid #0284c7;
+}
+
+.editor-node.zone-paint {
+  border-top: 4px solid #6366f1;
+}
+
+.editor-node.zone-assembly {
+  border-top: 4px solid #10b981;
+}
 
 .ed-node-header {
   display: flex;
@@ -448,7 +466,7 @@ body {
   color: #0284c7;
   cursor: crosshair;
   z-index: 15;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   transition: all 0.15s ease;
 }
 
@@ -469,8 +487,15 @@ body {
 }
 
 @keyframes port-pulse {
-  0% { transform: scale(1.2); box-shadow: 0 0 6px rgba(245, 158, 11, 0.5); }
-  100% { transform: scale(1.4); box-shadow: 0 0 16px rgba(245, 158, 11, 0.9); }
+  0% {
+    transform: scale(1.2);
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+  }
+
+  100% {
+    transform: scale(1.4);
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.9);
+  }
 }
 
 .ed-port-in {
@@ -501,7 +526,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.25);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
   opacity: 0;
   transition: opacity 0.15s ease, transform 0.12s ease;
 }
@@ -531,7 +556,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.25);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
   opacity: 0;
   transition: opacity 0.15s ease, transform 0.12s ease, background 0.15s ease;
 }
@@ -722,7 +747,8 @@ body {
   margin-bottom: 4px;
 }
 
-.modal-form-input, .modal-form-select {
+.modal-form-input,
+.modal-form-select {
   width: 100%;
   padding: 7px 10px;
   font-family: var(--font-mono);
@@ -734,7 +760,8 @@ body {
   outline: none;
 }
 
-.modal-form-input:focus, .modal-form-select:focus {
+.modal-form-input:focus,
+.modal-form-select:focus {
   border-color: var(--brand-blue);
   background: #ffffff;
 }
@@ -1040,13 +1067,23 @@ body {
 }
 
 @keyframes chevron-forward {
-  from { stroke-dashoffset: 0; }
-  to { stroke-dashoffset: -36; }
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: -36;
+  }
 }
 
 @keyframes chevron-reverse {
-  from { stroke-dashoffset: 0; }
-  to { stroke-dashoffset: 36; }
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: 36;
+  }
 }
 
 /* ==================== DYNAMIC AUTOMOTIVE VEHICLE CARRIER & VIN HUD ==================== */
@@ -1076,8 +1113,17 @@ body {
 }
 
 @keyframes vehicle-halt-pulse {
-  0%, 100% { transform: translate(-50%, -50%) scale(1); filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.8)); }
-  50% { transform: translate(-50%, -50%) scale(1.08); filter: drop-shadow(0 0 14px rgba(239, 68, 68, 1)); }
+
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.8));
+  }
+
+  50% {
+    transform: translate(-50%, -50%) scale(1.08);
+    filter: drop-shadow(0 0 14px rgba(239, 68, 68, 1));
+  }
 }
 
 .vehicle-carrier-badge {
@@ -1094,7 +1140,7 @@ body {
   letter-spacing: 0.02em;
   white-space: nowrap;
   pointer-events: none;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .vehicle-carrier-node.halted .vehicle-carrier-badge {
@@ -1103,8 +1149,13 @@ body {
 }
 
 @keyframes blink-badge {
-  from { opacity: 0.9; }
-  to { opacity: 1; }
+  from {
+    opacity: 0.9;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 /* Floating Glassmorphism VIN Overlay */
@@ -1140,8 +1191,15 @@ body {
 }
 
 @keyframes hud-pop {
-  from { opacity: 0; transform: translate(-50%, -115%) scale(0.92); }
-  to { opacity: 1; transform: translate(-50%, -125%) scale(1); }
+  from {
+    opacity: 0;
+    transform: translate(-50%, -115%) scale(0.92);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, -125%) scale(1);
+  }
 }
 
 .hud-vin-title {
@@ -1264,8 +1322,15 @@ body {
 }
 
 @keyframes pulse-power-trip {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.4), 0 4px 12px rgba(234, 179, 8, 0.2); }
-  50% { box-shadow: 0 0 0 5px rgba(234, 179, 8, 0.65), 0 8px 20px rgba(234, 179, 8, 0.35); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.4), 0 4px 12px rgba(234, 179, 8, 0.2);
+  }
+
+  50% {
+    box-shadow: 0 0 0 5px rgba(234, 179, 8, 0.65), 0 8px 20px rgba(234, 179, 8, 0.35);
+  }
 }
 
 .station-schematic-node.status-critical {
@@ -1282,8 +1347,17 @@ body {
 }
 
 @keyframes station-machining-pulse {
-  0%, 100% { border-color: #0284c7; box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.35), 0 4px 12px rgba(2, 132, 199, 0.15); }
-  50% { border-color: #38bdf8; box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.55), 0 8px 24px rgba(2, 132, 199, 0.35); }
+
+  0%,
+  100% {
+    border-color: #0284c7;
+    box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.35), 0 4px 12px rgba(2, 132, 199, 0.15);
+  }
+
+  50% {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.55), 0 8px 24px rgba(2, 132, 199, 0.35);
+  }
 }
 
 .station-schematic-node.in-cycle .station-glyph-wrap svg {
@@ -1334,9 +1408,17 @@ body {
 }
 
 @keyframes pulse-stoppage-red {
-  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
-  70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
+  }
+
+  70% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
 }
 
 .station-glyph-wrap {
@@ -1421,8 +1503,15 @@ body {
   padding-top: 3px;
 }
 
-.node-val-ct { color: #0f172a; font-weight: 700; }
-.node-val-risk { font-weight: 800; color: var(--status-nominal); }
+.node-val-ct {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.node-val-risk {
+  font-weight: 800;
+  color: var(--status-nominal);
+}
 
 /* ==================== COCKPIT GAUGES ==================== */
 .cockpit-drawer {
@@ -1664,8 +1753,16 @@ body {
 }
 
 /* ==================== LEADERSHIP & WEEKLY ==================== */
-.view-panel { display: none; }
-.view-panel.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.view-panel {
+  display: none;
+}
+
+.view-panel.active {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
 
 .leadership-screen {
   flex: 1;
@@ -1859,8 +1956,16 @@ body {
 }
 
 /* ==================== LEADERSHIP & WEEKLY ==================== */
-.view-panel { display: none; }
-.view-panel.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.view-panel {
+  display: none;
+}
+
+.view-panel.active {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
 
 .leadership-screen {
   flex: 1;
@@ -2096,23 +2201,27 @@ body {
 }
 
 /* ==================== LEADERSHIP & WEEKLY ==================== */
-.view-panel { display: none; }
-.view-panel.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.view-panel {
+  display: none;
+}
 
-  margin-top: 14px;
-  padding: 14px;
-  background: #f8fafc;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-}/* ==========================================================================
+.view-panel.active {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  height: calc(100vh - 90px);
+}
+
+/* ==========================================================================
    LEADERSHIP & TREND ANALYTICS SCREENS
    ========================================================================== */
 .leadership-screen {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
   gap: 16px;
-  padding: 16px;
-  height: 100%;
+  padding: 16px 24px 48px 24px;
   box-sizing: border-box;
   overflow-y: auto;
   background: var(--bg-canvas);
@@ -2188,7 +2297,7 @@ body {
 .thm-cell:hover {
   transform: scale(1.35);
   z-index: 10;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 /* VIN Trace Schematic */
@@ -2320,7 +2429,68 @@ body {
   color: #92400e;
 }
 
-.whatif-tag.nominal {
-  background: #dcfce7;
-  color: #15803d;
+.thm-tick-hdr {
+  font-family: var(--font-brand), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #334155;
+  text-align: center;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
+
+.thm-zone-header-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  margin: 6px 0 4px 0;
+  font-family: var(--font-brand), sans-serif;
+  font-size: 0.70rem;
+  font-weight: 800;
+  color: #0369a1;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  grid-column: 1 / -1;
+}
+
+
+/* FUTURE PREDICTIVE HEATMAP EXTENSIONS */
+.thm-hdr-now {
+  background: rgba(0, 87, 255, 0.1) !important;
+  color: #0057ff !important;
+  font-weight: 800 !important;
+  border-left: 2px dashed #0057ff;
+  border-right: 2px dashed #0057ff;
+}
+
+.thm-cell-now {
+  border-left: 2px dashed #0057ff !important;
+  border-right: 2px dashed #0057ff !important;
+}
+
+.thm-hdr-future {
+  color: #7c3aed !important;
+  font-weight: 800 !important;
+  background: rgba(124, 58, 237, 0.05) !important;
+}
+
+.thm-cell-future {
+  opacity: 0.92;
+  border: 1px dashed rgba(124, 58, 237, 0.4);
+}
+
+.thm-cell-future.future-crit {
+  background: #7c3aed !important;
+  color: #ffffff;
+  animation: pulseFuture 1.8s infinite;
+}
+
+@keyframes pulseFuture {
+  0% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.6); }
+  70% { box-shadow: 0 0 0 6px rgba(124, 58, 237, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
+}

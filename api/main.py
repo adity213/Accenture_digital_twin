@@ -510,16 +510,59 @@ def get_leadership_summary():
             
         st_readings[sid].append(round(ct / max(1.0, target), 2))
     
-    # DB returns newest-first; st_readings[sid][0] = most recent tick
-    # For every station in stations_meta, ensure we produce exactly 20 readings padded with 1.0 (nominal) for earlier ticks
-    # Reverse so index 0 is oldest (Tick -20) and index 19 is newest (current tick)
+    # DB returns newest-first; st_readings[sid][0] = most recent live tick
+    # Construct 20-tick array:
+    # Index 0..13: 14 Past ticks (-7.0m to -30s)
+    # Index 14: 1 Live tick (NOW ⚡)
+    # Index 15..19: 5 Future Forecast ticks (+2m, +4m, +6m, +8m, +10m 🔮)
+    
+    # Get active anomaly targets for predictive calculation
+    anomaly_status = simulator.get_active_anomalies() if hasattr(simulator, 'get_active_anomalies') else {}
+    
     heatmap = []
     for sid in stations_meta.keys():
         vals = st_readings.get(sid, [])
-        recent_vals = vals[:20]
-        padded = recent_vals + [1.0] * (20 - len(recent_vals))
-        chronological = list(reversed(padded))
-        heatmap.append({"station_id": sid, "readings": chronological})
+        recent_vals = vals[:15] # 15 past + live readings
+        padded = recent_vals + [1.0] * (15 - len(recent_vals))
+        past_and_live = list(reversed(padded)) # Index 0..13 past, Index 14 live
+        
+        current_live_ratio = past_and_live[-1]
+        
+        # Calculate 5 future predictive forecast ticks (+2m, +4m, +6m, +8m, +10m)
+        future_forecast = []
+        station_anomaly = anomaly_status.get(sid)
+        
+        # Check if any upstream station in same zone has severe bottleneck creating downstream starvation forecast
+        station_num = int(sid.replace("ST", ""))
+        upstream_stoppage = False
+        for up_i in range(max(1, station_num - 4), station_num):
+            up_sid = f"ST{up_i:02d}"
+            if anomaly_status.get(up_sid) == "stoppage":
+                upstream_stoppage = True
+                break
+
+        for f_step in range(1, 6):
+            if station_anomaly == "stoppage":
+                # Stoppage continues in future
+                proj_r = round(min(4.5, current_live_ratio + f_step * 0.15), 2)
+            elif station_anomaly == "drift":
+                # Tool drift worsens over future 10 minutes
+                proj_r = round(min(2.0, current_live_ratio + f_step * 0.08), 2)
+            elif upstream_stoppage and f_step >= 2:
+                # Downstream starvation predicted as buffer drains over next 4-10 min
+                proj_r = round(max(0.40, 1.0 - f_step * 0.12), 2)
+            else:
+                # Nominal baseline prediction with minor stochastic variance
+                proj_r = round(max(0.85, min(1.15, current_live_ratio + (0.01 * (f_step % 2 == 0 and 1 or -1)))), 2)
+            future_forecast.append(proj_r)
+            
+        full_chronological = past_and_live + future_forecast # Total 20 readings (15 past/live + 5 future)
+        heatmap.append({
+            "station_id": sid, 
+            "readings": full_chronological,
+            "live_index": 14,
+            "future_start_index": 15
+        })
     
     # Pareto root causes from anomaly logs
     gt_logs = db.get_ground_truth_logs(limit=100)
