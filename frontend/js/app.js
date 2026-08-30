@@ -320,7 +320,9 @@ function selectStation(sid) {
   selectedStationId = sid;
   if (sceneEngine) sceneEngine.selectedId = sid;
 
-  document.querySelectorAll(".station-schematic-node").forEach(n => n.classList.remove("selected"));
+  document.querySelectorAll(".station-schematic-node").forEach(n => {
+    n.classList.remove("selected");
+  });
   const node = document.getElementById(`station-node-${sid}`);
   if (node) node.classList.add("selected");
 
@@ -331,6 +333,44 @@ function selectStation(sid) {
 
   updateCockpitDrawer(sid);
 }
+
+function focusStationOnFloor(sid) {
+  if (!sid) return;
+
+  // 1. Switch to floor supervisor view
+  switchView("floor");
+
+  // 2. Select station & populate cockpit drawer
+  selectStation(sid);
+
+  // 3. Clear previous focus spotlights and enlarge targeted assembly cell
+  document.querySelectorAll(".station-schematic-node").forEach(n => {
+    n.classList.remove("operator-focus-spotlight");
+  });
+
+  setTimeout(() => {
+    const node = document.getElementById(`station-node-${sid}`);
+    if (node) {
+      node.classList.add("operator-focus-spotlight");
+
+      // Smoothly scroll and center the enlarged assembly station in viewport
+      const viewport = document.getElementById("schematic-viewport");
+      if (viewport) {
+        const nodeLeft = node.offsetLeft;
+        const nodeTop = node.offsetTop;
+        const targetScrollLeft = Math.max(0, nodeLeft - viewport.clientWidth / 2 + node.offsetWidth / 2);
+        const targetScrollTop = Math.max(0, nodeTop - viewport.clientHeight / 2 + node.offsetHeight / 2);
+
+        viewport.scrollTo({
+          left: targetScrollLeft,
+          top: targetScrollTop,
+          behavior: "smooth"
+        });
+      }
+    }
+  }, 100);
+}
+window.focusStationOnFloor = focusStationOnFloor;
 
 function updateCockpitDrawer(sid) {
   const meta = stationsMeta[sid];
@@ -1591,10 +1631,7 @@ function renderOperatorView() {
 
     const card = document.createElement("div");
     card.style.cssText = `background: #ffffff; border: 1px solid ${risk >= 0.8 || isStopped ? 'var(--status-critical)' : 'var(--border-subtle)'}; border-radius: var(--radius-md); padding: 14px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 10px; cursor: pointer; transition: all 0.2s ease;`;
-    card.onclick = () => {
-      selectStation(sid);
-      switchView("floor");
-    };
+    card.onclick = () => focusStationOnFloor(sid);
 
     card.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: flex-start;">

@@ -1303,6 +1303,37 @@ body {
   z-index: 30;
 }
 
+/* Operator Focus Spotlight & Enlarged Icon Zoom */
+.station-schematic-node.operator-focus-spotlight {
+  transform: scale(1.35) !important;
+  z-index: 100 !important;
+  border: 2.5px solid #0284c7 !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 8px rgba(2, 132, 199, 0.35), 0 20px 35px -5px rgba(2, 132, 199, 0.45) !important;
+  animation: operator-spotlight-pulse 1.8s infinite ease-in-out !important;
+}
+
+.station-schematic-node.operator-focus-spotlight .station-glyph-wrap {
+  transform: scale(1.22);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.station-schematic-node.operator-focus-spotlight .node-name-label {
+  color: #0284c7;
+  font-weight: 800;
+}
+
+@keyframes operator-spotlight-pulse {
+  0%, 100% {
+    transform: scale(1.35);
+    box-shadow: 0 0 0 8px rgba(2, 132, 199, 0.35), 0 20px 35px -5px rgba(2, 132, 199, 0.45);
+  }
+  50% {
+    transform: scale(1.42);
+    box-shadow: 0 0 0 14px rgba(2, 132, 199, 0.55), 0 26px 45px -5px rgba(2, 132, 199, 0.65);
+  }
+}
+
 .station-schematic-node.status-warning {
   border-color: var(--status-warning);
   background: #fffbeb;
