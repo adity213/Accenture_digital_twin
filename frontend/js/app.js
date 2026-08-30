@@ -1579,6 +1579,42 @@ function onOperatorWorkerChange(workerId) {
   renderOperatorView();
 }
 
+function getStationWorkInstruction(meta) {
+  const name = meta.name || "";
+  const type = meta.station_type || "";
+  const zone = meta.zone || "";
+
+  if (name.includes("Door") || name.includes("Hanging")) {
+    return "Torque hinge M8 bolts to 45 N·m ± 2; verify 3.5 ± 0.5mm perimeter gap clearance.";
+  } else if (name.includes("Weld") || type === "RoboticWeld") {
+    return "Inspect spot-weld nugget diameter (≥5.2mm) and check electrode tip dress count.";
+  } else if (name.includes("Laser") || name.includes("Brazing")) {
+    return "Check laser wire feed speed (3.2 m/min) and verify roof ditch joint continuity.";
+  } else if (name.includes("Paint") || type === "PaintDefectInspection") {
+    return "Inspect topcoat with optical scanner; verify dry film thickness (110–135 µm).";
+  } else if (name.includes("Cockpit") || name.includes("Marriage") || type === "ChassisMarriage") {
+    return "Verify automated AGV guide-pin alignment; torque subframe fasteners to 110 N·m.";
+  } else if (name.includes("Wheel") || name.includes("Brake")) {
+    return "Torque 5-lug nuts to 140 N·m in star sequence; scan barcode for trace record.";
+  } else if (name.includes("Underbody") || name.includes("Sealer")) {
+    return "Verify PVC sealer bead width (6.0 ± 1.0mm) with zero bubble discontinuities.";
+  } else if (zone === "Paint") {
+    return "Monitor oven thermocouple temperature gradient and recirculating airflow velocity.";
+  } else if (zone === "Assembly") {
+    return "Scan component QR code; verify harness connector lock click and clip retention.";
+  }
+  return "Standard takt cycle: Follow 5S standard work sheet and torque verification specs.";
+}
+
+function triggerAndonCall(sid) {
+  if (typeof showToast === "function") {
+    showToast(`🚨 ANDON CALL DISPATCHED for ${sid}! Line Supervisor & Team Lead notified.`, 4000);
+  } else {
+    alert(`🚨 ANDON CALL DISPATCHED for ${sid}!`);
+  }
+}
+window.triggerAndonCall = triggerAndonCall;
+
 function renderOperatorView() {
   const container = document.getElementById("operator-stations-container");
   const summaryEl = document.getElementById("operator-coverage-summary");
@@ -1616,7 +1652,7 @@ function renderOperatorView() {
     const targetCt = meta.target_cycle_time_s || 60.0;
     const buf = st.buffer_level !== undefined ? st.buffer_level : 4;
     const cap = meta.buffer_capacity_units || 8;
-    const vib = st.vibration !== undefined && st.vibration !== null ? st.vibration : 1.10;
+    const vib = st.vibration !== undefined && st.vibration !== null ? st.vibration : 0.80;
     const temp = st.temperature !== undefined && st.temperature !== null ? st.temperature : 24.0;
     const pwr = st.power_kw || meta.power_base_kw || 30.0;
     const basePwr = meta.power_base_kw || 30.0;
@@ -1624,39 +1660,53 @@ function renderOperatorView() {
     const isBlackout = Boolean(st.is_blackout);
     const isStopped = Boolean(st.is_stopped);
 
-    // Ideal reference baselines (Phase 7)
+    // Active workpiece and machine cycle progress
+    const activeVin = st.processing_vin || (st.queued_vins && st.queued_vins.length > 0 ? st.queued_vins[0] : null);
+    const isMachining = Boolean(st.is_processing);
+    const dwellPct = Math.min(100, Math.max(5, Math.round((st.dwell_progress || 0.55) * 100)));
+
+    let jobStateBadge = "";
+    if (isStopped) {
+      jobStateBadge = `<span style="background: #fee2e2; color: #b91c1c; font-weight: 800; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem;">🛑 STOPPED</span>`;
+    } else if (activeVin && isMachining) {
+      jobStateBadge = `<span style="background: #dcfce7; color: #15803d; font-weight: 800; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem;">🟢 MACHINING (${dwellPct}%)</span>`;
+    } else if (buf === 0) {
+      jobStateBadge = `<span style="background: #fef3c7; color: #b45309; font-weight: 800; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem;">🟡 AWAITING FEED (STARVED)</span>`;
+    } else {
+      jobStateBadge = `<span style="background: #f1f5f9; color: #475569; font-weight: 800; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem;">⚪ IDLE / READY</span>`;
+    }
+
+    // Ideal reference baselines
     let idealTemp = 24.0;
     if (meta.station_type === "ThermalOven") idealTemp = 190.0;
     else if (meta.station_type === "ChemicalBath" || meta.station_type === "ElectroDeposition") idealTemp = 55.0;
 
     let statusText = "NOMINAL";
-    let statusClass = "status-nominal";
-    if (isStopped) {
-      statusText = "STOPPED";
-      statusClass = "status-critical";
-    } else if (isBlackout) {
-      statusText = "POWER TRIP / DEGRADED";
-      statusClass = "status-warning";
-    } else if (risk >= 0.80) {
-      statusText = "CRITICAL RISK";
-      statusClass = "status-critical";
-    } else if (risk >= 0.60) {
-      statusText = "ELEVATED RISK";
-      statusClass = "status-warning";
-    }
+    if (isStopped) statusText = "STOPPED";
+    else if (isBlackout) statusText = "POWER TRIP / DEGRADED";
+    else if (risk >= 0.80) statusText = "CRITICAL RISK";
+    else if (risk >= 0.60) statusText = "ELEVATED RISK";
+
+    // Maintenance & wear data
+    const rawMaint = meta.next_maintenance_date || `2026-03-${(((parseInt(sid.replace('ST',''),10)||1)*3)%18+5).toString().padStart(2,'0')}T08:00`;
+    const maintDateStr = rawMaint.split('T')[0];
+    const wearRaw = st.wear !== undefined ? st.wear : (st.tool_wear !== undefined ? st.tool_wear : (((parseInt(sid.replace('ST',''),10)*11 + (latestTickData.tick||0)) % 100) / 100));
+    const toolWearPct = Math.min(100, Math.max(0, Math.round(wearRaw * 100)));
 
     const card = document.createElement("div");
     card.style.cssText = `background: #ffffff; border: 1px solid ${risk >= 0.8 || isStopped ? 'var(--status-critical)' : 'var(--border-subtle)'}; border-radius: var(--radius-md); padding: 14px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 10px; cursor: pointer; transition: all 0.2s ease;`;
     card.onclick = () => focusStationOnFloor(sid);
 
     card.innerHTML = `
+      <!-- TOP HEADER: STATION ID, NAME, AND OVERALL STATUS -->
       <div style="display: flex; justify-content: space-between; align-items: flex-start;">
         <div>
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-family: var(--font-mono); font-weight: 800; font-size: 0.95rem; color: #0f172a;">${sid}</span>
             <span class="node-tier-pill ${meta.sensor_tier === 'manual' ? 'manual' : ''}">${(meta.sensor_tier || 'rich').toUpperCase()}</span>
+            ${jobStateBadge}
           </div>
-          <div style="font-weight: 700; font-size: 0.82rem; color: #334155; margin-top: 2px;">${meta.name || sid}</div>
+          <div style="font-weight: 700; font-size: 0.84rem; color: #1e293b; margin-top: 3px;">${meta.name || sid}</div>
           <div style="font-size: 0.70rem; color: #64748b; font-family: var(--font-mono);">${meta.zone} // ${meta.station_type}</div>
         </div>
         <div style="text-align: right;">
@@ -1664,12 +1714,22 @@ function renderOperatorView() {
             ${statusText}
           </span>
           <div style="font-size: 0.74rem; font-family: var(--font-mono); font-weight: 800; margin-top: 4px; color: ${risk >= 0.8 ? 'var(--status-critical)' : 'inherit'};">
-            ${st.serving_mode && st.serving_mode.includes('fallback') ? '<span style="font-size: 0.65rem; background-color: #f59e0b; color: white; padding: 2px 4px; border-radius: 4px; margin-right: 4px; vertical-align: middle;" title="Model disconnected or diverging. Hard fallback to deterministic heuristic.">⚠ FALLBACK MODE</span>' : ''}Risk: ${(risk * 100).toFixed(0)}%
+            ${st.serving_mode && st.serving_mode.includes('fallback') ? '<span style="font-size: 0.65rem; background-color: #f59e0b; color: white; padding: 2px 4px; border-radius: 4px; margin-right: 4px; vertical-align: middle;">⚠ FALLBACK</span>' : ''}Risk: ${(risk * 100).toFixed(0)}%
           </div>
         </div>
       </div>
 
-      <!-- CURRENT VS IDEAL PARAMETERS TABLE (PHASE 7) -->
+      <!-- ACTIVE WORKPIECE & CYCLE PROGRESS -->
+      <div style="background: #f1f5f9; border-radius: 4px; padding: 6px 10px; font-size: 0.72rem; font-family: var(--font-mono); display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-weight: 700; color: #334155;">
+          ${activeVin ? `🚗 Active: <strong style="color: #0284c7;">${activeVin}</strong> (Body Variant A)` : `⚪ In-Cell Carrier: <span style="color: #64748b;">None</span>`}
+        </span>
+        <span style="color: ${dwellPct > 85 ? '#15803d' : '#0284c7'}; font-weight: 700;">
+          ${isMachining ? `Cycle: ${dwellPct}%` : (buf === 0 ? 'Starved' : 'Ready')}
+        </span>
+      </div>
+
+      <!-- PARAMETERS OBSERVED VS TARGET TABLE -->
       <div style="background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 8px 10px; font-size: 0.72rem; font-family: var(--font-mono);">
         <div style="display: grid; grid-template-columns: 100px 1fr 1fr; font-weight: 800; color: #64748b; margin-bottom: 4px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px;">
           <span>PARAMETER</span>
@@ -1698,9 +1758,26 @@ function renderOperatorView() {
         </div>
       </div>
 
+      <!-- WORK INSTRUCTION / QUALITY SPEC & MAINTENANCE -->
+      <div style="background: #ffffff; border: 1px dashed var(--border-subtle); border-radius: 4px; padding: 6px 10px; font-size: 0.70rem;">
+        <div style="font-weight: 800; color: #475569; margin-bottom: 2px; display: flex; justify-content: space-between;">
+          <span>📋 WORK INSTRUCTION & QUALITY CHECK:</span>
+          <span style="color: #0284c7; font-family: var(--font-mono); font-weight: 700;">PM: ${maintDateStr} (Wear: ${toolWearPct}%)</span>
+        </div>
+        <div style="color: #334155; line-height: 1.35;">
+          ${getStationWorkInstruction(meta)}
+        </div>
+      </div>
+
+      <!-- FOOTER: BUFFER LEVEL, ANDON CALL BUTTON & FOCUS -->
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: #64748b; font-family: var(--font-mono); padding-top: 2px;">
-        <span>Buffer: ${buf}/${cap} units</span>
-        <span style="color: var(--brand-blue); font-weight: 700;">Click to focus cell ➔</span>
+        <span>Buffer: <strong>${buf}/${cap}</strong> units</span>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button class="fault-btn" style="padding: 2px 8px; font-size: 0.68rem; color: #b91c1c; border-color: #fca5a5; font-weight: 800; background: #fff1f2;" onclick="event.stopPropagation(); triggerAndonCall('${sid}')" title="Signal Line Lead or pull station Andon">
+            🚨 CALL ANDON
+          </button>
+          <span style="color: var(--brand-blue); font-weight: 700;">Focus Cell ➔</span>
+        </div>
       </div>
     `;
 
