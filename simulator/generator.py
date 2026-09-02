@@ -101,10 +101,16 @@ class LineSimulator:
             sid: (0.0 if sid in NO_DRIFT_CONTROL_STATIONS else self.rng.uniform(0.0, 0.15))
             for sid in self.stations
         }
-        self.maintenance_interval_ticks: int = 1440  # Daily preventive service window (1440 simulated minutes)
         self.maintenance_resets_count: int = 0
         self.unscheduled_failures_count: int = 0
         self.unscheduled_failure_stations: set = set()
+
+        # Per-station scheduled maintenance due tick, derived from each station's displayed
+        # next_maintenance_date using the same tick<->timestamp mapping as get_simulated_time().
+        self.next_maint_tick: Dict[str, int] = {
+            sid: self._maint_date_to_tick(s.get("next_maintenance_date"))
+            for sid, s in self.stations.items()
+        }
 
         # Phase 25/P0b: Pre-compute shortest path to sink for routing estimates
         self.shortest_path_to_sink = self._compute_shortest_paths_to_sink()
@@ -177,6 +183,7 @@ class LineSimulator:
                 self.station_dwell_seconds[sid] = 0.0
                 self.load_state[sid] = 0.0
                 self.wear_state[sid] = 0.0
+                self.next_maint_tick[sid] = self._maint_date_to_tick(s.get("next_maintenance_date"))
             else:
                 # Existing station: adjust deque capacity while preserving in-flight vehicles
                 existing_items = list(self.station_buffers[sid])
@@ -197,6 +204,7 @@ class LineSimulator:
             self.station_dwell_seconds.pop(r_sid, None)
             self.load_state.pop(r_sid, None)
             self.wear_state.pop(r_sid, None)
+            self.next_maint_tick.pop(r_sid, None)
             
             first_sid = list(self.stations.keys())[0] if self.stations else None
             for vin in orphaned:
@@ -207,6 +215,19 @@ class LineSimulator:
     def get_simulated_time(self) -> str:
         sim_dt = self.start_time + timedelta(minutes=self.current_tick)
         return sim_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    def _maint_date_to_tick(self, date_str: Optional[str]) -> int:
+        """Converts a next_maintenance_date string into a tick number, inverting get_simulated_time()."""
+        try:
+            dt = datetime.strptime(date_str, "%Y-%m-%dT%H:%M")
+        except (ValueError, TypeError):
+            dt = self.start_time
+        return int(round((dt - self.start_time).total_seconds() / 60.0))
+
+    def _tick_to_maint_date(self, tick: int) -> str:
+        """Converts a tick number back into a next_maintenance_date string, mirroring get_simulated_time()."""
+        dt = self.start_time + timedelta(minutes=tick)
+        return dt.strftime("%Y-%m-%dT%H:%M")
 
     def step(self) -> Dict[str, Any]:
         self.current_tick += 1
@@ -259,13 +280,15 @@ class LineSimulator:
             elif self.ingress_accumulator > takt_time_s * 2.0:
                 self.ingress_accumulator = takt_time_s * 2.0
 
-        # Periodic preventive maintenance service window (Phase 21: simulated 48-hr maintenance window)
-        if self.current_tick > 0 and self.current_tick % self.maintenance_interval_ticks == 0:
-            for sid in self.stations:
-                if sid not in NO_DRIFT_CONTROL_STATIONS and self.wear_state[sid] > 0.65:
-                    if self.rng.random() < 0.75:  # Realistic service coverage
-                        self.wear_state[sid] = self.rng.uniform(0.05, 0.15)
-                        self.maintenance_resets_count += 1
+        # Per-station scheduled preventive maintenance, driven by each station's displayed due date (Phase 21)
+        for sid in self.stations:
+            if self.current_tick >= self.next_maint_tick[sid] and sid not in NO_DRIFT_CONTROL_STATIONS and self.wear_state[sid] > 0.65:
+                if self.rng.random() < 0.75:  # Realistic service coverage
+                    self.wear_state[sid] = self.rng.uniform(0.05, 0.15)
+                    self.maintenance_resets_count += 1
+                    interval_hours = self.stations[sid].get("maintenance_interval_hours") or 168
+                    self.next_maint_tick[sid] += int(round(interval_hours * 60))
+                    self.stations[sid]["next_maintenance_date"] = self._tick_to_maint_date(self.next_maint_tick[sid])
 
         # 2. Process Station Telemetry & Physical States
         dispatched_this_tick: Dict[str, str] = {}
@@ -327,6 +350,9 @@ class LineSimulator:
 
             ct_cv = {"automated_precision": 0.04, "automated_process": 0.06, "manual": 0.13}[category] * shift_cv_mult
             defect_prob = 0.008 * {"automated_precision": 0.6, "automated_process": 1.0, "manual": 2.8}[category] * shift_defect_mult
+            wear_defect_mult = 1.0 + 2.5 * max(0.0, self.wear_state[sid] - 0.3) ** 1.5
+            defect_prob *= wear_defect_mult
+            defect_prob = min(defect_prob, 0.5)  # ceiling, prevents runaway at wear_state near 1.2
 
             # Phase 21: Emergent wear accumulation & unscheduled failure trigger
             if sid in NO_DRIFT_CONTROL_STATIONS:
