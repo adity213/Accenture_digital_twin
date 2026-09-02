@@ -81,6 +81,47 @@ function resetBaselineCoordinates() {
 
 window.stationCoords = Object.assign(window.stationCoords || {}, getBaselineFactoryCoordinates());
 
+/**
+ * Scoped zoom control for a single container (CSS `zoom`, not the browser's own zoom level).
+ * Wires trackpad pinch (reported by browsers as wheel events with ctrlKey:true) and a
+ * floating +/-/reset widget so a dense view can be shrunk independently per-tab, without
+ * forcing the user to change their browser's zoom for every other tab too.
+ */
+function attachZoomControl(targetId, widgetId, opts = {}) {
+  const target = document.getElementById(targetId);
+  const widget = document.getElementById(widgetId);
+  if (!target || !widget) return;
+
+  const min = opts.min || 0.5;
+  const max = opts.max || 1.5;
+  const step = opts.step || 0.1;
+  let level = 1.0;
+
+  const pctEl = widget.querySelector(".zoom-pct");
+
+  function apply() {
+    target.style.zoom = level;
+    if (pctEl) pctEl.innerText = `${Math.round(level * 100)}%`;
+  }
+
+  function setLevel(next) {
+    level = Math.max(min, Math.min(max, Math.round(next * 100) / 100));
+    apply();
+  }
+
+  widget.querySelector(".zoom-out")?.addEventListener("click", () => setLevel(level - step));
+  widget.querySelector(".zoom-in")?.addEventListener("click", () => setLevel(level + step));
+  widget.querySelector(".zoom-reset")?.addEventListener("click", () => setLevel(1.0));
+
+  target.addEventListener("wheel", (e) => {
+    if (!e.ctrlKey) return; // trackpad pinch and Ctrl+scroll both report ctrlKey:true
+    e.preventDefault();
+    setLevel(level + (e.deltaY < 0 ? step : -step));
+  }, { passive: false });
+
+  apply();
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   sceneEngine = new TwinSceneEngine("nodes-container", "conveyor-rails-svg");
   window.sceneEngine = sceneEngine;
@@ -90,6 +131,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   initSchematicInteractivity();
   renderVinTrailGrid();
   updateLineBalancing(55);
+  attachZoomControl("editor-canvas", "editor-zoom-widget", { min: 0.4, max: 1.5, step: 0.1 });
+  attachZoomControl("plant-manager-zoomable", "plant-manager-zoom-widget", { min: 0.5, max: 1.2, step: 0.1 });
 });
 function switchView(viewName) {
   currentView = viewName;
@@ -703,9 +746,9 @@ function updateCockpitDrawer(sid) {
       const unitText = d.unit ? ` ${d.unit}` : "";
 
       node.innerHTML = `
-        <div style="font-weight: 800; color: #0f172a; margin-bottom: 3px; display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem;">
+        <div style="font-weight: 800; color: #0f172a; margin-bottom: 4px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px; font-size: 0.75rem;">
           <span>${d.feature.toUpperCase()}</span>
-          <span style="font-size: 0.68rem; font-weight: 800; font-family: var(--font-mono); padding: 1px 6px; border-radius: 4px; ${badgeColor}">${pct}% Risk Weight</span>
+          <span style="flex-shrink: 0; font-size: 0.68rem; font-weight: 800; font-family: var(--font-mono); padding: 2px 7px; border-radius: 4px; white-space: nowrap; ${badgeColor}">${pct}% Risk Weight</span>
         </div>
         <div style="color: #475569; line-height: 1.3; font-size: 0.70rem;">
           ${d.explanation}
