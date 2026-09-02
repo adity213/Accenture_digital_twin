@@ -143,32 +143,8 @@
       <!-- VIEW 1: FLOOR SUPERVISOR LIVING LINE -->
       <div id="view-floor" class="view-panel active">
         
-        <!-- HAZARD FAULT INJECTION & SIMULATION CONTROL BAR (FLOOR EXCLUSIVE) -->
+        <!-- SIMULATION CONTROL BAR (FLOOR EXCLUSIVE) -->
         <div class="fault-injection-bar">
-          <div class="hazard-title-wrap">
-            <span class="hazard-stripe-badge">⚡ FAULT INJECTOR</span>
-            <div class="hazard-custom-injector">
-              <span style="font-size: 0.72rem; font-weight: 700; color: #475569; font-family: var(--font-brand);">TARGET:</span>
-              <select id="fault-target-station" class="fault-select" onchange="onFaultStationSelectChange(this.value)">
-                <!-- Populated dynamically ST01 - ST40 -->
-              </select>
-              <span style="font-size: 0.72rem; font-weight: 700; color: #475569; font-family: var(--font-brand);">ANOMALY:</span>
-              <select id="fault-type-select" class="fault-select">
-                <option value="stoppage">⚡ Sudden Stoppage (0 JPH Halt)</option>
-                <option value="drift">📈 Gradual Tool Drift (+15s / 1.5mm/s)</option>
-                <option value="latent_defect">⚠️ Latent Defect (Quality Escape)</option>
-                <option value="sensor_blackout">🔌 Sensor Blackout (Manual Fallback)</option>
-                <option value="energy_waste">🔋 Energy Waste (Idle Power Surge)</option>
-              </select>
-              <button class="fault-btn-primary" onclick="injectCustomFault()" title="Inject selected anomaly into targeted cell">
-                🚨 INJECT FAULT
-              </button>
-              <button class="fault-btn" onclick="clearAllAnomalies()" style="margin-left: 8px; font-weight: 800; color: #0284c7; border-color: #bae6fd;" title="Clear all active anomaly injections across plant">
-                🔄 CLEAR ACTIVE FAULTS
-              </button>
-            </div>
-          </div>
-
           <!-- Floor-Exclusive Simulation Playback & Speed Controller -->
           <div class="sim-ctrl-box" style="margin-left: auto;">
             <div class="sim-btn-group">

@@ -1415,8 +1415,8 @@ function renderThermalHeatmap(heatmapData) {
       cell.style.background = cellBg;
       const isFuture = i > 14;
       const timeTag = timeLabels[i];
-      cell.title = isFuture 
-        ? `${sid} (${meta.name || 'Station'}) [PREDICTED ${timeTag}]\n${statusText}\nProjected Cycle Time: ${actualCtSec}s (Target: ${targetCt}s, ${sign}${pctDev}%)\nGBDT Risk Model Confidence: 94.2%`
+      cell.title = isFuture
+        ? `${sid} (${meta.name || 'Station'}) [PREDICTED ${timeTag}]\n${statusText}\nProjected Cycle Time: ${actualCtSec}s (Target: ${targetCt}s, ${sign}${pctDev}%)\nRule-Based Trend Projection (heuristic, not a trained model)`
         : `${sid} (${meta.name || 'Station'}) [${timeTag}]\nStatus: ${statusText}\nCycle Time: ${actualCtSec}s (Target: ${targetCt}s, ${sign}${pctDev}%)`;
       
       row.appendChild(cell);
