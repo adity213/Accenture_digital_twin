@@ -715,30 +715,6 @@ class TwinSceneEngine {
       }
     });
 
-    // Deterministically assign every active vehicle on the floor to a machine cradle or distinct queue slot
-    // For each station, 1st vehicle claims the cradle; subsequent vehicles are assigned FIFO queue buffer slots
-    const stationVehicles = {};
-    this.fleet.forEach(v => {
-      const sid = v.backendCurrentStation;
-      if (sid) {
-        if (!stationVehicles[sid]) stationVehicles[sid] = [];
-        stationVehicles[sid].push(v);
-      }
-    });
-
-    Object.keys(stationVehicles).forEach(sid => {
-      const vList = stationVehicles[sid];
-      if (!processingVinMap[sid] && vList.length > 0) {
-        processingVinMap[sid] = vList[0].vin;
-      }
-      if (!queuedVinsMap[sid]) queuedVinsMap[sid] = [];
-      vList.forEach(v => {
-        if (v.vin !== processingVinMap[sid] && !queuedVinsMap[sid].includes(v.vin)) {
-          queuedVinsMap[sid].push(v.vin);
-        }
-      });
-    });
-
     // Reset station dwell progress bars and in-cycle glow for stations with no processing vehicle
     if (this.stations) {
       Object.keys(this.stations).forEach(sid => {
@@ -767,7 +743,7 @@ class TwinSceneEngine {
       if (veh.animHops && veh.animHops.length > 0) {
         const numHops = veh.animHops.length;
         const elapsed = now - (veh.animStartTime || now);
-        const duration = Math.max(150, veh.animDuration || this.measuredBackendInterval || 10000);
+        const duration = Math.max(150, veh.animDuration || this.measuredBackendInterval || 1500);
         u = Math.max(0.0, Math.min(1.0, elapsed / duration));
 
         const hopFraction = 1.0 / numHops;
@@ -786,7 +762,6 @@ class TwinSceneEngine {
       const toState = stationPayload[targetSid] || {};
 
       // Dynamic station-proportional transit vs dwell allocation
-      // At 10s base cadence: transit is ~3.0-3.5s smooth cruise, remaining 6.5-7.0s is machine dwell
       const stMeta = this.stations ? this.stations[targetSid] : null;
       const liveCt = toState.is_stopped
         ? (stMeta?.target_cycle_time_s || 55.0) * 4.5
@@ -868,9 +843,10 @@ class TwinSceneEngine {
             pos = this.getStationQueuePosition(targetSid, effectiveQueueIndex, fromSid);
             isHalted = true;
           } else {
-            veh.state = "DOCK";
-            veh.queueSlot = 0;
-            pos = cradlePos;
+            // Unconfirmed vehicle (neither processing nor queued in backend maps) -> retain last known rendered position
+            pos = veh.lastPos ? { ...veh.lastPos } : (veh.renderPos ? { ...veh.renderPos } : cradlePos);
+            veh.state = "TRANSIT";
+            veh.queueSlot = -1;
           }
         }
 
@@ -890,9 +866,10 @@ class TwinSceneEngine {
             pos = this.getStationQueuePosition(veh.backendCurrentStation, effectiveQueueIndex, veh.backendPreviousStation);
             isHalted = true;
           } else {
-            veh.state = "DOCK";
-            veh.queueSlot = 0;
-            pos = cradlePos;
+            // Unconfirmed vehicle -> retain last known rendered position
+            pos = veh.lastPos ? { ...veh.lastPos } : (veh.renderPos ? { ...veh.renderPos } : cradlePos);
+            veh.state = "TRANSIT";
+            veh.queueSlot = -1;
           }
         }
       } else {
@@ -905,7 +882,7 @@ class TwinSceneEngine {
           veh.queueSlot = 0;
 
           const elapsed = now - (veh.animStartTime || now);
-          const duration = Math.max(150, veh.animDuration || this.measuredBackendInterval || 10000);
+          const duration = Math.max(150, veh.animDuration || this.measuredBackendInterval || 1500);
           const dwellFraction = Math.max(0.0, Math.min(1.0, elapsed / duration));
 
           if (!isDestStopped) {
@@ -924,9 +901,10 @@ class TwinSceneEngine {
           pos = this.getStationQueuePosition(targetSid, effectiveQueueIndex, fromSid);
           isHalted = true;
         } else {
-          veh.state = "DOCK";
-          veh.queueSlot = 0;
-          pos = cradlePos;
+          // Unconfirmed vehicle -> retain last known rendered position
+          pos = veh.lastPos ? { ...veh.lastPos } : (veh.renderPos ? { ...veh.renderPos } : cradlePos);
+          veh.state = "TRANSIT";
+          veh.queueSlot = -1;
         }
       }
 
