@@ -168,5 +168,8 @@ class AnomalyManager:
                         effects["cycle_time_multiplier"] = 999.0
                     else:
                         effects["cycle_time_multiplier"] = max(effects["cycle_time_multiplier"], 1.30 + progress * 0.40)
-                    
+
+        for aid in expired:
+            del self.active_anomalies[aid]
+
         return effects
