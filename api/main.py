@@ -569,9 +569,24 @@ def get_leadership_summary():
     # Index 14: 1 Live tick (NOW ⚡)
     # Index 15..19: 5 Future Forecast ticks (+2m, +4m, +6m, +8m, +10m 🔮)
     
-    # Get active anomaly targets for predictive calculation
-    anomaly_status = simulator.get_active_anomalies() if hasattr(simulator, 'get_active_anomalies') else {}
-    
+    # Get active anomaly targets for predictive calculation. Built from anomaly_mgr directly -
+    # there is no get_active_anomalies() method on the simulator/adapter (a prior version of
+    # this code called one that was never defined, so hasattr() was always False and this
+    # dict was always empty, silently disabling every stoppage/drift forecast branch below).
+    anomaly_status: Dict[str, str] = {}
+    if hasattr(simulator, 'anomaly_mgr') and simulator.anomaly_mgr:
+        _anomaly_severity = {
+            "sudden_stoppage": 3, "unscheduled_failure": 3,
+            "gradual_drift": 2,
+            "latent_defect": 1, "sensor_blackout": 1, "energy_waste": 1,
+        }
+        for anom in simulator.anomaly_mgr.active_anomalies.values():
+            if not anom.active:
+                continue
+            existing = anomaly_status.get(anom.station_id)
+            if existing is None or _anomaly_severity.get(anom.anomaly_type, 0) > _anomaly_severity.get(existing, 0):
+                anomaly_status[anom.station_id] = anom.anomaly_type
+
     heatmap = []
     for sid in stations_meta.keys():
         vals = st_readings.get(sid, [])
@@ -590,15 +605,15 @@ def get_leadership_summary():
         upstream_stoppage = False
         for up_i in range(max(1, station_num - 4), station_num):
             up_sid = f"ST{up_i:02d}"
-            if anomaly_status.get(up_sid) == "stoppage":
+            if anomaly_status.get(up_sid) in ("sudden_stoppage", "unscheduled_failure"):
                 upstream_stoppage = True
                 break
 
         for f_step in range(1, 6):
-            if station_anomaly == "stoppage":
+            if station_anomaly in ("sudden_stoppage", "unscheduled_failure"):
                 # Stoppage continues in future
                 proj_r = round(min(4.5, current_live_ratio + f_step * 0.15), 2)
-            elif station_anomaly == "drift":
+            elif station_anomaly == "gradual_drift":
                 # Tool drift worsens over future 10 minutes
                 proj_r = round(min(2.0, current_live_ratio + f_step * 0.08), 2)
             elif upstream_stoppage and f_step >= 2:
@@ -1227,7 +1242,26 @@ def apply_topology(req: TopologyUpdateRequest):
                 lengths = [simulator.shortest_path_to_sink.get(d, 0) for d in downstreams]
                 if len(set(lengths)) > 1:
                     warnings.append(f"Branch at {sid} has unbalanced downstream hop-counts ({lengths})")
-                    
+
+        # Detect accidentally-orphaned stations: a station with no downstream connection is
+        # treated as a line exit (vehicles reaching it are marked COMPLETED), and a station
+        # with no upstream connection never receives any vehicles at all. Exactly one of each
+        # is expected (the true first and last station) - anything beyond that is almost
+        # always a mid-line insertion that only got wired on one side.
+        dead_end_sids = [sid for sid, meta in stations_meta.items() if not meta.get("downstream_ids")]
+        orphan_source_sids = [sid for sid, meta in stations_meta.items() if not meta.get("upstream_ids")]
+        if len(dead_end_sids) > 1:
+            warnings.append(
+                f"{len(dead_end_sids)} stations have no outgoing conveyor link and will each act as a line exit "
+                f"(vehicles reaching them are marked COMPLETED): {', '.join(dead_end_sids)}. "
+                f"If this is unintentional, connect an outgoing link from the affected station(s)."
+            )
+        if len(orphan_source_sids) > 1:
+            warnings.append(
+                f"{len(orphan_source_sids)} stations have no incoming conveyor link and will never receive any "
+                f"vehicles: {', '.join(orphan_source_sids)}. Connect an incoming link if this is unintentional."
+            )
+
         latest_payload = process_simulation_tick()
         
         return {
