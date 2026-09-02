@@ -87,6 +87,7 @@ _raw_sim = LineSimulator(seed=42, custom_topology=topology)
 simulator = create_ot_adapter(raw_simulator=_raw_sim)
 if hasattr(simulator, "_sim"):
     simulator._sim.current_tick = db.get_max_tick()
+    simulator._sim.rebase_maintenance_schedule()
 spc_engine = SPCEngine(lambda_ewma=0.3, z_threshold=3.0)
 virtual_sensor_engine = VirtualSensorEngine(stations_meta)
 confidence_engine = ConfidenceEngine(w1=0.5, w2=0.3, w3=0.2)

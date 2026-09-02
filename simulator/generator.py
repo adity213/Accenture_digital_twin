@@ -184,6 +184,10 @@ class LineSimulator:
                 self.load_state[sid] = 0.0
                 self.wear_state[sid] = 0.0
                 self.next_maint_tick[sid] = self._maint_date_to_tick(s.get("next_maintenance_date"))
+                if self.next_maint_tick[sid] <= self.current_tick:
+                    new_tick = self.current_tick + self._staggered_maint_offset_ticks(sid)
+                    self.next_maint_tick[sid] = new_tick
+                    self.stations[sid]["next_maintenance_date"] = self._tick_to_maint_date(new_tick)
             else:
                 # Existing station: adjust deque capacity while preserving in-flight vehicles
                 existing_items = list(self.station_buffers[sid])
@@ -228,6 +232,28 @@ class LineSimulator:
         """Converts a tick number back into a next_maintenance_date string, mirroring get_simulated_time()."""
         dt = self.start_time + timedelta(minutes=tick)
         return dt.strftime("%Y-%m-%dT%H:%M")
+
+    def _staggered_maint_offset_ticks(self, sid: str) -> int:
+        """Same staggered 5-22 day preventive-maintenance offset pattern used by topology.py, in ticks."""
+        station_num = int(sid[2:]) if sid[2:].isdigit() else 1
+        day_offset = (station_num * 3) % 18 + 5
+        return day_offset * 1440
+
+    def rebase_maintenance_schedule(self):
+        """
+        One-time startup correction. next_maint_tick is computed at construction time relative
+        to a fixed calendar epoch, but current_tick may later be fast-forwarded past that (e.g.
+        restored from persisted telemetry history). Without this, any station whose due date
+        already lies behind the restored clock would start permanently flagged overdue, since
+        wear_state resets low in memory on every restart. Call once after current_tick is set
+        from external state (not on every tick - a station legitimately waiting past its due
+        date for wear to cross the reset threshold during live operation should stay overdue).
+        """
+        for sid in self.stations:
+            if self.next_maint_tick.get(sid, 0) <= self.current_tick:
+                new_tick = self.current_tick + self._staggered_maint_offset_ticks(sid)
+                self.next_maint_tick[sid] = new_tick
+                self.stations[sid]["next_maintenance_date"] = self._tick_to_maint_date(new_tick)
 
     def step(self) -> Dict[str, Any]:
         self.current_tick += 1
