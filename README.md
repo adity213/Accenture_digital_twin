@@ -93,8 +93,8 @@ Evaluated across 7 distinct distribution shifts with separated Bottleneck and Qu
 
 ```bash
 # 1. Clone repository & install dependencies
-git clone https://github.com/aaryahv/digitaltwin-ai.git
-cd digitaltwin-ai
+git clone https://github.com/adity213/Accenture_digital_twin.git
+cd Accenture_digital_twin
 pip install -r requirements.txt
 
 # 2. Start FastAPI Server & WebSocket Gateway

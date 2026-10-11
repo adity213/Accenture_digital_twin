@@ -13,3 +13,8 @@ data/scenarios/
 .env
 .DS_Store
 Thumbs.db
+
+# Scratch, diffs, and patches
+scratch/
+*.diff
+*.patch

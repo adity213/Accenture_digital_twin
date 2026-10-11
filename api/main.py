@@ -587,18 +587,25 @@ def get_leadership_summary():
             if existing is None or _anomaly_severity.get(anom.anomaly_type, 0) > _anomaly_severity.get(existing, 0):
                 anomaly_status[anom.station_id] = anom.anomaly_type
 
+    # Emergent tool wear (Phase 21) is a continuous forward-risk signal that's already computed
+    # every tick, independent of whether a formal anomaly has fired yet - a station climbing
+    # toward its unscheduled-failure threshold is a real 10-minute-horizon risk even during the
+    # (usually much longer) stretch before that threshold is crossed and an anomaly is injected.
+    wear_state = getattr(simulator, 'wear_state', {}) or {}
+
     heatmap = []
     for sid in stations_meta.keys():
         vals = st_readings.get(sid, [])
         recent_vals = vals[:15] # 15 past + live readings
         padded = recent_vals + [1.0] * (15 - len(recent_vals))
         past_and_live = list(reversed(padded)) # Index 0..13 past, Index 14 live
-        
+
         current_live_ratio = past_and_live[-1]
-        
+
         # Calculate 5 future predictive forecast ticks (+2m, +4m, +6m, +8m, +10m)
         future_forecast = []
         station_anomaly = anomaly_status.get(sid)
+        station_wear = wear_state.get(sid, 0.0)
         
         # Check if any upstream station in same zone has severe bottleneck creating downstream starvation forecast
         station_num = int(sid.replace("ST", ""))
@@ -619,6 +626,11 @@ def get_leadership_summary():
             elif upstream_stoppage and f_step >= 2:
                 # Downstream starvation predicted as buffer drains over next 4-10 min
                 proj_r = round(max(0.40, 1.0 - f_step * 0.12), 2)
+            elif station_wear > 0.65:
+                # No anomaly has fired yet, but wear is past the reset-eligibility threshold -
+                # ramp smoothly with wear severity and forecast horizon rather than staying flat.
+                wear_severity = min(1.0, (station_wear - 0.65) / 0.35)
+                proj_r = round(min(1.6, current_live_ratio + wear_severity * f_step * 0.09), 2)
             else:
                 # Nominal baseline prediction with minor stochastic variance
                 proj_r = round(max(0.85, min(1.15, current_live_ratio + (0.01 * (f_step % 2 == 0 and 1 or -1)))), 2)
